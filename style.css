@@ -6,19 +6,27 @@ body {
 
   color: white;
 
-  font-family: Arial;
+  font-family: Arial, sans-serif;
 
 }
 
 .player {
 
-  max-width: 400px;
+  max-width: 420px;
 
   margin: auto;
 
   padding: 20px;
 
   text-align: center;
+
+}
+
+.logo {
+
+  color: #1db954;
+
+  margin-bottom: 20px;
 
 }
 
@@ -30,6 +38,16 @@ body {
 
   margin-bottom: 20px;
 
+  box-shadow: 0 0 20px rgba(0,0,0,0.5);
+
+}
+
+audio {
+
+  width: 100%;
+
+  margin-top: 10px;
+
 }
 
 .controls {
@@ -40,15 +58,15 @@ body {
 
   gap: 20px;
 
-  margin: 20px 0;
+  margin: 25px 0;
 
 }
 
 button {
 
-  width: 60px;
+  width: 65px;
 
-  height: 60px;
+  height: 65px;
 
   border-radius: 50%;
 
@@ -59,6 +77,12 @@ button {
   color: white;
 
   font-size: 24px;
+
+}
+
+button:active {
+
+  transform: scale(0.95);
 
 }
 
@@ -75,5 +99,23 @@ button {
   padding: 15px;
 
   border-bottom: 1px solid #333;
+
+  cursor: pointer;
+
+}
+
+#playlist li:hover {
+
+  background: #222;
+
+}
+
+#status {
+
+  color: #aaa;
+
+  margin-top: 10px;
+
+  min-height: 20px;
 
 }
