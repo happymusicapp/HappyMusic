@@ -1,42 +1,170 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
+
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <meta name="viewport"
+        content="width=device-width, initial-scale=1.0">
+
   <title>HappyMusic</title>
-  <link rel="stylesheet" href="style.css">
+
+  <link rel="stylesheet"
+        href="style.css">
+
+  <link rel="preconnect"
+        href="https://fonts.googleapis.com">
+
+  <link rel="preconnect"
+        href="https://fonts.gstatic.com"
+        crossorigin>
+
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap"
+        rel="stylesheet">
+
 </head>
+
 <body>
 
-  <div class="player">
-    <img id="cover" src="https://i.imgur.com/8Km9tLL.jpg" alt="Capa">
-    <h1 class="logo">HappyMusic</h1>
-    <h2 id="title">Carregando...</h2>
-    <p id="artist"></p>
+  <div class="app">
 
-    <audio id="audio" preload="metadata" playsinline></audio>
+    <div class="top-logo">
 
-    <div class="controls">
-      <button id="prev">⏮</button>
-      <button id="play">▶</button>
-      <button id="next">⏭</button>
+      <img src="logo.png"
+           alt="HappyMusic Logo">
+
     </div>
 
-    <p id="status"></p>
 
-    <input type="text" id="search" placeholder="Pesquisar música...">
+    <div class="player-card">
 
-    <div id="admin-section" style="margin-top: 20px; padding: 10px; border: 1px solid #333; border-radius: 8px;">
-        <input type="text" id="new-title" placeholder="Título" style="width: 100%; margin-bottom: 5px;">
-        <input type="text" id="new-artist" placeholder="Artista" style="width: 100%; margin-bottom: 5px;">
-        <input type="text" id="new-cover" placeholder="URL da Capa" style="width: 100%; margin-bottom: 5px;">
-        <input type="text" id="new-url" placeholder="URL do Áudio" style="width: 100%; margin-bottom: 5px;">
-        <button id="add-btn" style="width: 100%; height: 40px; cursor: pointer;">Adicionar Música</button>
+      <div class="cover-wrapper">
+
+        <img id="cover"
+             src="https://i.imgur.com/8Km9tLL.jpg"
+             alt="Capa da Música">
+
+      </div>
+
+
+      <div class="music-info">
+
+        <div>
+
+          <h1 id="title">
+            Carregando...
+          </h1>
+
+          <p id="artist"></p>
+
+        </div>
+
+
+        <button class="close-btn">
+          ✕
+        </button>
+
+      </div>
+
+
+      <div class="action-buttons">
+
+        <button>
+          👍
+          <span>Curtir</span>
+        </button>
+
+        <button>
+          🔖
+          <span>Salvar</span>
+        </button>
+
+        <button>
+          🗑
+          <span>Excluir</span>
+        </button>
+
+        <button>
+          ⬇
+          <span>Baixar</span>
+        </button>
+
+        <button>
+          🔍
+        </button>
+
+      </div>
+
+
+      <div class="seek-area">
+
+        <input type="range"
+               id="progress"
+               value="0"
+               min="0"
+               max="100">
+
+
+        <div class="time-wrapper">
+
+          <span id="current-time">
+            0:00
+          </span>
+
+          <span id="duration">
+            0:00
+          </span>
+
+        </div>
+
+      </div>
+
+
+      <div class="controls">
+
+        <button id="shuffle">
+          🔀
+        </button>
+
+        <button id="prev">
+          ⏮
+        </button>
+
+        <button id="play"
+                class="play-btn">
+          ▶
+        </button>
+
+        <button id="next">
+          ⏭
+        </button>
+
+        <button id="repeat">
+          🔁
+        </button>
+
+      </div>
+
+
+      <input type="text"
+             id="search"
+             placeholder="Pesquisar música...">
+
+
+      <ul id="playlist"></ul>
+
+
+      <audio id="audio"
+             preload="metadata"
+             playsinline>
+      </audio>
+
     </div>
 
-    <ul id="playlist"></ul>
   </div>
 
+
   <script src="app.js"></script>
+
 </body>
 </html>
