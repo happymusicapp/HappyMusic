@@ -56,11 +56,24 @@ addBtn.onclick = addSong;
 function loadSong(index) {
     const song = songs[index];
     if (!song) return;
+
+    // Removemos o audio.pause() desnecessário aqui
     audio.src = song.url;
+    audio.load(); // Força o carregamento da nova URL
+    
     title.textContent = song.title;
     artist.textContent = song.artist;
-    cover.src = song.cover;
+    cover.src = song.cover || 'default-cover.jpg'; // Evita erro se não tiver capa
+    
+    statusText.textContent = 'Pronto para tocar';
 }
+
+// Adicione este listener de erro para ver o que está acontecendo
+audio.onerror = () => {
+    statusText.textContent = 'Erro: Verifique se o link é de áudio direto.';
+    console.error("Erro no áudio. URL usada:", audio.src);
+};
+
 
 function renderPlaylist() {
     playlistEl.innerHTML = '';
