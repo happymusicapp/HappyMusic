@@ -43,13 +43,17 @@ function loadSong(index) {
 
   const song = songs[index];
 
-  audio.src = song.url;
+audio.pause();
 
-  title.textContent = song.title;
+audio.src = song.url;
 
-  artist.textContent = song.artist;
+audio.load();
 
-  cover.src = song.cover;
+title.textContent = song.title;
+
+artist.textContent = song.artist;
+
+cover.src = song.cover;
 
 }
 
