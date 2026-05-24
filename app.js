@@ -14,6 +14,7 @@ let songs = [];
 let filteredSongs = [];
 let current = 0;
 
+// Inicialização
 async function loadSongs() {
     statusText.textContent = 'Carregando playlist...';
     
@@ -21,15 +22,23 @@ async function loadSongs() {
     if (localData) {
         songs = JSON.parse(localData);
     } else {
-        const response = await fetch('music.json');
-        songs = await response.json();
-        localStorage.setItem('myPlaylist', JSON.stringify(songs));
+        try {
+            const response = await fetch('music.json');
+            songs = await response.json();
+            saveToStorage();
+        } catch (error) {
+            console.error(error);
+            statusText.textContent = 'Erro ao carregar arquivo inicial';
+            return;
+        }
     }
     
     filteredSongs = songs;
     renderPlaylist();
-    if (songs.length > 0) loadSong(0);
-    statusText.textContent = 'Playlist carregada';
+    if (songs.length > 0) {
+        loadSong(0);
+        statusText.textContent = 'Playlist carregada';
+    }
 }
 
 function saveToStorage() {
@@ -47,7 +56,15 @@ function addSong() {
         saveToStorage();
         filteredSongs = songs;
         renderPlaylist();
-        alert('Música adicionada!');
+        
+        // Limpar inputs
+        document.getElementById('new-title').value = '';
+        document.getElementById('new-artist').value = '';
+        document.getElementById('new-cover').value = '';
+        document.getElementById('new-url').value = '';
+        alert('Música adicionada com sucesso!');
+    } else {
+        alert('Por favor, preencha pelo menos o Título e a URL do Áudio.');
     }
 }
 
@@ -56,45 +73,85 @@ addBtn.onclick = addSong;
 function loadSong(index) {
     const song = songs[index];
     if (!song) return;
-
-    // Removemos o audio.pause() desnecessário aqui
-    audio.src = song.url;
-    audio.load(); // Força o carregamento da nova URL
     
+    current = index;
+    audio.src = song.url;
     title.textContent = song.title;
     artist.textContent = song.artist;
-    cover.src = song.cover || 'default-cover.jpg'; // Evita erro se não tiver capa
-    
+    cover.src = song.cover || 'https://i.imgur.com/8Km9tLL.jpg';
     statusText.textContent = 'Pronto para tocar';
 }
-
-// Adicione este listener de erro para ver o que está acontecendo
-audio.onerror = () => {
-    statusText.textContent = 'Erro: Verifique se o link é de áudio direto.';
-    console.error("Erro no áudio. URL usada:", audio.src);
-};
-
 
 function renderPlaylist() {
     playlistEl.innerHTML = '';
     filteredSongs.forEach((song, index) => {
         const li = document.createElement('li');
-        li.innerHTML = `<strong>${song.title}</strong><br>${song.artist}`;
-        li.onclick = () => {
-            current = index;
-            loadSong(current);
+        li.style.display = 'flex';
+        li.style.justifyContent = 'space-between';
+        li.style.alignItems = 'center';
+
+        li.innerHTML = `
+            <div style="cursor: pointer; flex-grow: 1;">
+                <strong>${song.title}</strong><br>${song.artist}
+            </div>
+            <button class="delete-btn" style="width: 30px; height: 30px; font-size: 14px; background: #ff4d4d; color: white; border: none; border-radius: 5px; cursor: pointer; margin-left: 10px;">🗑</button>
+        `;
+
+        li.querySelector('div').onclick = () => {
+            const originalIndex = songs.indexOf(song);
+            loadSong(originalIndex);
             audio.play();
         };
+
+        li.querySelector('.delete-btn').onclick = (e) => {
+            e.stopPropagation();
+            if (confirm(`Remover "${song.title}" da playlist?`)) {
+                songs = songs.filter(s => s !== song);
+                saveToStorage();
+                filteredSongs = songs;
+                renderPlaylist();
+            }
+        };
+
         playlistEl.appendChild(li);
     });
 }
 
-// Controles Básicos
-playBtn.onclick = () => audio.paused ? audio.play() : audio.pause();
-nextBtn.onclick = () => { current = (current + 1) % songs.length; loadSong(current); audio.play(); };
-prevBtn.onclick = () => { current = (current - 1 + songs.length) % songs.length; loadSong(current); audio.play(); };
+// Controles
+playBtn.onclick = () => {
+    if (audio.paused) {
+        audio.play();
+    } else {
+        audio.pause();
+    }
+};
 
+nextBtn.onclick = () => {
+    current = (current + 1) % songs.length;
+    loadSong(current);
+    audio.play();
+};
+
+prevBtn.onclick = () => {
+    current = (current - 1 + songs.length) % songs.length;
+    loadSong(current);
+    audio.play();
+};
+
+// Eventos de Áudio
 audio.onplay = () => playBtn.textContent = '⏸';
 audio.onpause = () => playBtn.textContent = '▶';
+audio.onended = () => nextBtn.click();
+audio.onerror = () => statusText.textContent = 'Erro: Verifique o link do áudio';
+
+// Busca
+searchInput.addEventListener('input', (e) => {
+    const term = e.target.value.toLowerCase();
+    filteredSongs = songs.filter(song => 
+        song.title.toLowerCase().includes(term) || 
+        song.artist.toLowerCase().includes(term)
+    );
+    renderPlaylist();
+});
 
 loadSongs();
