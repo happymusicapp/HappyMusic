@@ -1,282 +1,87 @@
-const audio =
-document.getElementById('audio');
-
-const playBtn =
-document.getElementById('play');
-
-const nextBtn =
-document.getElementById('next');
-
-const prevBtn =
-document.getElementById('prev');
-
-const title =
-document.getElementById('title');
-
-const artist =
-document.getElementById('artist');
-
-const cover =
-document.getElementById('cover');
-
-const playlistEl =
-document.getElementById('playlist');
-
-const statusText =
-document.getElementById('status');
-
-const searchInput =
-document.getElementById('search');
+const audio = document.getElementById('audio');
+const playBtn = document.getElementById('play');
+const nextBtn = document.getElementById('next');
+const prevBtn = document.getElementById('prev');
+const title = document.getElementById('title');
+const artist = document.getElementById('artist');
+const cover = document.getElementById('cover');
+const playlistEl = document.getElementById('playlist');
+const statusText = document.getElementById('status');
+const searchInput = document.getElementById('search');
+const addBtn = document.getElementById('add-btn');
 
 let songs = [];
-
 let filteredSongs = [];
-
 let current = 0;
 
-
 async function loadSongs() {
-
-  try {
-
-    statusText.textContent =
-    'Carregando playlist...';
-
-    const response =
-    await fetch('music.json');
-
-    songs =
-    await response.json();
-
+    statusText.textContent = 'Carregando playlist...';
+    
+    const localData = localStorage.getItem('myPlaylist');
+    if (localData) {
+        songs = JSON.parse(localData);
+    } else {
+        const response = await fetch('music.json');
+        songs = await response.json();
+        localStorage.setItem('myPlaylist', JSON.stringify(songs));
+    }
+    
     filteredSongs = songs;
-
     renderPlaylist();
-
-    loadSong(current);
-
-    statusText.textContent =
-    'Playlist carregada';
-
-  } catch (error) {
-
-    console.error(error);
-
-    statusText.textContent =
-    'Erro ao carregar playlist';
-
-  }
-
+    if (songs.length > 0) loadSong(0);
+    statusText.textContent = 'Playlist carregada';
 }
 
+function saveToStorage() {
+    localStorage.setItem('myPlaylist', JSON.stringify(songs));
+}
+
+function addSong() {
+    const t = document.getElementById('new-title').value;
+    const a = document.getElementById('new-artist').value;
+    const c = document.getElementById('new-cover').value;
+    const u = document.getElementById('new-url').value;
+
+    if (t && u) {
+        songs.push({ title: t, artist: a, cover: c, url: u });
+        saveToStorage();
+        filteredSongs = songs;
+        renderPlaylist();
+        alert('Música adicionada!');
+    }
+}
+
+addBtn.onclick = addSong;
 
 function loadSong(index) {
-
-  const song = songs[index];
-
-  if (!song) return;
-
-  audio.pause();
-
-  audio.src = song.url;
-
-  audio.load();
-
-  title.textContent =
-  song.title;
-
-  artist.textContent =
-  song.artist;
-
-  cover.src =
-  song.cover;
-
-  statusText.textContent =
-  'Música carregada';
-
+    const song = songs[index];
+    if (!song) return;
+    audio.src = song.url;
+    title.textContent = song.title;
+    artist.textContent = song.artist;
+    cover.src = song.cover;
 }
-
 
 function renderPlaylist() {
-
-  playlistEl.innerHTML = '';
-
-  filteredSongs.forEach((song) => {
-
-    const originalIndex =
-    songs.indexOf(song);
-
-    const li =
-    document.createElement('li');
-
-    li.innerHTML = `
-      <strong>${song.title}</strong>
-      <br>
-      ${song.artist}
-    `;
-
-    li.onclick = async () => {
-
-      current = originalIndex;
-
-      loadSong(current);
-
-      try {
-
-        await audio.play();
-
-        playBtn.textContent = '⏸';
-
-        statusText.textContent =
-        'Tocando';
-
-      } catch (error) {
-
-        console.error(error);
-
-        statusText.textContent =
-        'Erro ao tocar áudio';
-
-      }
-
-    };
-
-    playlistEl.appendChild(li);
-
-  });
-
+    playlistEl.innerHTML = '';
+    filteredSongs.forEach((song, index) => {
+        const li = document.createElement('li');
+        li.innerHTML = `<strong>${song.title}</strong><br>${song.artist}`;
+        li.onclick = () => {
+            current = index;
+            loadSong(current);
+            audio.play();
+        };
+        playlistEl.appendChild(li);
+    });
 }
 
+// Controles Básicos
+playBtn.onclick = () => audio.paused ? audio.play() : audio.pause();
+nextBtn.onclick = () => { current = (current + 1) % songs.length; loadSong(current); audio.play(); };
+prevBtn.onclick = () => { current = (current - 1 + songs.length) % songs.length; loadSong(current); audio.play(); };
 
-playBtn.onclick = async () => {
-
-  try {
-
-    if (audio.paused) {
-
-      await audio.play();
-
-      playBtn.textContent = '⏸';
-
-      statusText.textContent =
-      'Tocando';
-
-    } else {
-
-      audio.pause();
-
-      playBtn.textContent = '▶';
-
-      statusText.textContent =
-      'Pausado';
-
-    }
-
-  } catch (error) {
-
-    console.error(error);
-
-    statusText.textContent =
-    'Erro ao tocar';
-
-  }
-
-};
-
-
-nextBtn.onclick = async () => {
-
-  current =
-  (current + 1) % songs.length;
-
-  loadSong(current);
-
-  await audio.play();
-
-};
-
-
-prevBtn.onclick = async () => {
-
-  current =
-  (current - 1 + songs.length)
-  % songs.length;
-
-  loadSong(current);
-
-  await audio.play();
-
-};
-
-
-audio.addEventListener(
-  'ended',
-  () => {
-
-    nextBtn.click();
-
-  }
-);
-
-
-audio.addEventListener(
-  'play',
-  () => {
-
-    playBtn.textContent = '⏸';
-
-  }
-);
-
-
-audio.addEventListener(
-  'pause',
-  () => {
-
-    playBtn.textContent = '▶';
-
-  }
-);
-
-
-audio.addEventListener(
-  'error',
-  () => {
-
-    statusText.textContent =
-    'Erro no áudio';
-
-    console.log(audio.error);
-
-  }
-);
-
-
-searchInput.addEventListener(
-  'input',
-  (e) => {
-
-    const term =
-    e.target.value.toLowerCase();
-
-    filteredSongs =
-    songs.filter(song => {
-
-      return (
-        song.title
-          .toLowerCase()
-          .includes(term)
-        ||
-        song.artist
-          .toLowerCase()
-          .includes(term)
-      );
-
-    });
-
-    renderPlaylist();
-
-  }
-);
-
+audio.onplay = () => playBtn.textContent = '⏸';
+audio.onpause = () => playBtn.textContent = '▶';
 
 loadSongs();
