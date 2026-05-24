@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+
+  <meta charset="UTF-8">
+
+  <meta name="viewport"
+        content="width=device-width, initial-scale=1.0">
+
+  <title>HappyMusic</title>
+
+  <link rel="stylesheet"
+        href="style.css">
+
+  <link rel="preconnect"
+        href="https://fonts.googleapis.com">
+
+  <link rel="preconnect"
+        href="https://fonts.gstatic.com"
+        crossorigin>
+
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap"
+        rel="stylesheet">
+
+</head>
+
+<body>
+
+  <div class="app">
+
+    <div class="top-logo">
+
+      <img src="logo.png"
+           alt="HappyMusic Logo">
+
+    </div>
+
+
+    <div class="player-card">
+
+      <div class="cover-wrapper">
+
+        <img id="cover"
+             src="https://i.imgur.com/8Km9tLL.jpg"
+             alt="Capa da Música">
+
+      </div>
+
+
+      <div class="music-info">
+
+        <div>
+
+          <h1 id="title">
+            Carregando...
+          </h1>
+
+          <p id="artist"></p>
+
+        </div>
+
+
+        <button class="close-btn">
+          ✕
+        </button>
+
+      </div>
+
+
+
+
+      <div class="seek-area">
+
+        <input type="range"
+               id="progress"
+               value="0"
+               min="0"
+               max="100">
+
+
+        <div class="time-wrapper">
+
+          <span id="current-time">
+            0:00
+          </span>
+
+          <span id="duration">
+            0:00
+          </span>
+
+        </div>
+
+      </div>
+
+
+      <div class="controls">
+
+        <button id="shuffle">
+          🔀
+        </button>
+
+        <button id="prev">
+          ⏮
+        </button>
+
+        <button id="play"
+                class="play-btn">
+          ▶
+        </button>
+
+        <button id="next">
+          ⏭
+        </button>
+
+        <button id="repeat">
+          🔁
+        </button>
+
+      </div>
+
+
+      <input type="text"
+             id="search"
+             placeholder="Pesquisar música...">
+
+
+      <ul id="playlist"></ul>
+
+
+      <audio id="audio"
+             preload="metadata"
+             playsinline>
+      </audio>
+
+    </div>
+
+  </div>
+
+
+  <script src="app.js"></script>
+
+</body>
+</html>
