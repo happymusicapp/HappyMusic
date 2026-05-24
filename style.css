@@ -487,3 +487,12 @@ audio {
   color: #ff9f9f;
 
 }
+
+
+.repeat.active,
+.shuffle.active,
+.control-btn.active {
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
