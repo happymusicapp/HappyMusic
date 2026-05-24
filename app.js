@@ -1,61 +1,75 @@
-const audio =
-document.getElementById('audio');
+const audio = document.getElementById('audio');
 
-const playBtn =
-document.getElementById('play');
+const playBtn = document.getElementById('play');
 
-const nextBtn =
-document.getElementById('next');
+const nextBtn = document.getElementById('next');
 
-const prevBtn =
-document.getElementById('prev');
+const prevBtn = document.getElementById('prev');
 
-const title =
-document.getElementById('title');
+const title = document.getElementById('title');
 
-const artist =
-document.getElementById('artist');
+const artist = document.getElementById('artist');
 
-const cover =
-document.getElementById('cover');
+const cover = document.getElementById('cover');
 
-const playlistEl =
-document.getElementById('playlist');
+const playlistEl = document.getElementById('playlist');
+
+const statusText = document.getElementById('status');
 
 let songs = [];
 
 let current = 0;
 
+
 async function loadSongs() {
 
-  const response =
-  await fetch('music.json');
+  try {
 
-  songs = await response.json();
+    statusText.textContent = 'Carregando playlist...';
 
-  renderPlaylist();
+    const response = await fetch('music.json');
 
-  loadSong(current);
+    songs = await response.json();
+
+    renderPlaylist();
+
+    loadSong(current);
+
+    statusText.textContent = 'Playlist carregada';
+
+  } catch (error) {
+
+    console.error(error);
+
+    statusText.textContent = 'Erro ao carregar playlist';
+
+  }
 
 }
+
 
 function loadSong(index) {
 
   const song = songs[index];
 
-audio.pause();
+  if (!song) return;
 
-audio.src = song.url;
+  audio.pause();
 
-audio.load();
+  audio.src = song.url;
 
-title.textContent = song.title;
+  audio.load();
 
-artist.textContent = song.artist;
+  title.textContent = song.title;
 
-cover.src = song.cover;
+  artist.textContent = song.artist;
+
+  cover.src = song.cover;
+
+  statusText.textContent = 'Música carregada';
 
 }
+
 
 function renderPlaylist() {
 
@@ -63,8 +77,7 @@ function renderPlaylist() {
 
   songs.forEach((song, index) => {
 
-    const li =
-    document.createElement('li');
+    const li = document.createElement('li');
 
     li.innerHTML = `
       <strong>${song.title}</strong>
@@ -72,15 +85,27 @@ function renderPlaylist() {
       ${song.artist}
     `;
 
-    li.onclick = () => {
+    li.onclick = async () => {
 
       current = index;
 
       loadSong(current);
 
-      audio.play();
+      try {
 
-      playBtn.textContent = '⏸';
+        await audio.play();
+
+        playBtn.textContent = '⏸';
+
+        statusText.textContent = 'Tocando';
+
+      } catch (error) {
+
+        console.error(error);
+
+        statusText.textContent = 'Erro ao tocar áudio';
+
+      }
 
     };
 
@@ -90,54 +115,76 @@ function renderPlaylist() {
 
 }
 
-playBtn.onclick = () => {
 
-  if (audio.paused) {
+playBtn.onclick = async () => {
 
-    audio.play();
+  try {
 
-    playBtn.textContent = '⏸';
+    if (audio.paused) {
 
-  } else {
+      await audio.play();
 
-    audio.pause();
+      playBtn.textContent = '⏸';
 
-    playBtn.textContent = '▶';
+      statusText.textContent = 'Tocando';
+
+    } else {
+
+      audio.pause();
+
+      playBtn.textContent = '▶';
+
+      statusText.textContent = 'Pausado';
+
+    }
+
+  } catch (error) {
+
+    console.error(error);
+
+    statusText.textContent = 'Erro ao tocar';
 
   }
 
 };
 
-nextBtn.onclick = () => {
 
-  current =
-  (current + 1) % songs.length;
+nextBtn.onclick = async () => {
+
+  current = (current + 1) % songs.length;
 
   loadSong(current);
 
-  audio.play();
+  await audio.play();
 
 };
 
-prevBtn.onclick = () => {
 
-  current =
-  (current - 1 + songs.length)
-  % songs.length;
+prevBtn.onclick = async () => {
+
+  current = (current - 1 + songs.length) % songs.length;
 
   loadSong(current);
 
-  audio.play();
+  await audio.play();
 
 };
 
-audio.addEventListener(
-  'ended',
-  () => {
 
-    nextBtn.click();
+audio.addEventListener('ended', () => {
 
-  }
-);
+  nextBtn.click();
+
+});
+
+
+audio.addEventListener('error', () => {
+
+  statusText.textContent = 'Google Drive bloqueou o streaming';
+
+  console.log(audio.error);
+
+});
+
 
 loadSongs();
