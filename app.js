@@ -1,22 +1,36 @@
-const audio = document.getElementById('audio');
+const audio =
+document.getElementById('audio');
 
-const playBtn = document.getElementById('play');
+const playBtn =
+document.getElementById('play');
 
-const nextBtn = document.getElementById('next');
+const nextBtn =
+document.getElementById('next');
 
-const prevBtn = document.getElementById('prev');
+const prevBtn =
+document.getElementById('prev');
 
-const title = document.getElementById('title');
+const title =
+document.getElementById('title');
 
-const artist = document.getElementById('artist');
+const artist =
+document.getElementById('artist');
 
-const cover = document.getElementById('cover');
+const cover =
+document.getElementById('cover');
 
-const playlistEl = document.getElementById('playlist');
+const playlistEl =
+document.getElementById('playlist');
 
-const statusText = document.getElementById('status');
+const statusText =
+document.getElementById('status');
+
+const searchInput =
+document.getElementById('search');
 
 let songs = [];
+
+let filteredSongs = [];
 
 let current = 0;
 
@@ -25,23 +39,30 @@ async function loadSongs() {
 
   try {
 
-    statusText.textContent = 'Carregando playlist...';
+    statusText.textContent =
+    'Carregando playlist...';
 
-    const response = await fetch('music.json');
+    const response =
+    await fetch('music.json');
 
-    songs = await response.json();
+    songs =
+    await response.json();
+
+    filteredSongs = songs;
 
     renderPlaylist();
 
     loadSong(current);
 
-    statusText.textContent = 'Playlist carregada';
+    statusText.textContent =
+    'Playlist carregada';
 
   } catch (error) {
 
     console.error(error);
 
-    statusText.textContent = 'Erro ao carregar playlist';
+    statusText.textContent =
+    'Erro ao carregar playlist';
 
   }
 
@@ -60,13 +81,17 @@ function loadSong(index) {
 
   audio.load();
 
-  title.textContent = song.title;
+  title.textContent =
+  song.title;
 
-  artist.textContent = song.artist;
+  artist.textContent =
+  song.artist;
 
-  cover.src = song.cover;
+  cover.src =
+  song.cover;
 
-  statusText.textContent = 'Música carregada';
+  statusText.textContent =
+  'Música carregada';
 
 }
 
@@ -75,9 +100,13 @@ function renderPlaylist() {
 
   playlistEl.innerHTML = '';
 
-  songs.forEach((song, index) => {
+  filteredSongs.forEach((song) => {
 
-    const li = document.createElement('li');
+    const originalIndex =
+    songs.indexOf(song);
+
+    const li =
+    document.createElement('li');
 
     li.innerHTML = `
       <strong>${song.title}</strong>
@@ -87,7 +116,7 @@ function renderPlaylist() {
 
     li.onclick = async () => {
 
-      current = index;
+      current = originalIndex;
 
       loadSong(current);
 
@@ -97,13 +126,15 @@ function renderPlaylist() {
 
         playBtn.textContent = '⏸';
 
-        statusText.textContent = 'Tocando';
+        statusText.textContent =
+        'Tocando';
 
       } catch (error) {
 
         console.error(error);
 
-        statusText.textContent = 'Erro ao tocar áudio';
+        statusText.textContent =
+        'Erro ao tocar áudio';
 
       }
 
@@ -126,7 +157,8 @@ playBtn.onclick = async () => {
 
       playBtn.textContent = '⏸';
 
-      statusText.textContent = 'Tocando';
+      statusText.textContent =
+      'Tocando';
 
     } else {
 
@@ -134,7 +166,8 @@ playBtn.onclick = async () => {
 
       playBtn.textContent = '▶';
 
-      statusText.textContent = 'Pausado';
+      statusText.textContent =
+      'Pausado';
 
     }
 
@@ -142,7 +175,8 @@ playBtn.onclick = async () => {
 
     console.error(error);
 
-    statusText.textContent = 'Erro ao tocar';
+    statusText.textContent =
+    'Erro ao tocar';
 
   }
 
@@ -151,7 +185,8 @@ playBtn.onclick = async () => {
 
 nextBtn.onclick = async () => {
 
-  current = (current + 1) % songs.length;
+  current =
+  (current + 1) % songs.length;
 
   loadSong(current);
 
@@ -162,7 +197,9 @@ nextBtn.onclick = async () => {
 
 prevBtn.onclick = async () => {
 
-  current = (current - 1 + songs.length) % songs.length;
+  current =
+  (current - 1 + songs.length)
+  % songs.length;
 
   loadSong(current);
 
@@ -171,20 +208,75 @@ prevBtn.onclick = async () => {
 };
 
 
-audio.addEventListener('ended', () => {
+audio.addEventListener(
+  'ended',
+  () => {
 
-  nextBtn.click();
+    nextBtn.click();
 
-});
+  }
+);
 
 
-audio.addEventListener('error', () => {
+audio.addEventListener(
+  'play',
+  () => {
 
-  statusText.textContent = 'Google Drive bloqueou o streaming';
+    playBtn.textContent = '⏸';
 
-  console.log(audio.error);
+  }
+);
 
-});
+
+audio.addEventListener(
+  'pause',
+  () => {
+
+    playBtn.textContent = '▶';
+
+  }
+);
+
+
+audio.addEventListener(
+  'error',
+  () => {
+
+    statusText.textContent =
+    'Erro no áudio';
+
+    console.log(audio.error);
+
+  }
+);
+
+
+searchInput.addEventListener(
+  'input',
+  (e) => {
+
+    const term =
+    e.target.value.toLowerCase();
+
+    filteredSongs =
+    songs.filter(song => {
+
+      return (
+        song.title
+          .toLowerCase()
+          .includes(term)
+        ||
+        song.artist
+          .toLowerCase()
+          .includes(term)
+      );
+
+    });
+
+    renderPlaylist();
+
+  }
+);
 
 
 loadSongs();
