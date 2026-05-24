@@ -249,11 +249,13 @@ body {
 
   border: none;
 
-  background: transparent;
+  background: transparent !important;
 
-  color: white;
+  color: rgba(255,255,255,0.7);
 
   font-size: 1.8rem;
+
+  box-shadow: none !important;
 
 }
 
@@ -496,3 +498,13 @@ audio {
   box-shadow: none !important;
 }
 
+#repeat.active,
+#shuffle.active {
+
+  background: transparent !important;
+
+  box-shadow: none !important;
+
+  color: white !important;
+
+}
