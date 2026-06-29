@@ -3,8 +3,8 @@
   "short_name": "HappyMusic",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#121212",
-  "theme_color": "#1DB954",
+"background_color": "#0A0A0A",
+"theme_color": "#9D00FF",
   "icons": [
     {
       "src": "assets/icons/icon-192.png",
