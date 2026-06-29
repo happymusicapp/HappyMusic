@@ -6,9 +6,7 @@
 const Drive = (() => {
 
   // ── CONFIGURAÇÃO ──────────────────────────────
-  // Substitua CLIENT_ID pelo seu do Google Cloud Console
-  // Escopos: leitura de arquivos no Drive do usuário
-  const CLIENT_ID   = 'SEU_CLIENT_ID_AQUI.apps.googleusercontent.com';
+  const CLIENT_ID   = '399410204831-4mnno8596jcn2s99ve6e30rvdrh6jf0p.apps.googleusercontent.com';
   const REDIRECT_URI = window.location.origin + '/';
   const SCOPES = [
     'https://www.googleapis.com/auth/drive.readonly',
@@ -38,7 +36,7 @@ const Drive = (() => {
   // ── ESTADO INTERNO ────────────────────────────
   let _token  = null;
   let _user   = null;
-  let _tracks = [];   // cache de faixas da sessão
+  let _tracks = [];
 
   // ── PKCE HELPERS ──────────────────────────────
   function _randomBytes(length) {
@@ -119,7 +117,6 @@ const Drive = (() => {
       localStorage.setItem(KEY_TOKEN,  _token);
       localStorage.setItem(KEY_EXPIRY, expiry);
 
-      // Limpa a URL sem recarregar a página
       window.history.replaceState({}, '', '/');
       sessionStorage.removeItem(KEY_VERIFIER);
 
@@ -197,7 +194,6 @@ const Drive = (() => {
   }
 
   // ── PASTAS ────────────────────────────────────
-  // Lista pastas na raiz do Drive do usuário
   async function listFolders() {
     const data = await _get('https://www.googleapis.com/drive/v3/files', {
       q:        "mimeType='application/vnd.google-apps.folder' and trashed=false and 'root' in parents",
@@ -208,12 +204,10 @@ const Drive = (() => {
     return data.files || [];
   }
 
-  // Salva a pasta de músicas escolhida
   function setFolderId(id) { localStorage.setItem(KEY_FOLDER_ID, id); }
   function getFolderId()    { return localStorage.getItem(KEY_FOLDER_ID); }
 
   // ── MÚSICAS ───────────────────────────────────
-  // Busca todos os arquivos de áudio dentro da pasta configurada
   async function listTracks(folderId = null) {
     const folder = folderId || getFolderId();
 
@@ -223,7 +217,6 @@ const Drive = (() => {
     let allFiles = [];
     let pageToken = null;
 
-    // Pagina até buscar tudo (Drive retorna max 1000/req)
     do {
       const params = {
         q:        `${parentQ} (${mimeQuery}) and trashed=false`,
@@ -243,17 +236,14 @@ const Drive = (() => {
     return _tracks;
   }
 
-  // Normaliza metadados da faixa
   function _parseTrack(file) {
     const name     = file.name || '';
     const noExt    = name.replace(/\.[^.]+$/, '');
 
-    // Tenta extrair "Artista - Título" do nome do arquivo
     const dashIdx  = noExt.indexOf(' - ');
     const artist   = dashIdx > -1 ? noExt.slice(0, dashIdx).trim() : 'Desconhecido';
     const title    = dashIdx > -1 ? noExt.slice(dashIdx + 3).trim() : noExt;
 
-    // Duração em segundos (quando disponível via videoMediaMetadata)
     const duration = file.videoMediaMetadata?.durationMillis
       ? Math.floor(Number(file.videoMediaMetadata.durationMillis) / 1000)
       : null;
@@ -271,16 +261,12 @@ const Drive = (() => {
     };
   }
 
-  // Retorna cache local de faixas
   function getCachedTracks() { return _tracks; }
 
-  // ── STREAMING ─────────────────────────────────
-  // Retorna a URL de stream autenticada para o player
   function getStreamUrl(fileId) {
     return `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media&access_token=${_token}`;
   }
 
-  // ── BUSCA LOCAL ───────────────────────────────
   function searchTracks(query) {
     if (!query) return [];
     const q = query.toLowerCase();
@@ -291,7 +277,6 @@ const Drive = (() => {
     );
   }
 
-  // ── EXPORT ────────────────────────────────────
   return {
     login,
     handleCallback,
