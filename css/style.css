@@ -454,14 +454,35 @@ img    { display: block; }
 
 .player.hidden { transform: translateY(100%); pointer-events: none; }
 
-/* faixa de gradiente no topo do player */
+/* faixa de gradiente no topo do player — mais grossa e com o mesmo
+   "respiro" de brilho do botão de login, pra deixar claro que o player
+   é um elemento fixo separado da lista de músicas que rola por trás dele */
 .player::before {
   content: '';
   position: absolute;
   top: 0; left: 0; right: 0;
-  height: 2px;
+  height: 3px;
   background: var(--gradient-brand);
-  opacity: 0.8;
+  opacity: 0.95;
+  box-shadow: 0 0 10px rgba(124,58,255,0.5);
+  animation: player-line-glow 3.5s ease-in-out infinite;
+}
+
+/* brilho deslizante sobre a linha — mesmo efeito do botão "Entrar com Google" */
+.player::after {
+  content: '';
+  position: absolute;
+  top: 0; left: -60%;
+  width: 35%; height: 3px;
+  background: linear-gradient(120deg, transparent, rgba(255,255,255,0.85), transparent);
+  transform: skewX(-20deg);
+  animation: shimmer-sweep 3s ease-in-out infinite;
+  pointer-events: none;
+}
+
+@keyframes player-line-glow {
+  0%, 100% { box-shadow: 0 0 10px rgba(124,58,255,0.45); }
+  50%      { box-shadow: 0 0 20px rgba(124,58,255,0.75), 0 0 32px rgba(199,125,255,0.35); }
 }
 
 .player-track {
