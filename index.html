@@ -284,8 +284,10 @@
     </div>
   </div>
 
-  <!-- jsmediatags: extrai capa embutida (ID3/MP4) dos arquivos de áudio -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jsmediatags/3.9.7/jsmediatags.min.js"></script>
+  <!-- jsmediatags: extrai capa embutida (ID3/MP4) dos arquivos de áudio
+       (cdnjs não tem mais a versão 3.9.7 — só vai até 3.9.5 — então o
+       <script> dava 404 e a lib nunca carregava. jsDelivr tem a 3.9.7.) -->
+  <script src="https://cdn.jsdelivr.net/npm/jsmediatags@3.9.7/dist/jsmediatags.min.js"></script>
 
   <!-- Scripts -->
   <script src="js/drive.js"></script>
