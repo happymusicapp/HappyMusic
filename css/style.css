@@ -802,7 +802,9 @@ img    { display: block; }
   animation: splash-title-in 0.7s var(--ease) 0.4s both;
 }
 
-.splash-title span {
+/* "Music" com o gradiente da marca — classe reaproveitável em qualquer
+   lugar do app que mostre o nome HappyMusic (splash, login, header, etc.) */
+.brand-music {
   background: var(--gradient-brand);
   -webkit-background-clip: text;
   background-clip: text;
