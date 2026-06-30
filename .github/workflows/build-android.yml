@@ -1,83 +1,150 @@
-name: Build Android TWA
+name: build-android
 
 on:
-  workflow_dispatch:        # permite rodar manualmente pela aba Actions
+  workflow_dispatch:
   push:
-    branches: [main]
+    branches:
+      - main
     paths:
       - 'twa-manifest.json'
       - '.github/workflows/build-android.yml'
 
+env:
+  APP_VERSION_NAME: "1.0.0"
+  APP_VERSION_CODE: "1"
+
 jobs:
-  build:
+  build-android:
     runs-on: ubuntu-latest
+    timeout-minutes: 40
     container:
       image: mingc/android-build-box:latest
-
+    defaults:
+      run:
+        shell: bash
     steps:
-      - name: Checkout código
+      - name: Checkout do codigo
         uses: actions/checkout@v4
 
-      - name: Configurar Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-
-      - name: Instalar Bubblewrap CLI
-        run: npm install -g @bubblewrap/cli
-
-      - name: Symlink ANDROID_HOME/bin (fix validatePath)
+      - name: Preparar ambiente (JDK, SDK, Bubblewrap)
         run: |
-          mkdir -p "$ANDROID_HOME/bin"
-          ln -sf "$ANDROID_HOME/cmdline-tools/latest/bin/"* "$ANDROID_HOME/bin/" || true
-          ln -sf "$ANDROID_HOME/platform-tools/"* "$ANDROID_HOME/bin/" || true
-
-      - name: Servir assets locais (fix bubblewrap icon fetch)
-        run: |
-          npm install -g http-server
-          http-server ./assets/icons -p 8080 &
-          sleep 2
-
-      - name: Restaurar keystore a partir do secret
-        run: |
-          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > android.keystore
-
-      - name: Atualizar/gerar projeto Android (bubblewrap update)
-        run: |
-          export ANDROID_SDK_ROOT="$ANDROID_HOME"
-          JDK_PATH="${JAVA_HOME:-/usr/lib/jvm/java-17-openjdk-amd64}"
-          echo "Usando JAVA_HOME=$JDK_PATH"
-          echo "Usando ANDROID_HOME=$ANDROID_HOME"
-
-          if [ -f "app/build.gradle" ]; then
-            printf "n\n%s\n%s\n" "$JDK_PATH" "$ANDROID_HOME" | bubblewrap update --skipVersionUpgrade
-          else
-            printf "n\n%s\n%s\n" "$JDK_PATH" "$ANDROID_HOME" | bubblewrap init \
-              --manifest=twa-manifest.json \
-              --skipPwaValidation
+          set -euxo pipefail
+          node --version
+          java -version
+          npm install -g @bubblewrap/cli
+          bubblewrap --version || true
+          mkdir -p "$HOME/.bubblewrap"
+          JAVA_HOME_DETECTED="$(java -XshowSettings:properties -version 2>&1 | awk -F'= ' '/java\.home/ {print $2; exit}')"
+          ANDROID_SDK_DETECTED="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/opt/android-sdk}}"
+          for p in "$ANDROID_SDK_DETECTED" /opt/android-sdk /opt/android-sdk-linux /usr/lib/android-sdk "$HOME/Android/Sdk"; do
+            if [ -n "$p" ] && [ -d "$p" ]; then ANDROID_SDK_DETECTED="$p"; break; fi
+          done
+          echo "Android SDK detectado = $ANDROID_SDK_DETECTED"
+          test -d "$ANDROID_SDK_DETECTED" || { echo "ERRO: Android SDK nao encontrado"; exit 1; }
+          echo "JDK detectado = $JAVA_HOME_DETECTED"
+          test -d "$JAVA_HOME_DETECTED" || { echo "ERRO: JDK nao encontrado"; exit 1; }
+          CMDLINE_BIN="$ANDROID_SDK_DETECTED/cmdline-tools/latest/bin"
+          if [ -d "$CMDLINE_BIN" ] && [ ! -d "$ANDROID_SDK_DETECTED/bin" ]; then
+            ln -s "$CMDLINE_BIN" "$ANDROID_SDK_DETECTED/bin"
           fi
+          printf '{"jdkPath":"%s","androidSdkPath":"%s"}\n' "$JAVA_HOME_DETECTED" "$ANDROID_SDK_DETECTED" > "$HOME/.bubblewrap/config.json"
+          cat "$HOME/.bubblewrap/config.json"
+          echo "ANDROID_SDK_DETECTED=$ANDROID_SDK_DETECTED" >> "$GITHUB_ENV"
 
-      - name: Build do APK e AAB
+      - name: Decodificar keystore
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
         run: |
-          bubblewrap build \
-            --skipPwaValidation \
-            --signingKeyPath=android.keystore \
-            --signingKeyAlias="${{ secrets.KEY_ALIAS }}" \
-            --signingKeyPassword="${{ secrets.KEY_PASSWORD }}" \
-            --signingKeyStorePassword="${{ secrets.KEYSTORE_PASSWORD }}"
+          set -euxo pipefail
+          : "${KEYSTORE_BASE64:?Missing KEYSTORE_BASE64}"
+          : "${KEY_ALIAS:?Missing KEY_ALIAS}"
+          : "${KEY_PASSWORD:?Missing KEY_PASSWORD}"
+          : "${KEYSTORE_PASSWORD:?Missing KEYSTORE_PASSWORD}"
+          printf '%s' "$KEYSTORE_BASE64" | tr -d '\r\n\t ' | base64 -d > happymusic.keystore
+          test -s happymusic.keystore
+          ls -l happymusic.keystore
+          test -f twa-manifest.json
 
-      - name: Upload APK
+      - name: Mostrar fingerprint SHA-256 da keystore
+        env:
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+        run: |
+          set -euxo pipefail
+          keytool -list -v -keystore happymusic.keystore -alias "$KEY_ALIAS" -storepass "$KEYSTORE_PASSWORD" | grep "SHA256:"
+
+      - name: Build do TWA (APK + AAB)
+        env:
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+        run: |
+          set -euxo pipefail
+          cat > /tmp/static-server.js << 'NODEEOF'
+          const http = require('http');
+          const fs = require('fs');
+          const path = require('path');
+          const root = process.argv[2];
+          const port = parseInt(process.argv[3] || '8080', 10);
+          const mime = {'.json': 'application/json', '.png': 'image/png', '.svg': 'image/svg+xml', '.html': 'text/html'};
+          http.createServer((req, res) => {
+            const filePath = path.join(root, decodeURIComponent(req.url.split('?')[0]));
+            fs.readFile(filePath, (err, data) => {
+              if (err) { res.writeHead(404); res.end('Not found'); return; }
+              res.writeHead(200, {'Content-Type': mime[path.extname(filePath)] || 'application/octet-stream'});
+              res.end(data);
+            });
+          }).listen(port, '127.0.0.1', () => console.log('static server on ' + port));
+          NODEEOF
+          node /tmp/static-server.js "$PWD" 8080 > /tmp/static-server.log 2>&1 &
+          echo $! > /tmp/static-server.pid
+          sleep 1
+          curl -fsS http://127.0.0.1:8080/manifest.json > /dev/null
+
+          cat > /tmp/rewrite-manifest.js << 'NODEEOF'
+          const fs = require('fs');
+          const m = JSON.parse(fs.readFileSync('twa-manifest.json', 'utf8'));
+          const local = (u) => u.replace(/^https?:\/\/[^/]+/, 'http://127.0.0.1:8080');
+          if (m.iconUrl) m.iconUrl = local(m.iconUrl);
+          if (m.maskableIconUrl) m.maskableIconUrl = local(m.maskableIconUrl);
+          if (m.monochromeIconUrl) m.monochromeIconUrl = local(m.monochromeIconUrl);
+          if (m.webManifestUrl) m.webManifestUrl = local(m.webManifestUrl);
+          fs.mkdirSync('twa-project', {recursive: true});
+          fs.writeFileSync('twa-project/twa-manifest.json', JSON.stringify(m, null, 2));
+          NODEEOF
+          node /tmp/rewrite-manifest.js
+
+          cd twa-project
+          export BUBBLEWRAP_KEYSTORE_PASSWORD="$KEYSTORE_PASSWORD"
+          export BUBBLEWRAP_KEY_PASSWORD="$KEY_PASSWORD"
+          bubblewrap update --manifest twa-manifest.json --skipVersionUpgrade
+          echo "=== app/build.gradle gerado ===" && cat app/build.gradle || true
+          bubblewrap build --skipPwaValidation --signingKeyPath ../happymusic.keystore --signingKeyAlias "$KEY_ALIAS"
+
+          kill "$(cat /tmp/static-server.pid)" 2>/dev/null || true
+          mkdir -p ../output
+          APK="$(ls -1 app-release-signed.apk 2>/dev/null | head -n 1 || true)"
+          AAB="$(ls -1 app/build/outputs/bundle/release/*.aab 2>/dev/null | head -n 1 || true)"
+
+          if [ -n "$AAB" ]; then
+            echo "=== Assinando o AAB com jarsigner (bubblewrap so assina o APK) ==="
+            jarsigner -verbose -sigalg SHA256withRSA -digestalg SHA-256 \
+              -keystore ../happymusic.keystore -storepass "$KEYSTORE_PASSWORD" -keypass "$KEY_PASSWORD" \
+              "$AAB" "$KEY_ALIAS"
+            jarsigner -verify -verbose -certs "$AAB"
+          fi
+          APK_NAME="Happy Music.apk"
+          AAB_NAME="Happy Music.aab"
+          if [ -n "$APK" ]; then cp "$APK" "../output/$APK_NAME"; fi
+          if [ -n "$AAB" ]; then cp "$AAB" "../output/$AAB_NAME"; fi
+          ls -la ../output || true
+
+      - name: Disponibilizar APK e AAB para download
         uses: actions/upload-artifact@v4
         with:
-          name: happymusic-apk
-          path: app-release-signed.apk
-
-      - name: Upload AAB
-        uses: actions/upload-artifact@v4
-        with:
-          name: happymusic-aab
-          path: app-release-bundle.aab
-
-      - name: Limpar keystore do runner
-        if: always()
-        run: rm -f android.keystore
+          name: happymusic-android-v${{ env.APP_VERSION_NAME }}
+          path: output/
+          retention-days: 30
