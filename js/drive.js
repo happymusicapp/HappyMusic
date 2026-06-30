@@ -159,6 +159,7 @@ const Drive = (() => {
     localStorage.removeItem(KEY_EXPIRY);
     localStorage.removeItem(KEY_USER);
     localStorage.removeItem(KEY_FOLDER_ID);
+    localStorage.removeItem('hm_folder_name');
   }
 
   // ── USUÁRIO ───────────────────────────────────
@@ -202,7 +203,13 @@ const Drive = (() => {
     return data.files || [];
   }
 
-  function setFolderId(id) { localStorage.setItem(KEY_FOLDER_ID, id); }
+  function setFolderId(id) {
+    if (id) {
+      localStorage.setItem(KEY_FOLDER_ID, id);
+    } else {
+      localStorage.removeItem(KEY_FOLDER_ID);
+    }
+  }
   function getFolderId()    { return localStorage.getItem(KEY_FOLDER_ID); }
 
   // ── MÚSICAS ───────────────────────────────────

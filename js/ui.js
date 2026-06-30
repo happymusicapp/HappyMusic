@@ -54,6 +54,19 @@ const UI = (() => {
     profileEmail:   $('profile-email'),
     btnLogout:      $('btn-logout'),
     btnRefresh:     $('btn-refresh'),
+    btnOpenDrive:   $('btn-open-drive'),
+    btnChooseFolder:$('btn-choose-folder'),
+    folderCurrentLabel: $('folder-current-label'),
+
+    // Onboarding
+    modalOnboarding:    $('modal-onboarding'),
+    btnOnboardingDrive: $('btn-onboarding-drive'),
+    btnOnboardingClose: $('btn-onboarding-close'),
+
+    // Seletor de pasta
+    modalFolder:    $('modal-folder'),
+    folderList:     $('folder-list'),
+    btnFolderClose: $('btn-folder-close'),
 
     // Nav
     navBtns:        document.querySelectorAll('.nav-btn'),
@@ -309,6 +322,53 @@ const UI = (() => {
     }
   }
 
+  // ── ONBOARDING MODAL ───────────────────────────
+  function showOnboarding() {
+    el.modalOnboarding.classList.remove('hidden');
+  }
+  function hideOnboarding() {
+    el.modalOnboarding.classList.add('hidden');
+  }
+
+  // ── SELETOR DE PASTA ───────────────────────────
+  function showFolderModal() {
+    el.modalFolder.classList.remove('hidden');
+  }
+  function hideFolderModal() {
+    el.modalFolder.classList.add('hidden');
+  }
+
+  function _folderIcon() {
+    return `<svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+      <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+    </svg>`;
+  }
+
+  function renderFolderList(folders, currentFolderId) {
+    const allDriveItem = `
+      <div class="folder-item ${!currentFolderId ? 'selected' : ''}" data-id="">
+        ${_folderIcon()} Todo o Drive (padrão)
+      </div>`;
+
+    if (!folders.length) {
+      el.folderList.innerHTML = allDriveItem + `
+        <p class="empty-hint">Nenhuma pasta encontrada na raiz do seu Drive.</p>`;
+      return;
+    }
+
+    el.folderList.innerHTML = allDriveItem + folders.map(f => `
+      <div class="folder-item ${f.id === currentFolderId ? 'selected' : ''}" data-id="${f.id}">
+        ${_folderIcon()} ${_escape(f.name)}
+      </div>
+    `).join('');
+  }
+
+  function updateFolderLabel(name) {
+    el.folderCurrentLabel.textContent = name
+      ? `Buscando em: ${name}`
+      : 'Buscando em todo o Drive';
+  }
+
   // ── LOADING STATE ──────────────────────────────
   function showLoading(container, rows = 5) {
     container.innerHTML = Array(rows).fill(0).map(() => `
@@ -454,6 +514,12 @@ const UI = (() => {
     setShuffleState,
     setRepeatState,
     showLoading,
+    showOnboarding,
+    hideOnboarding,
+    showFolderModal,
+    hideFolderModal,
+    renderFolderList,
+    updateFolderLabel,
     bindPlayerEvents,
     bindTrackListEvents,
     bindRecentEvents,

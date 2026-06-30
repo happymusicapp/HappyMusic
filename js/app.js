@@ -8,6 +8,8 @@ const App = (() => {
   // ── ESTADO ────────────────────────────────────
   let _tracks = [];   // todas as faixas carregadas
   let _initialized = false;
+  const KEY_ONBOARDED = 'hm_onboarded';
+  const GDRIVE_URL = 'https://drive.google.com/drive/my-drive';
 
   // ── INIT ──────────────────────────────────────
   async function init() {
@@ -44,8 +46,19 @@ const App = (() => {
     const user = Drive.getUser();
     UI.renderProfile(user);
     UI.setGreeting(user?.name);
+    _updateFolderLabel();
+
+    if (!localStorage.getItem(KEY_ONBOARDED)) {
+      UI.showOnboarding();
+    }
 
     await _loadTracks();
+  }
+
+  function _updateFolderLabel() {
+    // Sem nome guardado localmente; mostra genérico se houver pasta selecionada
+    const folderId = Drive.getFolderId();
+    UI.updateFolderLabel(folderId ? (localStorage.getItem('hm_folder_name') || 'pasta selecionada') : null);
   }
 
   // ── CARREGAR FAIXAS ────────────────────────────
@@ -58,10 +71,14 @@ const App = (() => {
 
       if (!_tracks.length) {
         UI.el.allTracksList.innerHTML = `
-          <p class="empty-hint">
+          <div class="empty-hint">
             Nenhuma música encontrada.<br>
             Adicione arquivos de áudio à pasta do Google Drive.
-          </p>`;
+            <br><br>
+            <button id="btn-empty-drive" class="btn-outline btn-small">Abrir Google Drive</button>
+          </div>`;
+        const btn = document.getElementById('btn-empty-drive');
+        if (btn) btn.addEventListener('click', () => window.open(GDRIVE_URL, '_blank'));
         _renderRecent();
         return;
       }
@@ -126,6 +143,30 @@ const App = (() => {
     UI.bindTrackListEvents(UI.el.searchResults, results);
   }
 
+  // ── SELEÇÃO DE PASTA ───────────────────────────
+  function _bindFolderListClick(folders) {
+    UI.el.folderList.dataset.bound = '1';
+    UI.el.folderList.addEventListener('click', async e => {
+      const item = e.target.closest('.folder-item');
+      if (!item) return;
+
+      const id = item.dataset.id || null;
+      const name = id ? (folders.find(f => f.id === id)?.name || null) : null;
+
+      Drive.setFolderId(id);
+      if (name) {
+        localStorage.setItem('hm_folder_name', name);
+      } else {
+        localStorage.removeItem('hm_folder_name');
+      }
+
+      _updateFolderLabel();
+      UI.hideFolderModal();
+      UI.showToast(name ? `Pasta alterada para "${name}"` : 'Buscando em todo o Drive');
+      await _loadTracks();
+    });
+  }
+
   // ── EVENTOS DA APP ─────────────────────────────
   function _bindAppEvents() {
 
@@ -145,6 +186,43 @@ const App = (() => {
     UI.el.btnRefresh.addEventListener('click', async () => {
       UI.showToast('Atualizando músicas…');
       await _loadTracks();
+    });
+
+    // Onboarding: abrir Drive / pular
+    UI.el.btnOnboardingDrive.addEventListener('click', () => {
+      window.open(GDRIVE_URL, '_blank');
+    });
+    UI.el.btnOnboardingClose.addEventListener('click', () => {
+      localStorage.setItem(KEY_ONBOARDED, '1');
+      UI.hideOnboarding();
+    });
+
+    // Perfil: abrir Drive
+    UI.el.btnOpenDrive.addEventListener('click', () => {
+      window.open(GDRIVE_URL, '_blank');
+    });
+
+    // Perfil: escolher pasta
+    UI.el.btnChooseFolder.addEventListener('click', async () => {
+      UI.showFolderModal();
+      try {
+        const folders = await Drive.listFolders();
+        UI.renderFolderList(folders, Drive.getFolderId());
+        UI.el.folderList.dataset.bound !== '1' && _bindFolderListClick(folders);
+      } catch (err) {
+        console.error('[App] Erro ao listar pastas:', err);
+        UI.el.folderList.innerHTML = `<p class="empty-hint">Não foi possível listar as pastas.</p>`;
+      }
+    });
+    UI.el.btnFolderClose.addEventListener('click', () => UI.hideFolderModal());
+    UI.el.modalFolder.addEventListener('click', e => {
+      if (e.target === UI.el.modalFolder) UI.hideFolderModal();
+    });
+    UI.el.modalOnboarding.addEventListener('click', e => {
+      if (e.target === UI.el.modalOnboarding) {
+        localStorage.setItem(KEY_ONBOARDED, '1');
+        UI.hideOnboarding();
+      }
     });
 
     // Busca em tempo real
