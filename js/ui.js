@@ -164,6 +164,49 @@ const UI = (() => {
     </svg>`;
   }
 
+  // ── CAPA EMBUTIDA (ID3/MP4): fila com concorrência limitada ──
+  const _coverQueue = [];
+  let _coverActive = 0;
+  const COVER_CONCURRENCY = 3;
+
+  function _queueCoverFetch(track, priority = false) {
+    if (!track || track.thumbnail || track._coverTried) return;
+    track._coverTried = true;
+    if (priority) _coverQueue.unshift(track);
+    else _coverQueue.push(track);
+    _drainCoverQueue();
+  }
+
+  function _drainCoverQueue() {
+    while (_coverActive < COVER_CONCURRENCY && _coverQueue.length) {
+      const track = _coverQueue.shift();
+      _coverActive++;
+      Drive.fetchEmbeddedCover(track.id)
+        .then(dataUrl => {
+          if (dataUrl) {
+            track.thumbnail = dataUrl;
+            _applyCoverToDom(track.id, dataUrl);
+          }
+        })
+        .catch(() => {})
+        .finally(() => {
+          _coverActive--;
+          _drainCoverQueue();
+        });
+    }
+  }
+
+  function _applyCoverToDom(trackId, dataUrl) {
+    document.querySelectorAll(`[data-id="${trackId}"]`).forEach(item => {
+      const art = item.querySelector('.track-art, .recent-art');
+      if (art) art.innerHTML = `<img src="${dataUrl}" alt="" loading="lazy" />`;
+    });
+    const current = Player.getCurrentTrack();
+    if (current && current.id === trackId) {
+      el.playerArt.innerHTML = `<img src="${dataUrl}" alt="" />`;
+    }
+  }
+
   // ── RECENT GRID ────────────────────────────────
   function renderRecent(tracks) {
     if (!tracks.length) {
@@ -181,6 +224,8 @@ const UI = (() => {
         <span class="recent-name">${_escape(track.title)}</span>
       </div>
     `).join('');
+
+    tracks.forEach(track => _queueCoverFetch(track));
   }
 
   // ── TRACK LIST ─────────────────────────────────
@@ -214,6 +259,8 @@ const UI = (() => {
         <span class="track-duration">${track.duration ? Player.formatTime(track.duration) : '—'}</span>
       </div>
     `).join('');
+
+    tracks.forEach(track => _queueCoverFetch(track));
   }
 
   // Ícone animado de equalizer para a faixa tocando
@@ -268,6 +315,7 @@ const UI = (() => {
       el.playerArt.innerHTML = `<img src="${track.thumbnail}" alt="" />`;
     } else {
       el.playerArt.innerHTML = _musicIcon(24);
+      _queueCoverFetch(track, true);
     }
 
     // Favorito

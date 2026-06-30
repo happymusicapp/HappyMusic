@@ -346,6 +346,69 @@ const Drive = (() => {
     );
   }
 
+  // ── CAPA EMBUTIDA (ID3 / MP4) ──────────────────
+  // O Drive raramente gera thumbnailLink pra áudio (diferente de imagem/vídeo),
+  // então quando falta capa buscamos a arte embutida no próprio arquivo
+  // (tag ID3 APIC no MP3, atom "covr" no M4A) lendo só o início do arquivo.
+  const _coverCache = new Map(); // fileId -> dataURL | null
+
+  async function fetchEmbeddedCover(fileId) {
+    if (_coverCache.has(fileId)) return _coverCache.get(fileId);
+    if (!_token) return null;
+
+    try {
+      const res = await fetch(
+        `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`,
+        {
+          headers: {
+            Authorization: `Bearer ${_token}`,
+            Range: 'bytes=0-1500000', // 1.5MB costuma bastar pra capa embutida
+          },
+        }
+      );
+
+      if (res.status === 401) {
+        _clearSession();
+        throw new Error('UNAUTHORIZED');
+      }
+      if (!res.ok && res.status !== 206) throw new Error(`HTTP ${res.status}`);
+
+      const blob = await res.blob();
+      const dataUrl = await _readCoverFromBlob(blob);
+      _coverCache.set(fileId, dataUrl);
+      return dataUrl;
+
+    } catch (err) {
+      console.warn('[Drive] capa embutida indisponível:', fileId, err);
+      _coverCache.set(fileId, null);
+      return null;
+    }
+  }
+
+  function _readCoverFromBlob(blob) {
+    return new Promise(resolve => {
+      if (typeof jsmediatags === 'undefined') { resolve(null); return; }
+      jsmediatags.read(blob, {
+        onSuccess: tag => {
+          const pic = tag?.tags?.picture;
+          if (!pic || !pic.data || !pic.data.length) { resolve(null); return; }
+          try {
+            let binary = '';
+            const bytes = pic.data;
+            const chunkSize = 0x8000;
+            for (let i = 0; i < bytes.length; i += chunkSize) {
+              binary += String.fromCharCode.apply(null, bytes.slice(i, i + chunkSize));
+            }
+            resolve(`data:${pic.format};base64,${btoa(binary)}`);
+          } catch (e) {
+            resolve(null);
+          }
+        },
+        onError: () => resolve(null),
+      });
+    });
+  }
+
   return {
     login,
     handleCallback,
@@ -361,6 +424,7 @@ const Drive = (() => {
     fetchAudioUrl,
     revokeAudioUrl,
     searchTracks,
+    fetchEmbeddedCover,
   };
 
 })();
