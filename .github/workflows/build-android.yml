@@ -5,10 +5,6 @@ on:
   push:
     branches:
       - main
-    paths:
-      - 'twa-manifest.json'
-      - '.github/workflows/build-android.yml'
-
 env:
   APP_VERSION_NAME: "1.0.0"
   APP_VERSION_CODE: "1"
