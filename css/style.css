@@ -677,7 +677,7 @@ img    { display: block; }
   align-items: center;
   justify-content: center;
   overflow: hidden;
-  transition: opacity 0.6s var(--ease), visibility 0.6s var(--ease);
+  transition: opacity 0.45s var(--ease), visibility 0.45s var(--ease);
 }
 
 .splash.splash-hide { opacity: 0; visibility: hidden; pointer-events: none; }
@@ -929,6 +929,7 @@ img    { display: block; }
 /* ── REDUCED MOTION: desativa animações neon ───── */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+  .splash { transition: none !important; }
 }
 
 /* ── PRIVACIDADE (login) ────────────────────── */
