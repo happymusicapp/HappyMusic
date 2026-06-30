@@ -70,15 +70,37 @@ input  { font-family: inherit; }
 img    { display: block; }
 
 /* ── SCREENS ───────────────────────────────── */
-.screen { display: none; width: 100%; height: 100dvh; }
-.screen.active { display: flex; flex-direction: column; }
+/* Antes a troca de tela era um display:none/flex instantâneo (sem
+   transição nenhuma), o que fazia o app "pular" pra tela seguinte sem
+   nenhum aviso visual. Agora as duas telas ficam empilhadas (fixed,
+   ocupando a viewport inteira) e a troca é um crossfade suave: a que
+   sai esmaece enquanto a que entra aparece, ao mesmo tempo. */
+.screen {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100dvh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transform: translateY(14px) scale(0.985);
+  transition: opacity 0.45s var(--ease), transform 0.45s var(--ease), visibility 0.45s var(--ease);
+}
+.screen.active {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  transform: translateY(0) scale(1);
+  z-index: 2;
+}
 
 /* ── TELA DE LOGIN ─────────────────────────── */
 #screen-login {
   align-items: center;
   justify-content: center;
-  position: relative;
-  overflow: hidden;
   background:
     radial-gradient(ellipse 80% 50% at 50% 0%, rgba(124,58,255,0.22) 0%, transparent 60%),
     radial-gradient(ellipse 60% 40% at 85% 90%, rgba(157,77,255,0.10) 0%, transparent 60%),
