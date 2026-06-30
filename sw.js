@@ -68,6 +68,16 @@ self.addEventListener('fetch', event => {
   // ── 1. Áudio do Google Drive → Cache then Network
   //       Salva localmente para ouvir offline
   if (url.hostname === 'www.googleapis.com' && url.pathname.startsWith('/drive/v3/files')) {
+    // Requisições com cabeçalho Range (ex.: leitura parcial dos primeiros
+    // bytes do arquivo pra extrair a capa embutida ID3/MP4) nunca passam
+    // pelo cache: o servidor responde 206 Partial Content, e a Cache API
+    // não aceita armazenar respostas 206 — isso fazia cache.put() lançar
+    // erro, cair no catch e devolver um 503 falso, quebrando a extração
+    // da capa (era a causa das mini capas não aparecerem).
+    if (request.headers.has('Range')) {
+      event.respondWith(fetch(request));
+      return;
+    }
     event.respondWith(_cacheFirstAudio(request));
     return;
   }
@@ -135,7 +145,7 @@ async function _cacheFirstAudio(request) {
 
   try {
     const response = await fetch(request);
-    if (response.ok) {
+    if (response.ok && response.status !== 206) {
       await _limitedCachePut(cache, request, response.clone());
     }
     return response;
