@@ -3,8 +3,8 @@
    Service Worker: cache offline + estratégia de rede
 ═══════════════════════════════════════════════ */
 
-const CACHE_NAME    = 'happymusic-v2';
-const CACHE_STATIC  = 'happymusic-static-v2';
+const CACHE_NAME    = 'happymusic-v3';
+const CACHE_STATIC  = 'happymusic-static-v3';
 const CACHE_AUDIO   = 'happymusic-audio-v1';
 
 // Arquivos do app shell — cacheados no install
@@ -22,11 +22,20 @@ const STATIC_ASSETS = [
 ];
 
 // ── INSTALL ───────────────────────────────────
-// Pré-cacheia o app shell completo
+// Pré-cacheia o app shell completo, ignorando o cache HTTP do navegador
+// (cache: 'reload') pra garantir que sempre pega a versão mais recente
+// do servidor — sem isso, arquivos com Cache-Control: immutable podiam
+// ficar presos numa versão antiga mesmo após o app atualizar.
 self.addEventListener('install', event => {
   event.waitUntil(
     caches.open(CACHE_STATIC)
-      .then(cache => cache.addAll(STATIC_ASSETS))
+      .then(cache => Promise.all(
+        STATIC_ASSETS.map(url =>
+          fetch(url, { cache: 'reload' })
+            .then(res => { if (res.ok) return cache.put(url, res); })
+            .catch(() => {})
+        )
+      ))
       .then(() => self.skipWaiting())  // ativa imediatamente
   );
 });
