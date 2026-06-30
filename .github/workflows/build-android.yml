@@ -44,8 +44,15 @@ jobs:
 
       - name: Atualizar/gerar projeto Android (bubblewrap update)
         run: |
-          bubblewrap update --skipVersionUpgrade || \
-          bubblewrap init --manifest=twa-manifest.json
+          export ANDROID_SDK_ROOT="$ANDROID_HOME"
+          export JAVA_HOME="${JAVA_HOME:-/usr/lib/jvm/java-17-openjdk-amd64}"
+          if [ -f "app/build.gradle" ]; then
+            echo "n" | bubblewrap update --skipVersionUpgrade
+          else
+            echo "n" | bubblewrap init \
+              --manifest=twa-manifest.json \
+              --skipPwaValidation
+          fi
 
       - name: Build do APK e AAB
         run: |
