@@ -1,1 +1,73 @@
+name: Build Android TWA
 
+on:
+  workflow_dispatch:        # permite rodar manualmente pela aba Actions
+  push:
+    branches: [main]
+    paths:
+      - 'twa-manifest.json'
+      - '.github/workflows/build-android.yml'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container:
+      image: mingc/android-build-box:latest
+
+    steps:
+      - name: Checkout código
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Instalar Bubblewrap CLI
+        run: npm install -g @bubblewrap/cli
+
+      - name: Symlink ANDROID_HOME/bin (fix validatePath)
+        run: |
+          mkdir -p "$ANDROID_HOME/bin"
+          ln -sf "$ANDROID_HOME/cmdline-tools/latest/bin/"* "$ANDROID_HOME/bin/" || true
+          ln -sf "$ANDROID_HOME/platform-tools/"* "$ANDROID_HOME/bin/" || true
+
+      - name: Servir assets locais (fix bubblewrap icon fetch)
+        run: |
+          npm install -g http-server
+          http-server ./assets/icons -p 8080 &
+          sleep 2
+
+      - name: Restaurar keystore a partir do secret
+        run: |
+          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > android.keystore
+
+      - name: Atualizar/gerar projeto Android (bubblewrap update)
+        run: |
+          bubblewrap update --skipVersionUpgrade || \
+          bubblewrap init --manifest=twa-manifest.json
+
+      - name: Build do APK e AAB
+        run: |
+          bubblewrap build \
+            --skipPwaValidation \
+            --signingKeyPath=android.keystore \
+            --signingKeyAlias="${{ secrets.KEY_ALIAS }}" \
+            --signingKeyPassword="${{ secrets.KEY_PASSWORD }}" \
+            --signingKeyStorePassword="${{ secrets.KEYSTORE_PASSWORD }}"
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: happymusic-apk
+          path: app-release-signed.apk
+
+      - name: Upload AAB
+        uses: actions/upload-artifact@v4
+        with:
+          name: happymusic-aab
+          path: app-release-bundle.aab
+
+      - name: Limpar keystore do runner
+        if: always()
+        run: rm -f android.keystore
