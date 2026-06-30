@@ -95,15 +95,13 @@ const Drive = (() => {
     if (!verifier) return false;
 
     try {
-      const res = await fetch('https://oauth2.googleapis.com/token', {
+      const res = await fetch('/api/token', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: new URLSearchParams({
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
           code,
-          client_id:     CLIENT_ID,
-          redirect_uri:  REDIRECT_URI,
-          grant_type:    'authorization_code',
           code_verifier: verifier,
+          redirect_uri:  REDIRECT_URI,
         }),
       });
 
