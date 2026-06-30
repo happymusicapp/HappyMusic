@@ -1146,3 +1146,84 @@ img    { display: block; }
 .folder-item:hover { background: var(--surface); border-color: var(--border); }
 .folder-item.selected { border-color: var(--purple); color: var(--white); background: rgba(124,58,255,0.1); }
 .folder-item svg { flex-shrink: 0; color: var(--purple-soft); }
+
+/* ── DOWNLOAD OFFLINE ───────────────────────── */
+
+/* Botão de baixar/remover (lista de músicas + player) */
+.dl-btn {
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  color: var(--grey-dark);
+  transition: color var(--transition), background var(--transition);
+}
+
+.track-item .dl-btn:hover { color: var(--white); background: var(--surface2); }
+
+.dl-btn.downloaded        { color: var(--purple-soft); }
+.dl-btn.downloading       { color: var(--purple-soft); cursor: default; }
+.dl-btn.downloading:hover { background: none; }
+
+/* Spinner enquanto a faixa baixa */
+.dl-spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid var(--border);
+  border-top-color: var(--purple-soft);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+/* Botão de download no player fixo: alinhar com o tamanho do ícone do coração */
+#btn-download-current { color: var(--grey); }
+#btn-download-current.downloaded  { color: var(--purple-soft); }
+#btn-download-current.downloading { color: var(--purple-soft); }
+
+/* Seção "Modo offline" no perfil */
+.offline-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+}
+
+.offline-actions .btn-small { flex: 1; min-width: 130px; }
+
+.offline-clear {
+  display: block;
+  margin-top: var(--sp-3);
+  color: var(--grey);
+  font-size: 0.78rem;
+}
+.offline-clear:hover { color: var(--white); }
+
+.dl-progress {
+  margin-bottom: var(--sp-3);
+}
+
+.dl-progress-bar {
+  width: 100%;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--surface2);
+  overflow: hidden;
+  margin-bottom: 4px;
+}
+
+.dl-progress-fill {
+  height: 100%;
+  width: 0%;
+  background: var(--purple);
+  border-radius: 999px;
+  transition: width 0.25s ease;
+}
+
+#offline-progress-text { margin-bottom: 0; }
+
+.btn-outline.btn-cancel {
+  border-color: var(--purple);
+  color: var(--purple-soft);
+}
