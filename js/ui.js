@@ -37,6 +37,7 @@ const UI = (() => {
     playerTitle:    $('player-title'),
     playerArtist:   $('player-artist'),
     btnFav:         $('btn-fav'),
+    btnDownloadCurrent: $('btn-download-current'),
     seekBar:        $('seek-bar'),
     timeCurrent:    $('time-current'),
     timeTotal:      $('time-total'),
@@ -57,6 +58,15 @@ const UI = (() => {
     btnOpenDrive:   $('btn-open-drive'),
     btnChooseFolder:$('btn-choose-folder'),
     folderCurrentLabel: $('folder-current-label'),
+
+    // Offline / downloads
+    offlineStatus:        $('offline-status'),
+    offlineProgressWrap:  $('offline-progress-wrap'),
+    offlineProgressFill:  $('offline-progress-fill'),
+    offlineProgressText:  $('offline-progress-text'),
+    btnDownloadAll:       $('btn-download-all'),
+    btnDownloadFavorites: $('btn-download-favorites'),
+    btnClearDownloads:    $('btn-clear-downloads'),
 
     // Onboarding
     modalOnboarding:    $('modal-onboarding'),
@@ -163,6 +173,86 @@ const UI = (() => {
     </svg>`;
   }
 
+  // ── DOWNLOAD OFFLINE: ícone + estado do botão ─
+  function _dlState(trackId) {
+    if (!trackId) return 'idle';
+    if (Downloads.isDownloading(trackId)) return 'downloading';
+    if (Downloads.isDownloaded(trackId))  return 'downloaded';
+    return 'idle';
+  }
+
+  function _dlIcon(state) {
+    if (state === 'downloading') return `<span class="dl-spinner"></span>`;
+    if (state === 'downloaded') {
+      return `<svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+        <polyline points="5 13 9 17 19 7"/>
+      </svg>`;
+    }
+    return `<svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+      <path d="M12 3v12m0 0l-4-4m4 4l4-4"/>
+      <path d="M20 17.58A5 5 0 0 0 18 8h-1.26A8 8 0 1 0 4 16.25"/>
+    </svg>`;
+  }
+
+  function _dlLabel(state) {
+    return {
+      downloading: 'Baixando…',
+      downloaded:  'Baixado — toque para remover do offline',
+      idle:        'Baixar para ouvir offline',
+    }[state];
+  }
+
+  function _renderDlButton(trackId) {
+    const state = _dlState(trackId);
+    return `<button class="dl-btn ${state !== 'idle' ? state : ''}" data-dl="${trackId}"
+                aria-label="${_dlLabel(state)}" title="${_dlLabel(state)}">
+              ${_dlIcon(state)}
+            </button>`;
+  }
+
+  function _setDlBtnState(btn, state) {
+    if (!btn) return;
+    btn.classList.remove('downloaded', 'downloading');
+    if (state !== 'idle') btn.classList.add(state);
+    btn.innerHTML = _dlIcon(state);
+    btn.setAttribute('aria-label', _dlLabel(state));
+    btn.title = _dlLabel(state);
+  }
+
+  // Aplica uma mudança de estado de download a todos os botões dessa
+  // faixa na tela (lista, busca, recentes, player). id === null
+  // re-sincroniza TODOS os botões presentes (usado após GET_CACHED_TRACKS
+  // ou limpeza geral).
+  function _applyDownloadState(id, state) {
+    if (id === null) {
+      document.querySelectorAll('[data-dl]').forEach(btn => {
+        const tid = btn.dataset.dl;
+        if (tid) _setDlBtnState(btn, _dlState(tid));
+      });
+      return;
+    }
+    document.querySelectorAll(`[data-dl="${id}"]`).forEach(btn => _setDlBtnState(btn, state));
+  }
+
+  // Força reavaliação de todos os botões de download visíveis
+  // (chamar depois de Downloads.refreshCachedIds())
+  function refreshDownloadBadges() {
+    _applyDownloadState(null, 'sync');
+  }
+
+  function _handleDownloadClick(id, tracks) {
+    if (!id) return;
+    const track = (tracks || []).find(t => t.id === id) || Drive.getCachedTracks().find(t => t.id === id);
+    if (!track) return;
+
+    if (Downloads.isDownloaded(id)) {
+      Downloads.removeTrack(id);
+      showToast('Removida do offline');
+    } else if (!Downloads.isDownloading(id)) {
+      Downloads.downloadTrack(track);
+    }
+  }
+
   // ── CAPA EMBUTIDA (ID3/MP4): fila com concorrência limitada ──
   const _coverQueue = [];
   let _coverActive = 0;
@@ -256,6 +346,7 @@ const UI = (() => {
           <span class="track-meta">${_escape(track.artist)}${track.album ? ' · ' + _escape(track.album) : ''}</span>
         </div>
         <span class="track-duration">${track.duration ? Player.formatTime(track.duration) : '—'}</span>
+        ${_renderDlButton(track.id)}
       </div>
     `).join('');
 
@@ -320,6 +411,10 @@ const UI = (() => {
     // Favorito
     const fav = Player.isFavorite(track.id);
     el.btnFav.classList.toggle('active', fav);
+
+    // Download offline
+    el.btnDownloadCurrent.dataset.dl = track.id;
+    _setDlBtnState(el.btnDownloadCurrent, _dlState(track.id));
   }
 
   function setPlayState(playing) {
@@ -476,6 +571,23 @@ const UI = (() => {
       showToast(fav ? '❤️ Adicionado aos favoritos' : 'Removido dos favoritos');
     });
 
+    // Download offline da faixa atual
+    el.btnDownloadCurrent.addEventListener('click', () => {
+      const track = Player.getCurrentTrack();
+      if (!track) return;
+      if (Downloads.isDownloaded(track.id)) {
+        Downloads.removeTrack(track.id);
+        showToast('Removida do offline');
+      } else if (!Downloads.isDownloading(track.id)) {
+        Downloads.downloadTrack(track);
+        showToast('Baixando para ouvir offline…');
+      }
+    });
+
+    // Mantém todos os botões de download da tela sincronizados
+    // com o estado real (idle / baixando / baixada)
+    Downloads.onChange((id, state) => _applyDownloadState(id, state));
+
     // Nav inferior
     el.navBtns.forEach(btn => {
       btn.addEventListener('click', () => showView(btn.dataset.view));
@@ -514,6 +626,13 @@ const UI = (() => {
   // ── BIND EVENTOS DE LISTA ──────────────────────
   function bindTrackListEvents(container, tracks) {
     container.addEventListener('click', e => {
+      const dlBtn = e.target.closest('[data-dl]');
+      if (dlBtn) {
+        e.stopPropagation();
+        _handleDownloadClick(dlBtn.dataset.dl, tracks);
+        return;
+      }
+
       const item = e.target.closest('.track-item');
       if (!item) return;
       const index = parseInt(item.dataset.index, 10);
@@ -522,6 +641,7 @@ const UI = (() => {
     });
 
     container.addEventListener('keydown', e => {
+      if (e.target.closest('[data-dl]')) return; // deixa o botão lidar com seu próprio Enter/Espaço
       if (e.key === 'Enter' || e.key === ' ') {
         e.preventDefault();
         e.target.closest('.track-item')?.click();
@@ -539,6 +659,32 @@ const UI = (() => {
       const index = tracks.indexOf(track);
       Player.loadQueue(tracks, index >= 0 ? index : 0);
     });
+  }
+
+  // ── OFFLINE: RESUMO E PROGRESSO DE LOTE ────────
+  function setOfflineSummary(text) {
+    el.offlineStatus.textContent = text;
+  }
+
+  // which: 'all' | 'fav' | null — controla qual botão vira "Cancelar"
+  function setDownloadBatchUI(running, done = 0, total = 0, which = null) {
+    el.btnDownloadAll.disabled       = running && which !== 'all';
+    el.btnDownloadFavorites.disabled = running && which !== 'fav';
+
+    el.btnDownloadAll.textContent       = (running && which === 'all') ? 'Cancelar' : 'Baixar tudo';
+    el.btnDownloadFavorites.textContent = (running && which === 'fav') ? 'Cancelar' : 'Baixar favoritas';
+
+    el.btnDownloadAll.classList.toggle('btn-cancel', running && which === 'all');
+    el.btnDownloadFavorites.classList.toggle('btn-cancel', running && which === 'fav');
+
+    if (running) {
+      el.offlineProgressWrap.classList.remove('hidden');
+      const pct = total ? Math.round((done / total) * 100) : 0;
+      el.offlineProgressFill.style.width = pct + '%';
+      el.offlineProgressText.textContent = `${done} / ${total}`;
+    } else {
+      el.offlineProgressWrap.classList.add('hidden');
+    }
   }
 
   // ── EXPORT ────────────────────────────────────
@@ -570,6 +716,9 @@ const UI = (() => {
     bindPlayerEvents,
     bindTrackListEvents,
     bindRecentEvents,
+    refreshDownloadBadges,
+    setOfflineSummary,
+    setDownloadBatchUI,
   };
 
 })();
