@@ -67,7 +67,7 @@ const Drive = (() => {
     const verifier   = await _generateVerifier();
     const challenge  = await _generateChallenge(verifier);
 
-    sessionStorage.setItem(KEY_VERIFIER, verifier);
+    localStorage.setItem(KEY_VERIFIER, verifier);
 
     const params = new URLSearchParams({
       client_id:             CLIENT_ID,
@@ -91,7 +91,7 @@ const Drive = (() => {
 
     if (error || !code) return false;
 
-    const verifier = sessionStorage.getItem(KEY_VERIFIER);
+    const verifier = localStorage.getItem(KEY_VERIFIER);
     if (!verifier) return false;
 
     try {
@@ -118,7 +118,7 @@ const Drive = (() => {
       localStorage.setItem(KEY_EXPIRY, expiry);
 
       window.history.replaceState({}, '', '/');
-      sessionStorage.removeItem(KEY_VERIFIER);
+      localStorage.removeItem(KEY_VERIFIER);
 
       await _fetchUser();
       return true;
