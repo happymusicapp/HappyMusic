@@ -3,8 +3,8 @@
    Service Worker: cache offline + estratégia de rede
 ═══════════════════════════════════════════════ */
 
-const CACHE_NAME    = 'happymusic-v3';
-const CACHE_STATIC  = 'happymusic-static-v3';
+const CACHE_NAME    = 'happymusic-v4';
+const CACHE_STATIC  = 'happymusic-static-v4';
 const CACHE_AUDIO   = 'happymusic-audio-v1';
 
 // Arquivos do app shell — cacheados no install
@@ -14,6 +14,7 @@ const STATIC_ASSETS = [
   '/manifest.json',
   '/css/style.css',
   '/js/drive.js',
+  '/js/downloads.js',
   '/js/player.js',
   '/js/ui.js',
   '/js/app.js',
@@ -135,8 +136,11 @@ async function _staleWhileRevalidate(request, cacheName) {
 }
 
 // Cache First para áudio: cacheia streams para ouvir offline
-// Limita o cache de áudio a 50 faixas (~500 MB estimado)
-const MAX_AUDIO_ENTRIES = 50;
+// Limita o cache de áudio a 300 faixas (suficiente pra "baixar tudo" em
+// bibliotecas médias sem deixar o cache crescer sem controle; quem tiver
+// uma biblioteca maior que isso ainda consegue baixar manualmente as
+// faixas que quiser, só não cabe tudo de uma vez)
+const MAX_AUDIO_ENTRIES = 300;
 
 async function _cacheFirstAudio(request) {
   const cache  = await caches.open(CACHE_AUDIO);

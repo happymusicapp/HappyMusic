@@ -156,6 +156,24 @@
             <button id="btn-open-drive" class="btn-outline btn-small">Abrir Google Drive</button>
           </div>
 
+          <div class="profile-section">
+            <h3 class="profile-section-title">Modo offline</h3>
+            <p class="profile-section-hint" id="offline-status">Carregando…</p>
+
+            <div id="offline-progress-wrap" class="dl-progress hidden">
+              <div class="dl-progress-bar">
+                <div id="offline-progress-fill" class="dl-progress-fill"></div>
+              </div>
+              <span id="offline-progress-text" class="profile-section-hint">0 / 0</span>
+            </div>
+
+            <div class="offline-actions">
+              <button id="btn-download-all" class="btn-outline btn-small">Baixar tudo</button>
+              <button id="btn-download-favorites" class="btn-outline btn-small">Baixar favoritas</button>
+            </div>
+            <button id="btn-clear-downloads" class="text-btn offline-clear">Limpar downloads</button>
+          </div>
+
           <button id="btn-logout" class="btn-outline">Sair</button>
         </div>
       </section>
@@ -177,6 +195,12 @@
         <button id="btn-fav" class="icon-btn fav-btn" aria-label="Favoritar">
           <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
             <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
+          </svg>
+        </button>
+        <button id="btn-download-current" class="icon-btn dl-btn" data-dl="" aria-label="Baixar para ouvir offline" title="Baixar para ouvir offline">
+          <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path d="M12 3v12m0 0l-4-4m4 4l4-4"/>
+            <path d="M20 17.58A5 5 0 0 0 18 8h-1.26A8 8 0 1 0 4 16.25"/>
           </svg>
         </button>
       </div>
@@ -291,6 +315,7 @@
 
   <!-- Scripts -->
   <script src="js/drive.js"></script>
+  <script src="js/downloads.js"></script>
   <script src="js/player.js"></script>
   <script src="js/ui.js"></script>
   <script src="js/app.js"></script>
