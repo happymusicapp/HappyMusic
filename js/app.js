@@ -60,7 +60,7 @@ const App = (() => {
 
     const user = Drive.getUser();
     UI.renderProfile(user);
-    UI.setGreeting(user?.name);
+    UI.setGreeting();
     _updateFolderLabel();
 
     if (!localStorage.getItem(KEY_ONBOARDED)) {
@@ -265,7 +265,7 @@ const App = (() => {
     document.addEventListener('visibilitychange', () => {
       if (!document.hidden && Drive.isLoggedIn()) {
         // Atualiza saudação (pode ter mudado o horário)
-        UI.setGreeting(Drive.getUser()?.name);
+        UI.setGreeting();
       }
     });
 

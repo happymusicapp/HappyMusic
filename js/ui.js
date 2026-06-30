@@ -141,19 +141,18 @@ const UI = (() => {
   }
 
   // ── SAUDAÇÃO DINÂMICA ──────────────────────────
-  function setGreeting(name) {
+  // Sem nome da pessoa — segue o padrão Spotify/YouTube Music (só o
+  // horário). Evita casos estranhos como mostrar o nome errado da conta.
+  function setGreeting() {
     const hour = new Date().getHours();
     let greeting = 'Olá';
     if (hour >= 5  && hour < 12) greeting = 'Bom dia';
     else if (hour >= 12 && hour < 18) greeting = 'Boa tarde';
     else greeting = 'Boa noite';
 
-    const firstName = name ? name.split(' ')[0] : '';
     const sectionTitle = el.viewHome.querySelector('.section-title');
     if (sectionTitle) {
-      sectionTitle.textContent = firstName
-        ? `${greeting}, ${firstName} 👋`
-        : `${greeting} 👋`;
+      sectionTitle.textContent = `${greeting} 👋`;
     }
   }
 
