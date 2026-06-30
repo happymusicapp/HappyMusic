@@ -387,6 +387,11 @@ const UI = (() => {
       setPlayingTrack(track.id);
     });
 
+    Player.on('onLoading', track => {
+      updatePlayerTrack(track);
+      showToast('Carregando música…', 1500);
+    });
+
     Player.on('onPause', () => setPlayState(false));
 
     Player.on('onProgress', (current, duration) => {

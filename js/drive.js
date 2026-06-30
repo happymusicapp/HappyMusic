@@ -288,8 +288,39 @@ const Drive = (() => {
 
   function getCachedTracks() { return _tracks; }
 
-  function getStreamUrl(fileId) {
-    return `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media&access_token=${_token}`;
+  // ── STREAMING ─────────────────────────────────
+  // O Google Drive bloqueia o token como query param em alt=media.
+  // Por isso buscamos o áudio via fetch (header Authorization) e
+  // criamos uma Object URL local para o <audio> tocar.
+  const _blobCache = new Map(); // fileId -> object URL (evita re-fetch)
+
+  async function fetchAudioUrl(fileId) {
+    if (_blobCache.has(fileId)) return _blobCache.get(fileId);
+
+    const res = await fetch(
+      `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`,
+      { headers: { Authorization: `Bearer ${_token}` } }
+    );
+
+    if (res.status === 401) {
+      _clearSession();
+      throw new Error('UNAUTHORIZED');
+    }
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+    const blob = await res.blob();
+    const objectUrl = URL.createObjectURL(blob);
+    _blobCache.set(fileId, objectUrl);
+    return objectUrl;
+  }
+
+  // Libera memória de um blob específico (chamar ao trocar de música, se quiser)
+  function revokeAudioUrl(fileId) {
+    const url = _blobCache.get(fileId);
+    if (url) {
+      URL.revokeObjectURL(url);
+      _blobCache.delete(fileId);
+    }
   }
 
   function searchTracks(query) {
@@ -314,7 +345,8 @@ const Drive = (() => {
     getFolderId,
     listTracks,
     getCachedTracks,
-    getStreamUrl,
+    fetchAudioUrl,
+    revokeAudioUrl,
     searchTracks,
   };
 
