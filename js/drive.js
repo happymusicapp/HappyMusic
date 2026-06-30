@@ -6,7 +6,7 @@
 const Drive = (() => {
 
   // ── CONFIGURAÇÃO ──────────────────────────────
-  const CLIENT_ID   = '399410204831-4mnno8596jcn2s99ve6e30rvdrh6jf0p.apps.googleusercontent.com';
+  const CLIENT_ID   = '1097906554235-06h3ll6bn26opgqsddohls1d2a0mct5p.apps.googleusercontent.com';
   const REDIRECT_URI = window.location.origin + '/';
   const SCOPES = [
     'https://www.googleapis.com/auth/drive.readonly',
