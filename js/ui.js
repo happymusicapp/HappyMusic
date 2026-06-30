@@ -196,7 +196,7 @@ const UI = (() => {
         </div>
         <div class="track-info">
           <span class="track-title">${_escape(track.title)}</span>
-          <span class="track-meta">${_escape(track.artist)}</span>
+          <span class="track-meta">${_escape(track.artist)}${track.album ? ' · ' + _escape(track.album) : ''}</span>
         </div>
         <span class="track-duration">${track.duration ? Player.formatTime(track.duration) : '—'}</span>
       </div>

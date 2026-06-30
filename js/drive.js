@@ -234,13 +234,38 @@ const Drive = (() => {
     return _tracks;
   }
 
+  // Reconhece o formato: "Artista - Álbum - Faixa - Título.ext"
+  // Cai graciosamente para formatos parciais quando faltar alguma parte.
   function _parseTrack(file) {
-    const name     = file.name || '';
-    const noExt    = name.replace(/\.[^.]+$/, '');
+    const name  = file.name || '';
+    const noExt = name.replace(/\.[^.]+$/, '');
 
-    const dashIdx  = noExt.indexOf(' - ');
-    const artist   = dashIdx > -1 ? noExt.slice(0, dashIdx).trim() : 'Desconhecido';
-    const title    = dashIdx > -1 ? noExt.slice(dashIdx + 3).trim() : noExt;
+    const parts = noExt.split(' - ').map(p => p.trim()).filter(Boolean);
+
+    let artist = 'Desconhecido';
+    let album  = null;
+    let track  = null;
+    let title  = noExt;
+
+    if (parts.length >= 4) {
+      // Artista - Álbum - Faixa - Título
+      artist = parts[0];
+      album  = parts[1];
+      track  = parts[2];
+      title  = parts.slice(3).join(' - ');
+    } else if (parts.length === 3) {
+      // Artista - Álbum - Título  (sem número de faixa)
+      [artist, album, title] = parts;
+    } else if (parts.length === 2) {
+      // Artista - Título
+      [artist, title] = parts;
+    }
+    // parts.length <= 1 → mantém title = nome completo, artist = 'Desconhecido'
+
+    // Número da faixa: extrai dígitos (01 → 1)
+    const trackNumber = track && /^\d+$/.test(track)
+      ? parseInt(track, 10)
+      : null;
 
     const duration = file.videoMediaMetadata?.durationMillis
       ? Math.floor(Number(file.videoMediaMetadata.durationMillis) / 1000)
@@ -251,6 +276,8 @@ const Drive = (() => {
       name:         file.name,
       title,
       artist,
+      album,
+      trackNumber,
       duration,
       thumbnail:    file.thumbnailLink || null,
       mimeType:     file.mimeType,
