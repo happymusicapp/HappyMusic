@@ -8,8 +8,20 @@ const App = (() => {
   // ── ESTADO ────────────────────────────────────
   let _tracks = [];   // todas as faixas carregadas
   let _initialized = false;
+  let _readyFired = false;
   const KEY_ONBOARDED = 'hm_onboarded';
   const GDRIVE_URL = 'https://drive.google.com/drive/my-drive';
+
+  // Avisa o index.html (que controla a splash) que a tela inicial
+  // (login ou app) já foi decidida e aplicada — só então a splash
+  // pode começar a desaparecer, evitando o "flash" de tela errada
+  // ou em branco enquanto o app ainda está decidindo o que mostrar.
+  function _markReady() {
+    if (_readyFired) return;
+    _readyFired = true;
+    window.__hmReady = true;
+    document.dispatchEvent(new Event('hm-ready'));
+  }
 
   // ── INIT ──────────────────────────────────────
   async function init() {
@@ -27,6 +39,7 @@ const App = (() => {
       if (!ok) {
         UI.showLogin();
         UI.showToast('Erro ao autenticar. Tente novamente.');
+        _markReady();
         return;
       }
     }
@@ -36,12 +49,14 @@ const App = (() => {
       await _startApp();
     } else {
       UI.showLogin();
+      _markReady();
     }
   }
 
   // ── INICIAR APP PÓS-LOGIN ──────────────────────
   async function _startApp() {
     UI.showApp();
+    _markReady();
 
     const user = Drive.getUser();
     UI.renderProfile(user);
