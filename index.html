@@ -274,6 +274,14 @@
         navigator.serviceWorker.register('sw.js')
           .catch(err => console.warn('SW não registrado:', err));
       });
+
+      // Recarrega automaticamente quando uma nova versão do Service Worker assume o controle
+      let _swRefreshing = false;
+      navigator.serviceWorker.addEventListener('controllerchange', () => {
+        if (_swRefreshing) return;
+        _swRefreshing = true;
+        window.location.reload();
+      });
     }
   </script>
 
