@@ -15,7 +15,7 @@
   "startUrl": "/",
   "iconUrl": "https://happymusic-crn.pages.dev/assets/icons/icon-512.png",
   "maskableIconUrl": "https://happymusic-crn.pages.dev/assets/icons/icon-512.png",
-  "splashScreenFadeOutDuration": 300,
+  "splashScreenFadeOutDuration": 0,
   "signingKey": {
     "path": "./android.keystore",
     "alias": "happymusic"
