@@ -23,6 +23,7 @@ const Player = (() => {
     onEnd:       null,  // () => {}
     onProgress:  null,  // (current, duration) => {}
     onError:     null,  // (err) => {}
+    onLoading:   null,  // (track) => {} — disparado ao iniciar busca do áudio
   };
 
   // ── FILA ──────────────────────────────────────
@@ -77,22 +78,32 @@ const Player = (() => {
   function getRepeat() { return _repeat; }
 
   // ── PLAY / PAUSE ──────────────────────────────
-  function _play() {
+  let _loadToken = 0; // evita race condition ao trocar de faixa rápido
+
+  async function _play() {
     const track = getCurrentTrack();
     if (!track) return;
 
-    const url = Drive.getStreamUrl(track.id);
-    if (audio.src !== url) {
+    const myLoad = ++_loadToken;
+    _listeners.onLoading?.(track);
+
+    try {
+      const url = await Drive.fetchAudioUrl(track.id);
+
+      // Se o usuário já trocou de faixa enquanto isso carregava, ignora
+      if (myLoad !== _loadToken) return;
+
       audio.src = url;
       audio.load();
-    }
 
-    audio.play()
-      .then(() => { _listeners.onPlay?.(track); })
-      .catch(err => {
-        console.error('[Player] Erro ao reproduzir:', err);
-        _listeners.onError?.(err);
-      });
+      await audio.play();
+      _listeners.onPlay?.(track);
+
+    } catch (err) {
+      if (myLoad !== _loadToken) return; // já trocou de faixa, ignora erro
+      console.error('[Player] Erro ao reproduzir:', err);
+      _listeners.onError?.(err);
+    }
   }
 
   function play()  { audio.play().then(() => _listeners.onPlay?.(getCurrentTrack())); }
