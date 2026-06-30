@@ -45,11 +45,14 @@ jobs:
       - name: Atualizar/gerar projeto Android (bubblewrap update)
         run: |
           export ANDROID_SDK_ROOT="$ANDROID_HOME"
-          export JAVA_HOME="${JAVA_HOME:-/usr/lib/jvm/java-17-openjdk-amd64}"
+          JDK_PATH="${JAVA_HOME:-/usr/lib/jvm/java-17-openjdk-amd64}"
+          echo "Usando JAVA_HOME=$JDK_PATH"
+          echo "Usando ANDROID_HOME=$ANDROID_HOME"
+
           if [ -f "app/build.gradle" ]; then
-            echo "n" | bubblewrap update --skipVersionUpgrade
+            printf "n\n%s\n%s\n" "$JDK_PATH" "$ANDROID_HOME" | bubblewrap update --skipVersionUpgrade
           else
-            echo "n" | bubblewrap init \
+            printf "n\n%s\n%s\n" "$JDK_PATH" "$ANDROID_HOME" | bubblewrap init \
               --manifest=twa-manifest.json \
               --skipPwaValidation
           fi
