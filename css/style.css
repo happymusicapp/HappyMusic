@@ -23,8 +23,8 @@
   --grey-soft:   #C4C4C9;
   --grey-dark:   #5C5C63;
 
-  --font-display: 'Space Grotesk', sans-serif;
-  --font-body:    'Inter', sans-serif;
+  --font-display: 'Clash Display', 'Space Grotesk', sans-serif;
+  --font-body:    'Satoshi', 'Inter', sans-serif;
 
   /* escala de espaçamento (8px base) */
   --sp-1: 4px;
