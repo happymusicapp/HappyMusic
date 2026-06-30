@@ -25,9 +25,27 @@
 <body>
 
   <!-- ═══════════════════════════════════════════
+       SPLASH SCREEN (animada)
+  ═══════════════════════════════════════════ -->
+  <div id="splash" class="splash">
+    <div class="splash-aurora"></div>
+    <div class="splash-rings">
+      <span class="ring ring-1"></span>
+      <span class="ring ring-2"></span>
+      <span class="ring ring-3"></span>
+    </div>
+    <img src="assets/icons/icon-192.png" alt="" class="splash-logo" />
+    <h1 class="splash-title">Happy<span>Music</span></h1>
+    <div class="splash-bars" aria-hidden="true">
+      <span></span><span></span><span></span><span></span><span></span>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════
        TELA DE LOGIN (Google OAuth)
   ═══════════════════════════════════════════ -->
-  <div id="screen-login" class="screen active">
+  <div id="screen-login" class="screen">
+    <div class="aurora-bg" aria-hidden="true"></div>
     <div class="login-wrap">
       <img src="assets/icons/icon-192.png" alt="HappyMusic" class="login-logo" />
       <h1 class="login-title">HappyMusic</h1>
@@ -51,7 +69,8 @@
   <!-- ═══════════════════════════════════════════
        APP PRINCIPAL (pós-login)
   ═══════════════════════════════════════════ -->
-  <div id="screen-app" class="screen" style="background: radial-gradient(ellipse 70% 35% at 50% 0%, rgba(124,58,255,0.10) 0%, transparent 60%), var(--bg, #0B0B0D);">
+  <div id="screen-app" class="screen" style="position:relative; overflow:hidden;">
+    <div class="aurora-bg" aria-hidden="true"></div>
 
     <!-- HEADER -->
     <header class="app-header">
@@ -269,6 +288,16 @@
   <script src="js/ui.js"></script>
   <script src="js/app.js"></script>
   <script>
+    // Splash screen: some animado por no mínimo ~1.1s, depois revela o app
+    window.addEventListener('load', () => {
+      setTimeout(() => {
+        const splash = document.getElementById('splash');
+        if (!splash) return;
+        splash.classList.add('splash-hide');
+        setTimeout(() => splash.remove(), 650);
+      }, 1100);
+    });
+
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
         navigator.serviceWorker.register('sw.js')
