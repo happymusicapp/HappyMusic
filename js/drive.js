@@ -199,6 +199,9 @@ const Drive = (() => {
       fields:   'files(id,name)',
       orderBy:  'name',
       pageSize: 50,
+      supportsAllDrives: true,
+      includeItemsFromAllDrives: true,
+      corpora: 'allDrives',
     });
     return data.files || [];
   }
@@ -228,6 +231,9 @@ const Drive = (() => {
         fields:   'nextPageToken,files(id,name,size,mimeType,modifiedTime,thumbnailLink,videoMediaMetadata)',
         orderBy:  'name',
         pageSize: 200,
+        supportsAllDrives: true,
+        includeItemsFromAllDrives: true,
+        corpora: 'allDrives',
       };
       if (pageToken) params.pageToken = pageToken;
 
