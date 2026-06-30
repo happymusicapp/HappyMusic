@@ -132,8 +132,8 @@ jobs:
               "$AAB" "$KEY_ALIAS"
             jarsigner -verify -verbose -certs "$AAB"
           fi
-          APK_NAME="Happy Music.apk"
-          AAB_NAME="Happy Music.aab"
+          APK_NAME="HappyMusic.apk"
+          AAB_NAME="HappyMusic.aab"
           if [ -n "$APK" ]; then cp "$APK" "../output/$APK_NAME"; fi
           if [ -n "$AAB" ]; then cp "$AAB" "../output/$AAB_NAME"; fi
           ls -la ../output || true
