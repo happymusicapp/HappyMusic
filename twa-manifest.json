@@ -1,8 +1,8 @@
 {
   "packageId": "com.happymusic.app",
   "host": "happymusic-crn.pages.dev",
-  "name": "Happy Music",
-  "launcherName": "Happy Music",
+  "name": "HappyMusic",
+  "launcherName": "HappyMusic",
   "display": "standalone",
   "themeColor": "#0A0A0A",
   "themeColorDark": "#0A0A0A",

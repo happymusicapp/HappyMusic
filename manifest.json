@@ -1,10 +1,10 @@
 {
-  "name": "Happy Music",
+  "name": "HappyMusic",
   "short_name": "HappyMusic",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#9D00FF",
-  "theme_color": "#7B00FF",
+  "background_color": "#0B0B0D",
+  "theme_color": "#0B0B0D",
   "icons": [
     {
       "src": "assets/icons/icon-192.png",
