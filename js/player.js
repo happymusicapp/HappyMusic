@@ -18,12 +18,14 @@ const Player = (() => {
 
   // ── CALLBACKS (registrados pelo ui.js / app.js) ──
   const _listeners = {
-    onPlay:      null,  // (track) => {}
-    onPause:     null,  // () => {}
-    onEnd:       null,  // () => {}
-    onProgress:  null,  // (current, duration) => {}
-    onError:     null,  // (err) => {}
-    onLoading:   null,  // (track) => {} — disparado ao iniciar busca do áudio
+    onPlay:        null,  // (track) => {}
+    onPause:       null,  // () => {}
+    onEnd:         null,  // () => {}
+    onProgress:    null,  // (current, duration) => {}
+    onError:       null,  // (err) => {}
+    onLoading:     null,  // (track) => {} — disparado ao iniciar busca do áudio
+    onOfflineSkip: null,  // (track) => {} — disparado ao pular pra próxima faixa baixada, sem internet
+    onAllOffline:  null,  // () => {} — disparado quando, offline, nenhuma faixa da fila está baixada
   };
 
   // ── FILA ──────────────────────────────────────
@@ -80,7 +82,7 @@ const Player = (() => {
   // ── PLAY / PAUSE ──────────────────────────────
   let _loadToken = 0; // evita race condition ao trocar de faixa rápido
 
-  async function _play() {
+  async function _play(_skipAttempts = 0) {
     const track = getCurrentTrack();
     if (!track) return;
 
@@ -102,8 +104,55 @@ const Player = (() => {
     } catch (err) {
       if (myLoad !== _loadToken) return; // já trocou de faixa, ignora erro
       console.error('[Player] Erro ao reproduzir:', err);
-      _listeners.onError?.(err);
+      _handlePlaybackFailure(err, _skipAttempts);
     }
+  }
+
+  // O player nunca deve simplesmente parar quando uma faixa falha ao
+  // carregar. Em vez disso, tenta seguir pra próxima automaticamente:
+  //  - Sem internet -> pula direto pra próxima faixa já baixada
+  //    (presente no cache de áudio do Service Worker), ignorando as
+  //    que não foram salvas, já que essas não vão tocar mesmo.
+  //  - Com internet -> tenta a próxima faixa da fila normalmente
+  //    (pode ter sido um erro pontual daquela faixa específica).
+  // Em ambos os casos, limita as tentativas a uma volta completa na
+  // fila pra não entrar em loop infinito caso nada esteja disponível.
+  function _handlePlaybackFailure(err, skipAttempts) {
+    if (!_queue.length || skipAttempts >= _queue.length) {
+      _listeners.onError?.(err);
+      return;
+    }
+
+    const offline = typeof navigator !== 'undefined' && navigator.onLine === false;
+
+    if (offline) {
+      const nextIndex = _findNextDownloadedIndex(_index);
+      if (nextIndex === -1) {
+        _listeners.onAllOffline?.();
+        _listeners.onError?.(err);
+        return;
+      }
+      _index = nextIndex;
+      _listeners.onOfflineSkip?.(getCurrentTrack());
+      _play(skipAttempts + 1);
+      return;
+    }
+
+    _index = (_index + 1) % _queue.length;
+    _play(skipAttempts + 1);
+  }
+
+  // Procura, a partir de (fromIndex + 1) e dando a volta na fila, o
+  // índice da próxima faixa que já está baixada (cache de áudio).
+  // Retorna -1 se nenhuma faixa da fila estiver baixada.
+  function _findNextDownloadedIndex(fromIndex) {
+    if (typeof Downloads === 'undefined') return -1;
+    for (let i = 1; i <= _queue.length; i++) {
+      const idx = (fromIndex + i) % _queue.length;
+      const t = _queue[idx];
+      if (t && Downloads.isDownloaded(t.id)) return idx;
+    }
+    return -1;
   }
 
   function play()  { audio.play().then(() => _listeners.onPlay?.(getCurrentTrack())); }
@@ -247,7 +296,9 @@ const Player = (() => {
 
   audio.addEventListener('error', (e) => {
     console.error('[Player] Erro de áudio:', e);
-    _listeners.onError?.(e);
+    // Falha no meio da reprodução (ex.: conexão caiu durante o stream)
+    // também deve acionar o auto-skip, e não travar o player.
+    _handlePlaybackFailure(e, 0);
   });
 
   // Media Session API (controles na tela de bloqueio / Bluetooth)

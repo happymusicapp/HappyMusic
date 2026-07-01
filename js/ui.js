@@ -621,6 +621,17 @@ const UI = (() => {
       showToast('Erro ao carregar música. Tente novamente.');
       setPlayState(false);
     });
+
+    // Sem internet: pulou automaticamente pra próxima faixa já baixada
+    Player.on('onOfflineSkip', track => {
+      showToast(`Sem internet — tocando "${track.title}" (baixada)`, 2500);
+    });
+
+    // Sem internet e nenhuma faixa da fila está baixada: não tem pra onde pular
+    Player.on('onAllOffline', () => {
+      showToast('Sem internet e nenhuma música da fila está baixada.', 3000);
+      setPlayState(false);
+    });
   }
 
   // ── BIND EVENTOS DE LISTA ──────────────────────
