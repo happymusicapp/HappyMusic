@@ -3,9 +3,9 @@
    Service Worker: cache offline + estratégia de rede
 ═══════════════════════════════════════════════ */
 
-const CACHE_NAME    = 'happymusic-v4';
-const CACHE_STATIC  = 'happymusic-static-v4';
-const CACHE_AUDIO   = 'happymusic-audio-v1';
+const CACHE_NAME    = 'happymusic-v5';
+const CACHE_STATIC  = 'happymusic-static-v5';
+const CACHE_AUDIO   = 'happymusic-audio-v2';
 
 // Arquivos do app shell — cacheados no install
 const STATIC_ASSETS = [
@@ -68,7 +68,22 @@ self.addEventListener('fetch', event => {
 
   // ── 1. Áudio do Google Drive → Cache then Network
   //       Salva localmente para ouvir offline
-  if (url.hostname === 'www.googleapis.com' && url.pathname.startsWith('/drive/v3/files')) {
+  //
+  //       IMPORTANTE: só entra aqui o download do CONTEÚDO do arquivo
+  //       (.../files/{id}?alt=media). A checagem antiga usava apenas
+  //       startsWith('/drive/v3/files'), que também batia com a chamada
+  //       de LISTAGEM das músicas (.../files?q=...) — isso fazia a lista
+  //       de faixas ficar presa em cache (Cache First) e nunca mais
+  //       atualizar, escondendo músicas novas adicionadas no Drive até o
+  //       usuário limpar os dados do Chrome. Agora exigimos um fileId no
+  //       path (/files/{id}) e o parâmetro alt=media, que só existe na
+  //       requisição de download — a listagem nunca tem os dois.
+  const isDriveFileContent =
+    url.hostname === 'www.googleapis.com' &&
+    /^\/drive\/v3\/files\/[^/]+$/.test(url.pathname) &&
+    url.searchParams.get('alt') === 'media';
+
+  if (isDriveFileContent) {
     // Requisições com cabeçalho Range (ex.: leitura parcial dos primeiros
     // bytes do arquivo pra extrair a capa embutida ID3/MP4) nunca passam
     // pelo cache: o servidor responde 206 Partial Content, e a Cache API
