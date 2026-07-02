@@ -63,7 +63,7 @@
       </button>
       <p class="login-privacy">
         🔒 Suas músicas continuam no seu Google Drive.<br>
-        O HappyMusic só reproduz — nada é copiado pra fora da sua conta.
+        O HappyMusic reproduz e organiza — nada é copiado pra fora da sua conta.
       </p>
     </div>
   </div>
@@ -125,6 +125,22 @@
             <h3 class="shelf-label">Todas as músicas</h3>
             <button id="btn-refresh" class="text-btn">Atualizar</button>
           </div>
+
+          <!-- Filtros -->
+          <div id="filter-bar" class="filter-bar">
+            <select id="filter-genre" class="filter-select">
+              <option value="">Gênero</option>
+            </select>
+            <select id="filter-artist" class="filter-select">
+              <option value="">Artista</option>
+            </select>
+            <select id="filter-album" class="filter-select">
+              <option value="">Álbum</option>
+            </select>
+            <button id="btn-filter-clear" class="text-btn filter-clear hidden">Limpar</button>
+          </div>
+          <p id="filter-summary" class="filter-summary hidden"></p>
+
           <div id="all-tracks-list" class="track-list">
             <!-- preenchido por drive.js + ui.js -->
           </div>
@@ -135,6 +151,41 @@
       <section id="view-search" class="view">
         <h2 class="section-title">Resultados</h2>
         <div id="search-results" class="track-list"></div>
+      </section>
+
+      <!-- VIEW: PLAYLISTS -->
+      <section id="view-playlists" class="view">
+        <div id="playlists-list-wrap">
+          <div class="shelf-header">
+            <h2 class="section-title" style="margin:0;">Playlists</h2>
+            <button id="btn-new-playlist" class="text-btn">+ Nova</button>
+          </div>
+          <div id="playlists-list" class="playlist-grid">
+            <p class="empty-hint">Nenhuma playlist ainda. Crie a primeira!</p>
+          </div>
+        </div>
+
+        <!-- Detalhe de uma playlist -->
+        <div id="playlist-detail" class="hidden">
+          <div class="playlist-detail-header">
+            <button id="btn-playlist-back" class="icon-btn" aria-label="Voltar">
+              <svg width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <polyline points="15 18 9 12 15 6"/>
+              </svg>
+            </button>
+            <h2 id="playlist-detail-title" class="section-title" style="margin:0;">—</h2>
+            <button id="btn-playlist-delete" class="icon-btn" aria-label="Excluir playlist">
+              <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <polyline points="3 6 5 6 21 6"/>
+                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+              </svg>
+            </button>
+          </div>
+          <div class="playlist-detail-actions">
+            <button id="btn-playlist-play" class="btn-outline btn-small">▶ Tocar tudo</button>
+          </div>
+          <div id="playlist-tracks-list" class="track-list"></div>
+        </div>
       </section>
 
       <!-- VIEW: PERFIL -->
@@ -152,8 +203,12 @@
 
           <div class="profile-section">
             <h3 class="profile-section-title">Adicionar músicas</h3>
-            <p class="profile-section-hint">Abra o Google Drive, crie/escolha uma pasta e envie seus arquivos de áudio. Eles aparecem aqui em segundos.</p>
-            <button id="btn-open-drive" class="btn-outline btn-small">Abrir Google Drive</button>
+            <p class="profile-section-hint">Envie arquivos de áudio direto pelo app — você cadastra gênero, artista, álbum e título antes de subir para o Drive. Ou, se preferir, adicione direto pelo Google Drive.</p>
+            <input type="file" id="input-upload-files" accept="audio/*" multiple hidden />
+            <div class="offline-actions">
+              <button id="btn-upload-open" class="btn-primary btn-small">Enviar músicas</button>
+              <button id="btn-open-drive" class="btn-outline btn-small">Abrir Google Drive</button>
+            </div>
           </div>
 
           <div class="profile-section">
@@ -262,6 +317,12 @@
         </svg>
         <span>Buscar</span>
       </button>
+      <button class="nav-btn" data-view="playlists" aria-label="Playlists">
+        <svg width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>
+        </svg>
+        <span>Playlists</span>
+      </button>
       <button class="nav-btn" data-view="profile" aria-label="Perfil">
         <svg width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
           <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
@@ -305,6 +366,75 @@
         <div class="track-item skeleton" style="min-height:48px; border-radius:8px;"></div>
       </div>
       <button id="btn-folder-close" class="text-btn modal-skip">Cancelar</button>
+    </div>
+  </div>
+
+  <!-- MODAL: ENVIAR MÚSICAS -->
+  <div id="modal-upload" class="modal-overlay hidden">
+    <div class="modal-box modal-box-wide">
+      <h2 class="modal-title">Enviar músicas</h2>
+      <p class="modal-text">Só arquivos de áudio são aceitos. Preencha os dados de cada faixa antes de enviar — isso fica salvo no arquivo do Drive, então nunca mais se perde.</p>
+      <div id="upload-list" class="upload-list"></div>
+      <div class="upload-actions">
+        <button id="btn-upload-add-more" class="btn-outline btn-small">Adicionar arquivos</button>
+        <button id="btn-upload-send-all" class="btn-primary btn-small" disabled>Enviar tudo</button>
+      </div>
+      <button id="btn-upload-close" class="text-btn modal-skip">Fechar</button>
+    </div>
+  </div>
+
+  <!-- MODAL: EDITAR INFORMAÇÕES DA FAIXA -->
+  <div id="modal-track-edit" class="modal-overlay hidden">
+    <div class="modal-box">
+      <h2 class="modal-title">Editar informações</h2>
+      <div class="upload-field">
+        <label>Título</label>
+        <input id="edit-field-title" type="text" class="text-input" />
+      </div>
+      <div class="upload-field">
+        <label>Artista</label>
+        <input id="edit-field-artist" type="text" class="text-input" />
+      </div>
+      <div class="upload-field">
+        <label>Álbum</label>
+        <input id="edit-field-album" type="text" class="text-input" />
+      </div>
+      <div class="upload-field">
+        <label>Gênero</label>
+        <input id="edit-field-genre" type="text" class="text-input" list="genre-suggestions" />
+        <datalist id="genre-suggestions"></datalist>
+      </div>
+      <button id="btn-edit-save" class="btn-primary">Salvar</button>
+      <button id="btn-edit-cancel" class="text-btn modal-skip">Cancelar</button>
+    </div>
+  </div>
+
+  <!-- MODAL: ADICIONAR À PLAYLIST -->
+  <div id="modal-add-to-playlist" class="modal-overlay hidden">
+    <div class="modal-box">
+      <h2 class="modal-title">Adicionar à playlist</h2>
+      <div id="add-to-playlist-list" class="folder-list"></div>
+      <div class="upload-field" style="margin-top:var(--sp-3);">
+        <label>Ou crie uma nova</label>
+        <div style="display:flex; gap:8px;">
+          <input id="add-to-playlist-new-name" type="text" class="text-input" placeholder="Nome da playlist" />
+          <button id="btn-add-to-playlist-create" class="btn-outline btn-small">Criar</button>
+        </div>
+      </div>
+      <button id="btn-add-to-playlist-close" class="text-btn modal-skip">Fechar</button>
+    </div>
+  </div>
+
+  <!-- MODAL: NOVA PLAYLIST -->
+  <div id="modal-new-playlist" class="modal-overlay hidden">
+    <div class="modal-box">
+      <h2 class="modal-title">Nova playlist</h2>
+      <div class="upload-field">
+        <label>Nome</label>
+        <input id="new-playlist-name" type="text" class="text-input" placeholder="Ex: Roadtrip da família" />
+      </div>
+      <button id="btn-new-playlist-create" class="btn-primary">Criar playlist</button>
+      <button id="btn-new-playlist-cancel" class="text-btn modal-skip">Cancelar</button>
     </div>
   </div>
 
