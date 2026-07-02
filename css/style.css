@@ -1455,3 +1455,47 @@ img    { display: block; }
 
 .playlist-pick-item { justify-content: space-between; }
 .playlist-pick-item.selected { border-color: var(--purple); background: rgba(124,58,255,0.1); }
+
+/* ═══════════════════════════════════════════════
+   SELEÇÃO MÚLTIPLA (atribuir gênero em lote)
+═══════════════════════════════════════════════ */
+.track-select-cb {
+  display: none;
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  accent-color: var(--purple);
+  margin-right: 2px;
+  cursor: pointer;
+}
+
+.track-list.select-mode .track-select-cb { display: block; }
+.track-list.select-mode .track-menu-btn,
+.track-list.select-mode .dl-btn { display: none; }
+
+.track-item.selected {
+  background: rgba(124,58,255,0.12);
+  border-radius: var(--radius-sm);
+}
+
+.selection-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  padding: var(--sp-2) var(--sp-3);
+  margin-bottom: var(--sp-2);
+  border-radius: var(--radius-sm);
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  font-size: 0.82rem;
+  color: var(--white);
+}
+
+.selection-bar.hidden { display: none; }
+
+.selection-bar-actions {
+  display: flex;
+  gap: var(--sp-2);
+  align-items: center;
+}
