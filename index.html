@@ -16,10 +16,10 @@
   <link rel="apple-touch-icon" href="assets/icons/icon-192.png" />
   <link rel="stylesheet" href="css/style.css" />
 
-  <!-- Google Fonts: Bricolage Grotesque (títulos) + Inter (corpo) -->
+  <!-- Google Fonts: Roboto (títulos + corpo) -->
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700;12..96,800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;600;700;900&display=swap" rel="stylesheet" />
 </head>
 
 <body>
@@ -194,7 +194,10 @@
             </button>
           </div>
           <div class="playlist-detail-actions">
-            <button id="btn-playlist-play" class="btn-outline btn-small">▶ Tocar tudo</button>
+            <button id="btn-playlist-play" class="btn-outline btn-small btn-icon-label">
+              <svg width="15" height="15" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+              Tocar tudo
+            </button>
           </div>
           <div id="playlist-tracks-list" class="track-list"></div>
         </div>
