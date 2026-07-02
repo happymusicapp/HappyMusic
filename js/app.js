@@ -12,6 +12,28 @@ const App = (() => {
   const KEY_ONBOARDED = 'hm_onboarded';
   const GDRIVE_URL = 'https://drive.google.com/drive/my-drive';
 
+  // Filtros da tela "Todas as músicas"
+  let _filters = { genre: '', artist: '', album: '' };
+
+  // Playlists (cache em memória; fonte de verdade é o Drive.loadPlaylists/savePlaylists)
+  let _playlists = [];
+  let _activePlaylistId = null;
+
+  // Fila de upload — cada item guarda o File + os metadados digitados
+  let _uploadItems = [];
+  let _uploadCounter = 0;
+
+  // Sugestões de gênero pra facilitar o cadastro (além dos gêneros já usados)
+  const DEFAULT_GENRES = [
+    'MPB', 'Sertanejo', 'Pagode', 'Samba', 'Forró', 'Axé', 'Gospel',
+    'Pop', 'Rock', 'Eletrônica', 'Funk', 'Reggae', 'Infantil', 'Instrumental',
+  ];
+
+  function _uuid() {
+    if (crypto.randomUUID) return crypto.randomUUID();
+    return 'pl_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 8);
+  }
+
   // Avisa o index.html (que controla a splash) que a tela inicial
   // (login ou app) já foi decidida e aplicada — só então a splash
   // pode começar a desaparecer, evitando o "flash" de tela errada
@@ -77,6 +99,7 @@ const App = (() => {
 
     await _loadTracks();
     _updateOfflineSummary();
+    _loadPlaylists();
   }
 
   function _updateFolderLabel() {
@@ -97,22 +120,21 @@ const App = (() => {
         UI.el.allTracksList.innerHTML = `
           <div class="empty-hint">
             Nenhuma música encontrada.<br>
-            Adicione arquivos de áudio à pasta do Google Drive.
+            Envie arquivos de áudio pelo app ou adicione direto na pasta do Google Drive.
             <br><br>
             <button id="btn-empty-drive" class="btn-outline btn-small">Abrir Google Drive</button>
           </div>`;
         const btn = document.getElementById('btn-empty-drive');
         if (btn) btn.addEventListener('click', () => window.open(GDRIVE_URL, '_blank'));
         _renderRecent();
+        _refreshFilterBar();
         return;
       }
 
-      // Renderiza lista completa
-      UI.renderTrackList(UI.el.allTracksList, _tracks, _currentId());
-      UI.bindTrackListEvents(UI.el.allTracksList, _tracks);
-
       // Recentes
       _renderRecent();
+      _refreshFilterBar();
+      _renderAllTracksList();
 
     } catch (err) {
       console.error('[App] Erro ao carregar músicas:', err);
@@ -233,6 +255,422 @@ const App = (() => {
     } else {
       UI.showToast(`${result.done} de ${result.total} músicas disponíveis offline ✓`);
     }
+  }
+
+  // ── FILTROS (gênero / artista / álbum) ─────────
+  function _visibleTracks() {
+    return Drive.filterTracks(_filters);
+  }
+
+  function _renderAllTracksList() {
+    const list = _visibleTracks();
+
+    if (!_tracks.length) return; // trata vazio lá em cima, em _loadTracks
+
+    if (!list.length) {
+      UI.el.allTracksList.innerHTML = `<p class="empty-hint">Nenhuma música com esse filtro.</p>`;
+    } else {
+      UI.renderTrackList(UI.el.allTracksList, list, _currentId());
+      UI.bindTrackListEvents(UI.el.allTracksList, list);
+    }
+
+    const active = [_filters.genre, _filters.artist, _filters.album].filter(Boolean).length;
+    UI.setFilterSummary(active ? `${list.length} de ${_tracks.length} músicas com o filtro atual` : null);
+  }
+
+  function _refreshFilterBar() {
+    UI.renderFilterOptions({
+      genres:  Drive.getKnownGenres(),
+      artists: Drive.getKnownArtists(),
+      albums:  Drive.getKnownAlbums(),
+    }, _filters);
+  }
+
+  function _bindFilterEvents() {
+    UI.el.filterGenre.addEventListener('change', e => {
+      _filters.genre = e.target.value;
+      _refreshFilterBar();
+      _renderAllTracksList();
+    });
+    UI.el.filterArtist.addEventListener('change', e => {
+      _filters.artist = e.target.value;
+      _refreshFilterBar();
+      _renderAllTracksList();
+    });
+    UI.el.filterAlbum.addEventListener('change', e => {
+      _filters.album = e.target.value;
+      _refreshFilterBar();
+      _renderAllTracksList();
+    });
+    UI.el.btnFilterClear.addEventListener('click', () => {
+      _filters = { genre: '', artist: '', album: '' };
+      _refreshFilterBar();
+      _renderAllTracksList();
+    });
+  }
+
+  // ── ENVIO DE MÚSICAS (upload) ──────────────────
+  function _knownGenres() {
+    const known = Drive.getKnownGenres();
+    return [...new Set([...DEFAULT_GENRES, ...known])].sort((a, b) => a.localeCompare(b, 'pt-BR'));
+  }
+
+  function _filenameToTitle(name) {
+    return (name || '').replace(/\.[^.]+$/, '');
+  }
+
+  function _escHtml(str) {
+    return String(str || '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  function _renderUploadList() {
+    const genreOptions = _knownGenres().map(g => `<option value="${g}"></option>`).join('');
+
+    if (!_uploadItems.length) {
+      UI.el.uploadList.innerHTML = `<p class="empty-hint">Nenhum arquivo selecionado ainda.</p>`;
+      UI.el.btnUploadSendAll.disabled = true;
+      return;
+    }
+
+    UI.el.uploadList.innerHTML = _uploadItems.map(item => `
+      <div class="upload-item upload-item-${item.status}" data-upload-id="${item.localId}">
+        <div class="upload-item-head">
+          <span class="upload-item-filename">${_escHtml(item.file.name)}</span>
+          ${item.status === 'done' ? '<span class="upload-item-badge">✓ Enviada</span>' : ''}
+          ${item.status !== 'uploading' ? `<button class="text-btn upload-item-remove" data-remove="${item.localId}">Remover</button>` : ''}
+        </div>
+
+        ${item.status !== 'done' ? `
+          <div class="upload-field">
+            <label>Título</label>
+            <input type="text" class="text-input" data-field="title" data-id="${item.localId}" value="${_escHtml(item.title)}" />
+          </div>
+          <div class="upload-field">
+            <label>Artista</label>
+            <input type="text" class="text-input" data-field="artist" data-id="${item.localId}" value="${_escHtml(item.artist)}" placeholder="Desconhecido" />
+          </div>
+          <div class="upload-field">
+            <label>Álbum</label>
+            <input type="text" class="text-input" data-field="album" data-id="${item.localId}" value="${_escHtml(item.album)}" />
+          </div>
+          <div class="upload-field">
+            <label>Gênero</label>
+            <input type="text" class="text-input" data-field="genre" data-id="${item.localId}" value="${_escHtml(item.genre)}" list="upload-genre-suggestions" />
+          </div>
+        ` : ''}
+
+        ${item.status === 'uploading' ? `
+          <div class="dl-progress">
+            <div class="dl-progress-bar"><div class="dl-progress-fill" style="width:${item.progress}%"></div></div>
+            <span class="profile-section-hint" style="margin:0;">${item.progress}%</span>
+          </div>` : ''}
+
+        ${item.status === 'error' ? `
+          <p class="upload-item-error">${_escHtml(item.errorMsg || 'Falha ao enviar.')}</p>
+          <button class="btn-outline btn-small" data-retry="${item.localId}">Tentar novamente</button>
+        ` : ''}
+      </div>
+    `).join('') + `<datalist id="upload-genre-suggestions">${genreOptions}</datalist>`;
+
+    UI.el.btnUploadSendAll.disabled = !_uploadItems.some(i => i.status === 'pending' || i.status === 'error');
+  }
+
+  function _addFilesToUploadQueue(fileList) {
+    let rejected = 0;
+    Array.from(fileList).forEach(file => {
+      if (!Drive.isAudioFile(file)) { rejected++; return; }
+      _uploadItems.push({
+        localId: ++_uploadCounter,
+        file,
+        title:  _filenameToTitle(file.name),
+        artist: '',
+        album:  '',
+        genre:  '',
+        status: 'pending', // pending | uploading | done | error
+        progress: 0,
+        errorMsg: null,
+      });
+    });
+    if (rejected) {
+      UI.showToast(rejected === 1
+        ? '1 arquivo ignorado: não é um áudio suportado.'
+        : `${rejected} arquivos ignorados: não são áudios suportados.`);
+    }
+    _renderUploadList();
+  }
+
+  async function _uploadOne(item) {
+    item.status = 'uploading';
+    item.progress = 0;
+    item.errorMsg = null;
+    _renderUploadList();
+
+    try {
+      const track = await Drive.uploadTrack(item.file, {
+        title:  item.title.trim()  || _filenameToTitle(item.file.name),
+        artist: item.artist.trim() || 'Desconhecido',
+        album:  item.album.trim(),
+        genre:  item.genre.trim(),
+      }, {
+        onProgress: (loaded, total) => {
+          item.progress = total ? Math.round((loaded / total) * 100) : 0;
+          const row = document.querySelector(`[data-upload-id="${item.localId}"] .dl-progress-fill`);
+          const pctLabel = document.querySelector(`[data-upload-id="${item.localId}"] .dl-progress .profile-section-hint`);
+          if (row) row.style.width = item.progress + '%';
+          if (pctLabel) pctLabel.textContent = item.progress + '%';
+        },
+      });
+
+      item.status = 'done';
+      _tracks = [..._tracks, track];
+      _refreshFilterBar();
+      _renderAllTracksList();
+      UI.showToast(`"${track.title}" enviada ✓`);
+    } catch (err) {
+      console.error('[App] Erro ao enviar música:', err);
+      item.status = 'error';
+      item.errorMsg = err?.message === 'UNAUTHORIZED'
+        ? 'Sessão expirada — faça login novamente.'
+        : (err?.message || 'Falha ao enviar. Tente novamente.');
+
+      if (err?.message === 'UNAUTHORIZED') {
+        Drive.logout();
+        UI.showLogin();
+      }
+    }
+    _renderUploadList();
+  }
+
+  const UPLOAD_CONCURRENCY = 2;
+  let _uploadRunning = false;
+
+  async function _uploadAllPending() {
+    if (_uploadRunning) return;
+    _uploadRunning = true;
+
+    const pending = () => _uploadItems.filter(i => i.status === 'pending' || i.status === 'error');
+    async function worker() {
+      let next;
+      while ((next = pending()[0])) {
+        await _uploadOne(next);
+      }
+    }
+    await Promise.all(Array(UPLOAD_CONCURRENCY).fill(0).map(worker));
+
+    _uploadRunning = false;
+    _updateOfflineSummary();
+  }
+
+  function _bindUploadEvents() {
+    UI.el.btnUploadOpen.addEventListener('click', () => {
+      UI.showUploadModal();
+      _renderUploadList();
+    });
+
+    UI.el.inputUploadFiles.addEventListener('change', e => {
+      if (e.target.files?.length) _addFilesToUploadQueue(e.target.files);
+      e.target.value = ''; // permite selecionar o mesmo arquivo de novo depois
+    });
+
+    UI.el.btnUploadAddMore.addEventListener('click', () => UI.el.inputUploadFiles.click());
+    UI.el.btnUploadSendAll.addEventListener('click', () => _uploadAllPending());
+
+    UI.el.btnUploadClose.addEventListener('click', () => {
+      if (_uploadRunning) {
+        UI.showToast('Aguarde o envio terminar antes de fechar.');
+        return;
+      }
+      UI.hideUploadModal();
+      _uploadItems = _uploadItems.filter(i => i.status !== 'done'); // limpa concluídos
+    });
+
+    UI.el.uploadList.addEventListener('input', e => {
+      const input = e.target.closest('[data-field]');
+      if (!input) return;
+      const item = _uploadItems.find(i => i.localId === parseInt(input.dataset.id, 10));
+      if (!item) return;
+      item[input.dataset.field] = input.value;
+    });
+
+    UI.el.uploadList.addEventListener('click', e => {
+      const removeBtn = e.target.closest('[data-remove]');
+      if (removeBtn) {
+        _uploadItems = _uploadItems.filter(i => i.localId !== parseInt(removeBtn.dataset.remove, 10));
+        _renderUploadList();
+        return;
+      }
+      const retryBtn = e.target.closest('[data-retry]');
+      if (retryBtn) {
+        const item = _uploadItems.find(i => i.localId === parseInt(retryBtn.dataset.retry, 10));
+        if (item) _uploadOne(item);
+      }
+    });
+  }
+
+  // ── EDITAR METADADOS DE UMA FAIXA ──────────────
+  function _findTrackAnywhere(id) {
+    return _tracks.find(t => t.id === id) || Drive.getCachedTracks().find(t => t.id === id);
+  }
+
+  function _openEditModal(track) {
+    UI.showTrackEditModal(track, _knownGenres());
+  }
+
+  function _reRenderCurrentViews() {
+    _refreshFilterBar();
+    if (UI.getCurrentView() === 'home') _renderAllTracksList();
+    if (UI.getCurrentView() === 'search' && UI.el.searchInput.value.trim()) {
+      _handleSearch(UI.el.searchInput.value);
+    }
+    if (_activePlaylistId) _renderActivePlaylistTracks();
+  }
+
+  function _bindEditModalEvents() {
+    UI.el.btnEditSave.addEventListener('click', async () => {
+      const trackId = UI.el.modalTrackEdit.dataset.trackId;
+      if (!trackId) return;
+      const form = UI.getTrackEditForm();
+
+      try {
+        await Drive.updateTrackMetadata(trackId, form);
+        const idx = _tracks.findIndex(t => t.id === trackId);
+        if (idx !== -1) _tracks[idx] = Drive.getCachedTracks().find(t => t.id === trackId) || _tracks[idx];
+        UI.hideTrackEditModal();
+        UI.showToast('Informações atualizadas ✓');
+        _reRenderCurrentViews();
+      } catch (err) {
+        console.error('[App] Erro ao editar metadados:', err);
+        if (err.message === 'UNAUTHORIZED') {
+          Drive.logout();
+          UI.showLogin();
+          UI.showToast('Sessão expirada. Faça login novamente.');
+          return;
+        }
+        UI.showToast('Não foi possível salvar. Tente novamente.');
+      }
+    });
+
+    UI.el.btnEditCancel.addEventListener('click', () => UI.hideTrackEditModal());
+  }
+
+  // ── PLAYLISTS ───────────────────────────────────
+  function _playlistTracks(playlist) {
+    return playlist.trackIds.map(id => _findTrackAnywhere(id)).filter(Boolean);
+  }
+
+  async function _loadPlaylists() {
+    _playlists = await Drive.loadPlaylists();
+    UI.renderPlaylists(_playlists);
+  }
+
+  async function _persistPlaylists() {
+    const ok = await Drive.savePlaylists(_playlists);
+    if (!ok) UI.showToast('Playlist salva neste aparelho — sincronização com o Drive falhou.');
+    return ok;
+  }
+
+  function _renderActivePlaylistTracks() {
+    const playlist = _playlists.find(p => p.id === _activePlaylistId);
+    if (!playlist) return;
+    UI.renderPlaylistTracks(_playlistTracks(playlist), _currentId());
+  }
+
+  function _openPlaylist(id) {
+    const playlist = _playlists.find(p => p.id === id);
+    if (!playlist) return;
+    _activePlaylistId = id;
+    UI.showPlaylistDetail(playlist);
+    _renderActivePlaylistTracks();
+  }
+
+  function _bindPlaylistEvents() {
+    UI.el.btnNewPlaylist.addEventListener('click', () => UI.showNewPlaylistModal());
+
+    UI.el.btnNewPlaylistCreate.addEventListener('click', async () => {
+      const name = UI.el.newPlaylistName.value.trim();
+      if (!name) { UI.showToast('Dê um nome pra playlist.'); return; }
+
+      const playlist = { id: _uuid(), name, trackIds: [], createdAt: Date.now() };
+      _playlists = [..._playlists, playlist];
+      UI.renderPlaylists(_playlists);
+      UI.hideNewPlaylistModal();
+      UI.showToast(`Playlist "${name}" criada`);
+      await _persistPlaylists();
+    });
+
+    UI.el.btnNewPlaylistCancel.addEventListener('click', () => UI.hideNewPlaylistModal());
+
+    UI.el.playlistsList.addEventListener('click', e => {
+      const card = e.target.closest('.playlist-card');
+      if (card) _openPlaylist(card.dataset.id);
+    });
+
+    UI.el.btnPlaylistBack.addEventListener('click', () => {
+      _activePlaylistId = null;
+      UI.showPlaylistsRoot();
+    });
+
+    UI.el.btnPlaylistDelete.addEventListener('click', async () => {
+      const playlist = _playlists.find(p => p.id === _activePlaylistId);
+      if (!playlist) return;
+      if (!window.confirm(`Excluir a playlist "${playlist.name}"? Isso não apaga as músicas, só a playlist.`)) return;
+
+      _playlists = _playlists.filter(p => p.id !== playlist.id);
+      _activePlaylistId = null;
+      UI.showPlaylistsRoot();
+      UI.renderPlaylists(_playlists);
+      UI.showToast('Playlist excluída');
+      await _persistPlaylists();
+    });
+
+    UI.el.btnPlaylistPlay.addEventListener('click', () => {
+      const playlist = _playlists.find(p => p.id === _activePlaylistId);
+      if (!playlist) return;
+      const tracks = _playlistTracks(playlist);
+      if (!tracks.length) { UI.showToast('Essa playlist ainda está vazia.'); return; }
+      Player.loadQueue(tracks, 0);
+    });
+  }
+
+  function _openAddToPlaylistModal(track) {
+    UI.showAddToPlaylistModal(_playlists, track.id);
+  }
+
+  function _bindAddToPlaylistModalEvents() {
+    UI.el.addToPlaylistList.addEventListener('click', async e => {
+      const item = e.target.closest('.playlist-pick-item');
+      if (!item) return;
+      const trackId = UI.el.modalAddToPlaylist.dataset.trackId;
+      const playlist = _playlists.find(p => p.id === item.dataset.id);
+      if (!playlist || !trackId) return;
+
+      const has = playlist.trackIds.includes(trackId);
+      playlist.trackIds = has ? playlist.trackIds.filter(id => id !== trackId) : [...playlist.trackIds, trackId];
+
+      UI.showAddToPlaylistModal(_playlists, trackId); // re-renderiza com o novo estado
+      UI.renderPlaylists(_playlists);
+      if (_activePlaylistId === playlist.id) _renderActivePlaylistTracks();
+      await _persistPlaylists();
+    });
+
+    UI.el.btnAddToPlaylistCreate.addEventListener('click', async () => {
+      const name = UI.el.addToPlaylistNewName.value.trim();
+      const trackId = UI.el.modalAddToPlaylist.dataset.trackId;
+      if (!name || !trackId) { UI.showToast('Dê um nome pra playlist.'); return; }
+
+      const playlist = { id: _uuid(), name, trackIds: [trackId], createdAt: Date.now() };
+      _playlists = [..._playlists, playlist];
+      UI.showAddToPlaylistModal(_playlists, trackId);
+      UI.renderPlaylists(_playlists);
+      UI.showToast(`Playlist "${name}" criada e música adicionada`);
+      await _persistPlaylists();
+    });
+
+    UI.el.btnAddToPlaylistClose.addEventListener('click', () => UI.hideAddToPlaylistModal());
   }
 
   // ── BUSCA ─────────────────────────────────────
@@ -360,6 +798,42 @@ const App = (() => {
 
     // Mantém o resumo "X de Y músicas baixadas" sempre atualizado
     Downloads.onChange(() => _updateOfflineSummary());
+
+    // Filtros, upload, edição de metadados e playlists
+    _bindFilterEvents();
+    _bindUploadEvents();
+    _bindEditModalEvents();
+    _bindPlaylistEvents();
+    _bindAddToPlaylistModalEvents();
+
+    UI.setTrackMenuHandlers({
+      onEdit: track => _openEditModal(track),
+      onAddToPlaylist: track => _openAddToPlaylistModal(track),
+    });
+
+    // Fecha modais novos ao clicar fora da caixa (mesmo padrão dos outros modais)
+    [UI.el.modalUpload, UI.el.modalTrackEdit, UI.el.modalNewPlaylist, UI.el.modalAddToPlaylist].forEach(modal => {
+      modal.addEventListener('click', e => {
+        if (e.target !== modal) return;
+        if (modal === UI.el.modalUpload) {
+          if (_uploadRunning) { UI.showToast('Aguarde o envio terminar antes de fechar.'); return; }
+          UI.hideUploadModal();
+        } else if (modal === UI.el.modalTrackEdit) UI.hideTrackEditModal();
+        else if (modal === UI.el.modalNewPlaylist) UI.hideNewPlaylistModal();
+        else if (modal === UI.el.modalAddToPlaylist) UI.hideAddToPlaylistModal();
+      });
+    });
+
+    // Voltar pra tela raiz de playlists sempre que a aba é reaberta
+    document.querySelectorAll('.nav-btn').forEach(btn => {
+      if (btn.dataset.view === 'playlists') {
+        btn.addEventListener('click', () => {
+          _activePlaylistId = null;
+          UI.showPlaylistsRoot();
+          UI.renderPlaylists(_playlists);
+        });
+      }
+    });
 
     // Busca em tempo real
     UI.el.searchInput.addEventListener('input', e => {

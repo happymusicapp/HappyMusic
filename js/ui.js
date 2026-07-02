@@ -86,6 +86,56 @@ const UI = (() => {
 
     // Login
     btnLogin:       $('btn-login'),
+
+    // Filtros
+    filterBar:      $('filter-bar'),
+    filterGenre:    $('filter-genre'),
+    filterArtist:   $('filter-artist'),
+    filterAlbum:    $('filter-album'),
+    btnFilterClear: $('btn-filter-clear'),
+    filterSummary:  $('filter-summary'),
+
+    // Upload
+    btnUploadOpen:    $('btn-upload-open'),
+    inputUploadFiles: $('input-upload-files'),
+    modalUpload:      $('modal-upload'),
+    uploadList:       $('upload-list'),
+    btnUploadAddMore: $('btn-upload-add-more'),
+    btnUploadSendAll: $('btn-upload-send-all'),
+    btnUploadClose:   $('btn-upload-close'),
+
+    // Editar faixa
+    modalTrackEdit:  $('modal-track-edit'),
+    editFieldTitle:  $('edit-field-title'),
+    editFieldArtist: $('edit-field-artist'),
+    editFieldAlbum:  $('edit-field-album'),
+    editFieldGenre:  $('edit-field-genre'),
+    genreSuggestions:$('genre-suggestions'),
+    btnEditSave:     $('btn-edit-save'),
+    btnEditCancel:   $('btn-edit-cancel'),
+
+    // Playlists
+    viewPlaylists:        $('view-playlists'),
+    playlistsListWrap:    $('playlists-list-wrap'),
+    playlistsList:        $('playlists-list'),
+    btnNewPlaylist:       $('btn-new-playlist'),
+    playlistDetail:       $('playlist-detail'),
+    playlistDetailTitle:  $('playlist-detail-title'),
+    btnPlaylistBack:      $('btn-playlist-back'),
+    btnPlaylistDelete:    $('btn-playlist-delete'),
+    btnPlaylistPlay:      $('btn-playlist-play'),
+    playlistTracksList:   $('playlist-tracks-list'),
+
+    modalNewPlaylist:     $('modal-new-playlist'),
+    newPlaylistName:      $('new-playlist-name'),
+    btnNewPlaylistCreate: $('btn-new-playlist-create'),
+    btnNewPlaylistCancel: $('btn-new-playlist-cancel'),
+
+    modalAddToPlaylist:      $('modal-add-to-playlist'),
+    addToPlaylistList:       $('add-to-playlist-list'),
+    addToPlaylistNewName:    $('add-to-playlist-new-name'),
+    btnAddToPlaylistCreate:  $('btn-add-to-playlist-create'),
+    btnAddToPlaylistClose:   $('btn-add-to-playlist-close'),
   };
 
   // ── TOAST ──────────────────────────────────────
@@ -343,14 +393,72 @@ const UI = (() => {
         </div>
         <div class="track-info">
           <span class="track-title">${_escape(track.title)}</span>
-          <span class="track-meta">${_escape(track.artist)}${track.album ? ' · ' + _escape(track.album) : ''}</span>
+          <span class="track-meta">${_escape(track.artist)}${track.album ? ' · ' + _escape(track.album) : ''}${track.genre ? ' · ' + _escape(track.genre) : ''}</span>
         </div>
         <span class="track-duration">${track.duration ? Player.formatTime(track.duration) : '—'}</span>
         ${_renderDlButton(track.id)}
+        <button class="track-menu-btn" data-menu="${track.id}" aria-label="Mais opções">${_menuIcon()}</button>
       </div>
     `).join('');
 
     tracks.forEach(track => _queueCoverFetch(track));
+  }
+
+  function _menuIcon() {
+    return `<svg width="18" height="18" fill="currentColor" viewBox="0 0 24 24">
+      <circle cx="12" cy="5" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="12" cy="19" r="1.8"/>
+    </svg>`;
+  }
+
+  // ── MENU DE AÇÕES DA FAIXA (editar / add à playlist) ──
+  // Popover simples e independente, sem framework — app.js registra o
+  // que cada ação deve fazer via setTrackMenuHandlers.
+  let _trackMenuHandlers = { onEdit: null, onAddToPlaylist: null };
+
+  function setTrackMenuHandlers(handlers) {
+    _trackMenuHandlers = { ..._trackMenuHandlers, ...handlers };
+  }
+
+  function _closeTrackMenu() {
+    document.querySelector('.track-menu-popover')?.remove();
+  }
+
+  function _outsideMenuHandler(e) {
+    if (!e.target.closest('.track-menu-popover') && !e.target.closest('[data-menu]')) _closeTrackMenu();
+  }
+
+  function _openTrackMenu(trackId, anchorEl, tracks) {
+    _closeTrackMenu();
+    const track = tracks.find(t => t.id === trackId);
+    if (!track) return;
+
+    const pop = document.createElement('div');
+    pop.className = 'track-menu-popover';
+    pop.innerHTML = `
+      <button data-action="edit">✏️ Editar informações</button>
+      <button data-action="playlist">➕ Adicionar à playlist</button>
+    `;
+    document.body.appendChild(pop);
+
+    const rect = anchorEl.getBoundingClientRect();
+    const popRect = pop.getBoundingClientRect();
+    let top = rect.bottom + 4;
+    if (top + popRect.height > window.innerHeight) top = rect.top - popRect.height - 4;
+    let left = rect.right - popRect.width;
+    if (left < 8) left = 8;
+    pop.style.top  = `${top}px`;
+    pop.style.left = `${left}px`;
+
+    pop.addEventListener('click', e => {
+      const btn = e.target.closest('button');
+      if (!btn) return;
+      const action = btn.dataset.action;
+      _closeTrackMenu();
+      if (action === 'edit') _trackMenuHandlers.onEdit?.(track);
+      if (action === 'playlist') _trackMenuHandlers.onAddToPlaylist?.(track);
+    });
+
+    setTimeout(() => document.addEventListener('click', _outsideMenuHandler, { once: true }), 0);
   }
 
   // Ícone animado de equalizer para a faixa tocando
@@ -511,6 +619,132 @@ const UI = (() => {
       : 'Buscando em todo o Drive';
   }
 
+  // ── BARRA DE FILTROS (gênero / artista / álbum) ────
+  function _fillSelect(select, values, activeValue, placeholder) {
+    const current = activeValue || '';
+    select.innerHTML = `<option value="">${placeholder}</option>` +
+      values.map(v => `<option value="${_escape(v)}" ${v === current ? 'selected' : ''}>${_escape(v)}</option>`).join('');
+  }
+
+  function renderFilterOptions({ genres, artists, albums }, active = {}) {
+    _fillSelect(el.filterGenre,  genres,  active.genre,  'Gênero');
+    _fillSelect(el.filterArtist, artists, active.artist, 'Artista');
+    _fillSelect(el.filterAlbum,  albums,  active.album,  'Álbum');
+
+    const hasFilter = !!(active.genre || active.artist || active.album);
+    el.btnFilterClear.classList.toggle('hidden', !hasFilter);
+  }
+
+  function setFilterSummary(text) {
+    if (!text) {
+      el.filterSummary.classList.add('hidden');
+      el.filterSummary.textContent = '';
+    } else {
+      el.filterSummary.classList.remove('hidden');
+      el.filterSummary.textContent = text;
+    }
+  }
+
+  // ── MODAL: EDITAR METADADOS DA FAIXA ───────────
+  function showTrackEditModal(track, knownGenres = []) {
+    el.editFieldTitle.value  = track.title  || '';
+    el.editFieldArtist.value = track.artist === 'Desconhecido' ? '' : (track.artist || '');
+    el.editFieldAlbum.value  = track.album  || '';
+    el.editFieldGenre.value  = track.genre  || '';
+    el.genreSuggestions.innerHTML = knownGenres.map(g => `<option value="${_escape(g)}"></option>`).join('');
+    el.modalTrackEdit.classList.remove('hidden');
+    el.modalTrackEdit.dataset.trackId = track.id;
+    el.editFieldTitle.focus();
+  }
+  function hideTrackEditModal() {
+    el.modalTrackEdit.classList.add('hidden');
+    delete el.modalTrackEdit.dataset.trackId;
+  }
+  function getTrackEditForm() {
+    return {
+      title:  el.editFieldTitle.value.trim(),
+      artist: el.editFieldArtist.value.trim(),
+      album:  el.editFieldAlbum.value.trim(),
+      genre:  el.editFieldGenre.value.trim(),
+    };
+  }
+
+  // ── UPLOAD DE MÚSICAS ──────────────────────────
+  function showUploadModal() { el.modalUpload.classList.remove('hidden'); }
+  function hideUploadModal() { el.modalUpload.classList.add('hidden'); }
+
+  // ── PLAYLISTS ───────────────────────────────────
+  function _playlistIcon() {
+    return `<svg width="26" height="26" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+      <path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>
+    </svg>`;
+  }
+
+  function renderPlaylists(playlists) {
+    if (!playlists.length) {
+      el.playlistsList.innerHTML = `<p class="empty-hint">Nenhuma playlist ainda. Crie a primeira!</p>`;
+      return;
+    }
+    el.playlistsList.innerHTML = playlists.map(p => `
+      <div class="playlist-card" data-id="${p.id}" role="button" tabindex="0">
+        <div class="playlist-card-art">${_playlistIcon()}</div>
+        <span class="playlist-card-name">${_escape(p.name)}</span>
+        <span class="playlist-card-count">${p.trackIds.length} música${p.trackIds.length === 1 ? '' : 's'}</span>
+      </div>
+    `).join('');
+  }
+
+  function showPlaylistsRoot() {
+    el.playlistsListWrap.classList.remove('hidden');
+    el.playlistDetail.classList.add('hidden');
+  }
+  function showPlaylistDetail(playlist) {
+    el.playlistsListWrap.classList.add('hidden');
+    el.playlistDetail.classList.remove('hidden');
+    el.playlistDetailTitle.textContent = playlist.name;
+    el.playlistDetail.dataset.id = playlist.id;
+  }
+
+  function renderPlaylistTracks(tracks, currentId = null) {
+    if (!tracks.length) {
+      el.playlistTracksList.innerHTML = `
+        <p class="empty-hint">Essa playlist ainda está vazia.<br>Adicione músicas pelo menu (⋮) de qualquer faixa.</p>`;
+      return;
+    }
+    renderTrackList(el.playlistTracksList, tracks, currentId);
+  }
+
+  // ── MODAL: NOVA PLAYLIST ───────────────────────
+  function showNewPlaylistModal() {
+    el.newPlaylistName.value = '';
+    el.modalNewPlaylist.classList.remove('hidden');
+    el.newPlaylistName.focus();
+  }
+  function hideNewPlaylistModal() { el.modalNewPlaylist.classList.add('hidden'); }
+
+  // ── MODAL: ADICIONAR À PLAYLIST ────────────────
+  function showAddToPlaylistModal(playlists, trackId) {
+    el.addToPlaylistNewName.value = '';
+    el.modalAddToPlaylist.dataset.trackId = trackId;
+
+    if (!playlists.length) {
+      el.addToPlaylistList.innerHTML = `<p class="empty-hint">Você ainda não tem playlists.</p>`;
+    } else {
+      el.addToPlaylistList.innerHTML = playlists.map(p => `
+        <div class="folder-item playlist-pick-item ${p.trackIds.includes(trackId) ? 'selected' : ''}" data-id="${p.id}">
+          ${_playlistIcon()}
+          <span style="flex:1;">${_escape(p.name)}</span>
+          <span class="profile-section-hint" style="margin:0;">${p.trackIds.includes(trackId) ? '✓ na playlist' : 'adicionar'}</span>
+        </div>
+      `).join('');
+    }
+    el.modalAddToPlaylist.classList.remove('hidden');
+  }
+  function hideAddToPlaylistModal() {
+    el.modalAddToPlaylist.classList.add('hidden');
+    delete el.modalAddToPlaylist.dataset.trackId;
+  }
+
   // ── LOADING STATE ──────────────────────────────
   function showLoading(container, rows = 5) {
     container.innerHTML = Array(rows).fill(0).map(() => `
@@ -644,6 +878,13 @@ const UI = (() => {
         return;
       }
 
+      const menuBtn = e.target.closest('[data-menu]');
+      if (menuBtn) {
+        e.stopPropagation();
+        _openTrackMenu(menuBtn.dataset.menu, menuBtn, tracks);
+        return;
+      }
+
       const item = e.target.closest('.track-item');
       if (!item) return;
       const index = parseInt(item.dataset.index, 10);
@@ -730,6 +971,32 @@ const UI = (() => {
     refreshDownloadBadges,
     setOfflineSummary,
     setDownloadBatchUI,
+
+    // Filtros
+    renderFilterOptions,
+    setFilterSummary,
+
+    // Menu da faixa
+    setTrackMenuHandlers,
+
+    // Edição de metadados
+    showTrackEditModal,
+    hideTrackEditModal,
+    getTrackEditForm,
+
+    // Upload
+    showUploadModal,
+    hideUploadModal,
+
+    // Playlists
+    renderPlaylists,
+    showPlaylistsRoot,
+    showPlaylistDetail,
+    renderPlaylistTracks,
+    showNewPlaylistModal,
+    hideNewPlaylistModal,
+    showAddToPlaylistModal,
+    hideAddToPlaylistModal,
   };
 
 })();
