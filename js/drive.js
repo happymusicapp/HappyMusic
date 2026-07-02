@@ -49,6 +49,7 @@ const Drive = (() => {
   // Chaves de armazenamento local
   const KEY_TOKEN      = 'hm_access_token';
   const KEY_EXPIRY     = 'hm_token_expiry';
+  const KEY_REFRESH    = 'hm_refresh_token';
   const KEY_USER       = 'hm_user';
   const KEY_VERIFIER   = 'hm_pkce_verifier';
   const KEY_FOLDER_ID  = 'hm_folder_id';
@@ -134,6 +135,13 @@ const Drive = (() => {
 
       localStorage.setItem(KEY_TOKEN,  _token);
       localStorage.setItem(KEY_EXPIRY, expiry);
+      // O Google só manda refresh_token na primeira autorização (por
+      // isso o prompt inclui 'consent' — garante que ele sempre venha).
+      // É o que permite renovar o access_token sozinho depois, sem
+      // precisar pedir pro usuário logar de novo a cada ~1h.
+      if (data.refresh_token) {
+        localStorage.setItem(KEY_REFRESH, data.refresh_token);
+      }
 
       window.history.replaceState({}, '', '/');
       sessionStorage.removeItem(KEY_VERIFIER);
@@ -148,7 +156,7 @@ const Drive = (() => {
   }
 
   // ── TOKEN: RESTAURAR DA SESSÃO ─────────────────
-  function restoreSession() {
+  async function restoreSession() {
     const token  = localStorage.getItem(KEY_TOKEN);
     const expiry = parseInt(localStorage.getItem(KEY_EXPIRY) || '0', 10);
     const user   = localStorage.getItem(KEY_USER);
@@ -157,6 +165,16 @@ const Drive = (() => {
       _token = token;
       _user  = user ? JSON.parse(user) : null;
       return true;
+    }
+
+    // Access token expirado (app fechado/tela travada por mais de ~1h) —
+    // antes de forçar login de novo, tenta renovar com o refresh_token.
+    if (localStorage.getItem(KEY_REFRESH)) {
+      const refreshed = await _refreshAccessToken();
+      if (refreshed) {
+        _user = user ? JSON.parse(user) : null;
+        return true;
+      }
     }
 
     _clearSession();
@@ -177,6 +195,7 @@ const Drive = (() => {
     _user  = null;
     localStorage.removeItem(KEY_TOKEN);
     localStorage.removeItem(KEY_EXPIRY);
+    localStorage.removeItem(KEY_REFRESH);
     localStorage.removeItem(KEY_USER);
     localStorage.removeItem(KEY_FOLDER_ID);
     localStorage.removeItem('hm_folder_name');
@@ -195,17 +214,72 @@ const Drive = (() => {
 
   function getUser() { return _user; }
 
+  // ── RENOVAÇÃO DE TOKEN ─────────────────────────
+  let _refreshPromise = null; // evita disparar vários refreshes em paralelo
+
+  function _refreshAccessToken() {
+    if (_refreshPromise) return _refreshPromise;
+
+    const refreshToken = localStorage.getItem(KEY_REFRESH);
+    if (!refreshToken) return Promise.resolve(false);
+
+    _refreshPromise = fetch('/api/refresh', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refresh_token: refreshToken }),
+    })
+      .then(res => (res.ok ? res.json() : null))
+      .then(data => {
+        if (!data || !data.access_token) return false;
+        _token = data.access_token;
+        const expiry = Date.now() + (data.expires_in * 1000);
+        localStorage.setItem(KEY_TOKEN,  _token);
+        localStorage.setItem(KEY_EXPIRY, expiry);
+        return true;
+      })
+      .catch(err => {
+        console.warn('[Drive] Falha ao renovar token:', err);
+        return false;
+      })
+      .finally(() => { _refreshPromise = null; });
+
+    return _refreshPromise;
+  }
+
+  // Chamado antes de qualquer requisição autenticada: se o access token
+  // já expirou (ou está prestes a), renova antes de seguir — evita
+  // bater 401 no meio de uma troca de faixa com a tela travada.
+  async function _ensureValidToken() {
+    const expiry = parseInt(localStorage.getItem(KEY_EXPIRY) || '0', 10);
+    if (_token && expiry - Date.now() > 60_000) return true;
+    return _refreshAccessToken();
+  }
+
   // ── REQUISIÇÃO AUTENTICADA ────────────────────
   async function _get(url, params = {}) {
+    await _ensureValidToken();
+
     const qs  = new URLSearchParams(params).toString();
     const sep = url.includes('?') ? '&' : '?';
-    const res = await fetch(qs ? `${url}${sep}${qs}` : url, {
+    const fullUrl = qs ? `${url}${sep}${qs}` : url;
+
+    let res = await fetch(fullUrl, {
       headers: { Authorization: `Bearer ${_token}` },
     });
 
     if (res.status === 401) {
-      _clearSession();
-      throw new Error('UNAUTHORIZED');
+      // Token pode ter expirado no meio da chamada — tenta renovar uma
+      // vez antes de desistir e derrubar a sessão.
+      const refreshed = await _refreshAccessToken();
+      if (refreshed) {
+        res = await fetch(fullUrl, {
+          headers: { Authorization: `Bearer ${_token}` },
+        });
+      }
+      if (res.status === 401) {
+        _clearSession();
+        throw new Error('UNAUTHORIZED');
+      }
     }
 
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -346,14 +420,20 @@ const Drive = (() => {
   async function fetchAudioUrl(fileId) {
     if (_blobCache.has(fileId)) return _blobCache.get(fileId);
 
-    const res = await fetch(
-      `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`,
-      { headers: { Authorization: `Bearer ${_token}` } }
-    );
+    await _ensureValidToken();
+
+    const requestUrl = `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`;
+    let res = await fetch(requestUrl, { headers: { Authorization: `Bearer ${_token}` } });
 
     if (res.status === 401) {
-      _clearSession();
-      throw new Error('UNAUTHORIZED');
+      const refreshed = await _refreshAccessToken();
+      if (refreshed) {
+        res = await fetch(requestUrl, { headers: { Authorization: `Bearer ${_token}` } });
+      }
+      if (res.status === 401) {
+        _clearSession();
+        throw new Error('UNAUTHORIZED');
+      }
     }
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
@@ -416,6 +496,8 @@ const Drive = (() => {
     if (!_token) return null;
 
     try {
+      await _ensureValidToken();
+
       const res = await fetch(
         `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`,
         {
@@ -476,6 +558,8 @@ const Drive = (() => {
   function _sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
   async function _initResumableSession(meta, file) {
+    await _ensureValidToken();
+
     const res = await fetch(
       'https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable&supportsAllDrives=true' +
       '&fields=id,name,size,mimeType,modifiedTime,thumbnailLink,videoMediaMetadata,properties',
@@ -596,6 +680,8 @@ const Drive = (() => {
       },
     };
 
+    await _ensureValidToken();
+
     const res = await fetch(
       `https://www.googleapis.com/drive/v3/files/${fileId}` +
       '?supportsAllDrives=true&fields=id,name,size,mimeType,modifiedTime,thumbnailLink,videoMediaMetadata,properties',
@@ -656,6 +742,8 @@ const Drive = (() => {
       }
       _playlistsFileId = file.id;
 
+      await _ensureValidToken();
+
       const res = await fetch(`https://www.googleapis.com/drive/v3/files/${file.id}?alt=media`, {
         headers: { Authorization: `Bearer ${_token}` },
       });
@@ -680,6 +768,8 @@ const Drive = (() => {
       `--${boundary}\r\nContent-Type: application/json\r\n\r\n${content}\r\n` +
       `--${boundary}--`;
 
+    await _ensureValidToken();
+
     const res = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id', {
       method: 'POST',
       headers: {
@@ -694,6 +784,8 @@ const Drive = (() => {
   }
 
   async function _mediaUpdateJson(fileId, content) {
+    await _ensureValidToken();
+
     const res = await fetch(`https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=media`, {
       method: 'PATCH',
       headers: {

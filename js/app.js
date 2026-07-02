@@ -67,7 +67,7 @@ const App = (() => {
     }
 
     // 3. Tenta restaurar sessão existente
-    if (Drive.restoreSession()) {
+    if (await Drive.restoreSession()) {
       await _startApp();
     } else {
       UI.showLogin();
