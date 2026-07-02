@@ -33,6 +33,7 @@ const Player = (() => {
     _originalQueue = [...tracks];
     _queue         = _shuffle ? _shuffled(tracks, startIndex) : [...tracks];
     _index         = _shuffle ? 0 : startIndex;
+    _preloadedTrackId = null;
     _play();
   }
 
@@ -101,11 +102,49 @@ const Player = (() => {
       await audio.play();
       _listeners.onPlay?.(track);
 
+      // Pré-carrega a próxima faixa em segundo plano. Isso é essencial
+      // com a tela travada: baixar o áudio inteiro (fetch + blob) só
+      // depois que a faixa atual termina cria um intervalo mudo entre
+      // uma faixa e outra. Nesse intervalo o Android (principalmente
+      // MIUI/HyperOS) entende que não há playback ativo e pode suspender
+      // a aba/WebView antes do fetch da próxima faixa terminar — o app
+      // trava e nunca mais toca. Com a próxima faixa já em cache no
+      // momento em que a atual termina, a troca é praticamente instantânea.
+      _preloadNext();
+
     } catch (err) {
       if (myLoad !== _loadToken) return; // já trocou de faixa, ignora erro
       console.error('[Player] Erro ao reproduzir:', err);
       _handlePlaybackFailure(err, _skipAttempts);
     }
+  }
+
+  // Descobre, sem alterar o estado, qual seria o índice da próxima
+  // faixa (espelha a lógica de next(), mas só de leitura).
+  function _peekNextIndex() {
+    if (!_queue.length) return -1;
+    if (_repeat === 'one') return _index;
+    if (_index < _queue.length - 1) return _index + 1;
+    if (_repeat === 'all') return 0;
+    return -1; // fim da fila, sem repeat
+  }
+
+  let _preloadedTrackId = null;
+
+  // Busca antecipadamente o áudio da próxima faixa (Drive.fetchAudioUrl
+  // já cacheia por fileId), sem bloquear nada. Se falhar, não tem problema:
+  // _play() vai buscar de novo (com o intervalo mudo) quando chegar a vez.
+  function _preloadNext() {
+    const idx = _peekNextIndex();
+    if (idx === -1) return;
+
+    const track = _queue[idx];
+    if (!track || track.id === _preloadedTrackId) return;
+
+    _preloadedTrackId = track.id;
+    Drive.fetchAudioUrl(track.id).catch(() => {
+      if (_preloadedTrackId === track.id) _preloadedTrackId = null;
+    });
   }
 
   // O player nunca deve simplesmente parar quando uma faixa falha ao
@@ -281,6 +320,13 @@ const Player = (() => {
   // ── EVENTOS DO AUDIO ELEMENT ──────────────────
   audio.addEventListener('timeupdate', () => {
     _listeners.onProgress?.(audio.currentTime, audio.duration || 0);
+
+    // Rede de segurança: se por algum motivo o preload disparado no
+    // início da faixa (_play) ainda não terminou (rede lenta) ou nem
+    // chegou a rodar, tenta de novo nos últimos segundos da música.
+    if (audio.duration && audio.duration - audio.currentTime <= 20) {
+      _preloadNext();
+    }
   });
 
   audio.addEventListener('ended', () => {
