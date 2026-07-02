@@ -95,6 +95,20 @@ const UI = (() => {
     btnFilterClear: $('btn-filter-clear'),
     filterSummary:  $('filter-summary'),
 
+    // Seleção múltipla / atribuição de gênero em lote
+    btnSelectMode:          $('btn-select-mode'),
+    selectionBar:           $('selection-bar'),
+    selectionCount:         $('selection-count'),
+    btnSelectionAssignGenre:$('btn-selection-assign-genre'),
+    btnSelectionCancel:     $('btn-selection-cancel'),
+    modalBulkGenre:         $('modal-bulk-genre'),
+    bulkGenreCount:         $('bulk-genre-count'),
+    bulkGenreField:         $('bulk-genre-field'),
+    bulkGenreProgress:      $('bulk-genre-progress'),
+    bulkGenreProgressFill:  $('bulk-genre-progress-fill'),
+    btnBulkGenreSave:       $('btn-bulk-genre-save'),
+    btnBulkGenreCancel:     $('btn-bulk-genre-cancel'),
+
     // Upload
     btnUploadOpen:    $('btn-upload-open'),
     inputUploadFiles: $('input-upload-files'),
@@ -381,6 +395,7 @@ const UI = (() => {
            role="button"
            tabindex="0"
            aria-label="${_escape(track.title)} — ${_escape(track.artist)}">
+        <input type="checkbox" class="track-select-cb" data-select="${track.id}" tabindex="-1" aria-hidden="true" />
         <span class="track-num">
           ${track.id === currentId
             ? _equalizerIcon()
@@ -745,6 +760,51 @@ const UI = (() => {
     delete el.modalAddToPlaylist.dataset.trackId;
   }
 
+  // ── SELEÇÃO MÚLTIPLA (atribuir gênero em lote) ─
+  function isSelectMode(container) {
+    return container.classList.contains('select-mode');
+  }
+
+  function setSelectMode(container, on) {
+    container.classList.toggle('select-mode', on);
+    if (!on) {
+      container.querySelectorAll('.track-item.selected').forEach(item => {
+        item.classList.remove('selected');
+        const cb = item.querySelector('.track-select-cb');
+        if (cb) cb.checked = false;
+      });
+    }
+  }
+
+  function getSelectedIds(container) {
+    return [...container.querySelectorAll('.track-item.selected')].map(item => item.dataset.id);
+  }
+
+  function updateSelectionBar(count) {
+    el.selectionCount.textContent = count === 1 ? '1 selecionada' : `${count} selecionadas`;
+    el.btnSelectionAssignGenre.disabled = count === 0;
+  }
+
+  function showSelectionBar() { el.selectionBar.classList.remove('hidden'); }
+  function hideSelectionBar() { el.selectionBar.classList.add('hidden'); }
+
+  // ── MODAL: ATRIBUIR GÊNERO EM LOTE ─────────────
+  function showBulkGenreModal(count, knownGenres = []) {
+    el.bulkGenreCount.textContent = count === 1 ? '1 música selecionada' : `${count} músicas selecionadas`;
+    el.bulkGenreField.value = '';
+    el.genreSuggestions.innerHTML = knownGenres.map(g => `<option value="${_escape(g)}"></option>`).join('');
+    el.bulkGenreProgress.classList.add('hidden');
+    el.bulkGenreProgressFill.style.width = '0%';
+    el.btnBulkGenreSave.disabled = false;
+    el.modalBulkGenre.classList.remove('hidden');
+    el.bulkGenreField.focus();
+  }
+  function hideBulkGenreModal() { el.modalBulkGenre.classList.add('hidden'); }
+  function setBulkGenreProgress(done, total) {
+    el.bulkGenreProgress.classList.remove('hidden');
+    el.bulkGenreProgressFill.style.width = `${total ? Math.round((done / total) * 100) : 0}%`;
+  }
+
   // ── LOADING STATE ──────────────────────────────
   function showLoading(container, rows = 5) {
     container.innerHTML = Array(rows).fill(0).map(() => `
@@ -887,6 +947,16 @@ const UI = (() => {
 
       const item = e.target.closest('.track-item');
       if (!item) return;
+
+      if (container.classList.contains('select-mode')) {
+        e.stopPropagation();
+        const cb = item.querySelector('.track-select-cb');
+        if (cb) cb.checked = !cb.checked;
+        item.classList.toggle('selected', cb ? cb.checked : false);
+        document.dispatchEvent(new CustomEvent('hm-selection-change'));
+        return;
+      }
+
       const index = parseInt(item.dataset.index, 10);
       if (isNaN(index)) return;
       Player.loadQueue(tracks, index);
@@ -978,6 +1048,17 @@ const UI = (() => {
 
     // Menu da faixa
     setTrackMenuHandlers,
+
+    // Seleção múltipla / gênero em lote
+    isSelectMode,
+    setSelectMode,
+    getSelectedIds,
+    updateSelectionBar,
+    showSelectionBar,
+    hideSelectionBar,
+    showBulkGenreModal,
+    hideBulkGenreModal,
+    setBulkGenreProgress,
 
     // Edição de metadados
     showTrackEditModal,

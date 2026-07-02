@@ -257,6 +257,95 @@ const App = (() => {
     }
   }
 
+  // ── SELEÇÃO MÚLTIPLA / GÊNERO EM LOTE ──────────
+  // Útil pra quem já tem um monte de música solta no Drive e quer
+  // organizar por gênero sem editar faixa por faixa.
+  function _updateSelectionUI() {
+    const count = UI.getSelectedIds(UI.el.allTracksList).length;
+    UI.updateSelectionBar(count);
+  }
+
+  async function _applyBulkGenre(genre) {
+    const ids = UI.getSelectedIds(UI.el.allTracksList);
+    if (!ids.length) return;
+
+    UI.el.btnBulkGenreSave.disabled = true;
+    let done = 0;
+    let failed = 0;
+
+    for (const id of ids) {
+      try {
+        const current = _findTrackAnywhere(id);
+        await Drive.updateTrackMetadata(id, {
+          title:  current?.title  || '',
+          artist: current?.artist || '',
+          album:  current?.album  || '',
+          genre,
+        });
+        const idx = _tracks.findIndex(t => t.id === id);
+        if (idx !== -1) _tracks[idx] = Drive.getCachedTracks().find(t => t.id === id) || _tracks[idx];
+      } catch (err) {
+        console.error('[App] Falha ao atribuir gênero em lote:', id, err);
+        failed++;
+        if (err?.message === 'UNAUTHORIZED') {
+          Drive.logout();
+          UI.showLogin();
+          UI.hideBulkGenreModal();
+          return;
+        }
+      }
+      done++;
+      UI.setBulkGenreProgress(done, ids.length);
+    }
+
+    UI.hideBulkGenreModal();
+    UI.setSelectMode(UI.el.allTracksList, false);
+    UI.hideSelectionBar();
+    UI.el.btnSelectMode.textContent = 'Selecionar';
+    _refreshFilterBar();
+    _renderAllTracksList();
+
+    UI.showToast(failed
+      ? `Gênero aplicado a ${done - failed} de ${ids.length} (${failed} falharam — tenta de novo nessas)`
+      : `Gênero "${genre}" aplicado a ${done} música${done === 1 ? '' : 's'} ✓`);
+  }
+
+  function _bindSelectionEvents() {
+    UI.el.btnSelectMode.addEventListener('click', () => {
+      const on = !UI.isSelectMode(UI.el.allTracksList);
+      UI.setSelectMode(UI.el.allTracksList, on);
+      UI.el.btnSelectMode.textContent = on ? 'Cancelar seleção' : 'Selecionar';
+      if (on) { UI.showSelectionBar(); _updateSelectionUI(); }
+      else { UI.hideSelectionBar(); }
+    });
+
+    UI.el.btnSelectionCancel.addEventListener('click', () => {
+      UI.setSelectMode(UI.el.allTracksList, false);
+      UI.hideSelectionBar();
+      UI.el.btnSelectMode.textContent = 'Selecionar';
+    });
+
+    UI.el.btnSelectionAssignGenre.addEventListener('click', () => {
+      const count = UI.getSelectedIds(UI.el.allTracksList).length;
+      if (!count) return;
+      UI.showBulkGenreModal(count, _knownGenres());
+    });
+
+    document.addEventListener('hm-selection-change', () => _updateSelectionUI());
+
+    UI.el.btnBulkGenreSave.addEventListener('click', () => {
+      const genre = UI.el.bulkGenreField.value.trim();
+      if (!genre) { UI.showToast('Digite um gênero.'); return; }
+      _applyBulkGenre(genre);
+    });
+
+    UI.el.btnBulkGenreCancel.addEventListener('click', () => UI.hideBulkGenreModal());
+
+    UI.el.modalBulkGenre.addEventListener('click', e => {
+      if (e.target === UI.el.modalBulkGenre) UI.hideBulkGenreModal();
+    });
+  }
+
   // ── FILTROS (gênero / artista / álbum) ─────────
   function _visibleTracks() {
     return Drive.filterTracks(_filters);
@@ -276,6 +365,8 @@ const App = (() => {
 
     const active = [_filters.genre, _filters.artist, _filters.album].filter(Boolean).length;
     UI.setFilterSummary(active ? `${list.length} de ${_tracks.length} músicas com o filtro atual` : null);
+
+    if (UI.isSelectMode(UI.el.allTracksList)) _updateSelectionUI();
   }
 
   function _refreshFilterBar() {
@@ -801,6 +892,7 @@ const App = (() => {
 
     // Filtros, upload, edição de metadados e playlists
     _bindFilterEvents();
+    _bindSelectionEvents();
     _bindUploadEvents();
     _bindEditModalEvents();
     _bindPlaylistEvents();
