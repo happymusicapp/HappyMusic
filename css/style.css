@@ -1227,3 +1227,231 @@ img    { display: block; }
   border-color: var(--purple);
   color: var(--purple-soft);
 }
+
+/* ═══════════════════════════════════════════════
+   FILTROS (gênero / artista / álbum)
+═══════════════════════════════════════════════ */
+.filter-bar {
+  display: flex;
+  gap: var(--sp-2);
+  flex-wrap: wrap;
+  margin-bottom: var(--sp-2);
+}
+
+.filter-select {
+  flex: 1;
+  min-width: 90px;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--surface, var(--bg-elevated));
+  color: var(--white);
+  font-size: 0.8rem;
+  font-family: inherit;
+}
+
+.filter-select:focus { outline: none; border-color: var(--purple); }
+
+.filter-clear { flex-shrink: 0; }
+
+.filter-summary {
+  font-size: 0.78rem;
+  color: var(--grey);
+  margin: 0 0 var(--sp-2);
+}
+
+/* ═══════════════════════════════════════════════
+   MENU DE AÇÕES DA FAIXA (editar / add à playlist)
+═══════════════════════════════════════════════ */
+.track-menu-btn {
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  color: var(--grey-dark);
+  transition: color var(--transition), background var(--transition);
+}
+
+.track-item .track-menu-btn:hover { color: var(--white); background: var(--surface2); }
+
+.track-menu-popover {
+  position: fixed;
+  z-index: 600;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  box-shadow: 0 12px 32px rgba(0,0,0,0.5);
+  display: flex;
+  flex-direction: column;
+  min-width: 200px;
+  overflow: hidden;
+  animation: fade-in 0.15s var(--ease);
+}
+
+.track-menu-popover button {
+  padding: 12px 14px;
+  text-align: left;
+  font-size: 0.85rem;
+  color: var(--white);
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+.track-menu-popover button:hover { background: var(--surface2); }
+
+/* ═══════════════════════════════════════════════
+   CAMPOS DE TEXTO (upload / edição de metadados)
+═══════════════════════════════════════════════ */
+.upload-field {
+  text-align: left;
+  margin-bottom: var(--sp-3);
+}
+
+.upload-field label {
+  display: block;
+  font-size: 0.75rem;
+  color: var(--grey);
+  margin-bottom: 4px;
+}
+
+.text-input {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--surface, var(--bg-elevated));
+  color: var(--white);
+  font-size: 0.88rem;
+  font-family: inherit;
+}
+
+.text-input:focus { outline: none; border-color: var(--purple); }
+
+/* ═══════════════════════════════════════════════
+   MODAL DE UPLOAD
+═══════════════════════════════════════════════ */
+.modal-box-wide { max-width: 460px; }
+
+.upload-list {
+  max-height: 50vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  margin-bottom: var(--sp-3);
+}
+
+.upload-item {
+  text-align: left;
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-md);
+  padding: var(--sp-3);
+  background: var(--surface, rgba(255,255,255,0.02));
+}
+
+.upload-item-done { opacity: 0.65; }
+
+.upload-item-head {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  margin-bottom: var(--sp-2);
+}
+
+.upload-item-filename {
+  flex: 1;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--white);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.upload-item-badge {
+  font-size: 0.75rem;
+  color: var(--purple-soft);
+  flex-shrink: 0;
+}
+
+.upload-item-remove { flex-shrink: 0; }
+
+.upload-item .upload-field { margin-bottom: var(--sp-2); }
+
+.upload-item-error {
+  color: #ff8a8a;
+  font-size: 0.78rem;
+  margin: 4px 0 var(--sp-2);
+}
+
+.upload-item.upload-item-error { border-color: rgba(255,90,90,0.4); }
+
+.upload-actions {
+  display: flex;
+  gap: var(--sp-2);
+  margin-bottom: var(--sp-2);
+}
+.upload-actions .btn-outline,
+.upload-actions .btn-primary { flex: 1; }
+
+/* ═══════════════════════════════════════════════
+   PLAYLISTS
+═══════════════════════════════════════════════ */
+.playlist-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--sp-3);
+}
+
+.playlist-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  padding: var(--sp-3);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-soft);
+  cursor: pointer;
+  transition: background var(--transition), border-color var(--transition), transform var(--transition);
+}
+
+.playlist-card:hover { background: var(--surface2); border-color: var(--border); transform: translateY(-1px); }
+
+.playlist-card-art {
+  width: 100%;
+  aspect-ratio: 1.8;
+  border-radius: var(--radius-sm);
+  background: linear-gradient(135deg, var(--purple-deep), var(--purple));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(255,255,255,0.85);
+}
+
+.playlist-card-name {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--white);
+}
+
+.playlist-card-count {
+  font-size: 0.75rem;
+  color: var(--grey);
+}
+
+.playlist-detail-header {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  margin-bottom: var(--sp-3);
+}
+.playlist-detail-header h2 { flex: 1; }
+
+.playlist-detail-actions { margin-bottom: var(--sp-3); }
+
+.playlist-pick-item { justify-content: space-between; }
+.playlist-pick-item.selected { border-color: var(--purple); background: rgba(124,58,255,0.1); }
