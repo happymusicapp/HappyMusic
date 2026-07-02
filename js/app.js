@@ -253,7 +253,7 @@ const App = (() => {
     if (result.cancelled) {
       UI.showToast('Download cancelado.');
     } else {
-      UI.showToast(`${result.done} de ${result.total} músicas disponíveis offline ✓`);
+      UI.showToast(`${result.done} de ${result.total} músicas disponíveis offline`);
     }
   }
 
@@ -301,20 +301,24 @@ const App = (() => {
     UI.hideBulkGenreModal();
     UI.setSelectMode(UI.el.allTracksList, false);
     UI.hideSelectionBar();
-    UI.el.btnSelectMode.textContent = 'Selecionar';
+    UI.el.btnSelectMode.classList.remove('active');
+    UI.el.btnSelectMode.title = 'Selecionar';
+    UI.el.btnSelectMode.setAttribute('aria-label', 'Selecionar músicas');
     _refreshFilterBar();
     _renderAllTracksList();
 
     UI.showToast(failed
       ? `Gênero aplicado a ${done - failed} de ${ids.length} (${failed} falharam — tenta de novo nessas)`
-      : `Gênero "${genre}" aplicado a ${done} música${done === 1 ? '' : 's'} ✓`);
+      : `Gênero "${genre}" aplicado a ${done} música${done === 1 ? '' : 's'}`);
   }
 
   function _bindSelectionEvents() {
     UI.el.btnSelectMode.addEventListener('click', () => {
       const on = !UI.isSelectMode(UI.el.allTracksList);
       UI.setSelectMode(UI.el.allTracksList, on);
-      UI.el.btnSelectMode.textContent = on ? 'Cancelar seleção' : 'Selecionar';
+      UI.el.btnSelectMode.classList.toggle('active', on);
+      UI.el.btnSelectMode.setAttribute('aria-label', on ? 'Cancelar seleção' : 'Selecionar músicas');
+      UI.el.btnSelectMode.title = on ? 'Cancelar seleção' : 'Selecionar';
       if (on) { UI.showSelectionBar(); _updateSelectionUI(); }
       else { UI.hideSelectionBar(); }
     });
@@ -322,7 +326,9 @@ const App = (() => {
     UI.el.btnSelectionCancel.addEventListener('click', () => {
       UI.setSelectMode(UI.el.allTracksList, false);
       UI.hideSelectionBar();
-      UI.el.btnSelectMode.textContent = 'Selecionar';
+      UI.el.btnSelectMode.classList.remove('active');
+      UI.el.btnSelectMode.title = 'Selecionar';
+      UI.el.btnSelectMode.setAttribute('aria-label', 'Selecionar músicas');
     });
 
     UI.el.btnSelectionAssignGenre.addEventListener('click', () => {
@@ -431,7 +437,7 @@ const App = (() => {
       <div class="upload-item upload-item-${item.status}" data-upload-id="${item.localId}">
         <div class="upload-item-head">
           <span class="upload-item-filename">${_escHtml(item.file.name)}</span>
-          ${item.status === 'done' ? '<span class="upload-item-badge">✓ Enviada</span>' : ''}
+          ${item.status === 'done' ? `<span class="upload-item-badge">${UI.checkIcon(13)} Enviada</span>` : ''}
           ${item.status !== 'uploading' ? `<button class="text-btn upload-item-remove" data-remove="${item.localId}">Remover</button>` : ''}
         </div>
 
@@ -520,7 +526,7 @@ const App = (() => {
       _tracks = [..._tracks, track];
       _refreshFilterBar();
       _renderAllTracksList();
-      UI.showToast(`"${track.title}" enviada ✓`);
+      UI.showToast(`"${track.title}" enviada`);
     } catch (err) {
       console.error('[App] Erro ao enviar música:', err);
       item.status = 'error';
@@ -631,7 +637,7 @@ const App = (() => {
         const idx = _tracks.findIndex(t => t.id === trackId);
         if (idx !== -1) _tracks[idx] = Drive.getCachedTracks().find(t => t.id === trackId) || _tracks[idx];
         UI.hideTrackEditModal();
-        UI.showToast('Informações atualizadas ✓');
+        UI.showToast('Informações atualizadas');
         _reRenderCurrentViews();
       } catch (err) {
         console.error('[App] Erro ao editar metadados:', err);
@@ -823,7 +829,7 @@ const App = (() => {
       Player.pause();
       _tracks = [];
       UI.showLogin();
-      UI.showToast('Até logo! 👋');
+      UI.showToast('Até logo!');
     });
 
     // Atualizar lista
@@ -957,7 +963,7 @@ const App = (() => {
     });
 
     // Erros de rede globais
-    window.addEventListener('online',  () => UI.showToast('Conexão restaurada ✓'));
+    window.addEventListener('online',  () => UI.showToast('Conexão restaurada'));
     window.addEventListener('offline', () => UI.showToast('Sem conexão com a internet'));
   }
 

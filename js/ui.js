@@ -226,7 +226,7 @@ const UI = (() => {
 
     const sectionTitle = el.viewHome.querySelector('.section-title');
     if (sectionTitle) {
-      sectionTitle.textContent = `${greeting} 👋`;
+      sectionTitle.textContent = `${greeting}`;
     }
   }
 
@@ -425,6 +425,28 @@ const UI = (() => {
     </svg>`;
   }
 
+  function _editIcon() {
+    return `<svg width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
+      <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/>
+    </svg>`;
+  }
+
+  function _addToPlaylistIcon() {
+    return `<svg width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
+      <path d="M3 6h13M3 12h9M3 18h9"/><path d="M18 14v6M15 17h6"/>
+    </svg>`;
+  }
+
+  function _checkIcon(size = 14) {
+    return `<svg width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
+      <polyline points="20 6 9 17 4 12"/>
+    </svg>`;
+  }
+
+  function _playIcon(size = 14) {
+    return `<svg width="${size}" height="${size}" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>`;
+  }
+
   // ── MENU DE AÇÕES DA FAIXA (editar / add à playlist) ──
   // Popover simples e independente, sem framework — app.js registra o
   // que cada ação deve fazer via setTrackMenuHandlers.
@@ -450,8 +472,8 @@ const UI = (() => {
     const pop = document.createElement('div');
     pop.className = 'track-menu-popover';
     pop.innerHTML = `
-      <button data-action="edit">✏️ Editar informações</button>
-      <button data-action="playlist">➕ Adicionar à playlist</button>
+      <button data-action="edit">${_editIcon()}<span>Editar informações</span></button>
+      <button data-action="playlist">${_addToPlaylistIcon()}<span>Adicionar à playlist</span></button>
     `;
     document.body.appendChild(pop);
 
@@ -639,6 +661,7 @@ const UI = (() => {
     const current = activeValue || '';
     select.innerHTML = `<option value="">${placeholder}</option>` +
       values.map(v => `<option value="${_escape(v)}" ${v === current ? 'selected' : ''}>${_escape(v)}</option>`).join('');
+    select.classList.toggle('active', !!current);
   }
 
   function renderFilterOptions({ genres, artists, albums }, active = {}) {
@@ -723,10 +746,11 @@ const UI = (() => {
   function renderPlaylistTracks(tracks, currentId = null) {
     if (!tracks.length) {
       el.playlistTracksList.innerHTML = `
-        <p class="empty-hint">Essa playlist ainda está vazia.<br>Adicione músicas pelo menu (⋮) de qualquer faixa.</p>`;
+        <p class="empty-hint">Essa playlist ainda está vazia.<br>Adicione músicas pelo menu de qualquer faixa.</p>`;
       return;
     }
     renderTrackList(el.playlistTracksList, tracks, currentId);
+    bindTrackListEvents(el.playlistTracksList, tracks);
   }
 
   // ── MODAL: NOVA PLAYLIST ───────────────────────
@@ -749,7 +773,7 @@ const UI = (() => {
         <div class="folder-item playlist-pick-item ${p.trackIds.includes(trackId) ? 'selected' : ''}" data-id="${p.id}">
           ${_playlistIcon()}
           <span style="flex:1;">${_escape(p.name)}</span>
-          <span class="profile-section-hint" style="margin:0;">${p.trackIds.includes(trackId) ? '✓ na playlist' : 'adicionar'}</span>
+          <span class="profile-section-hint" style="margin:0; display:flex; align-items:center; gap:4px;">${p.trackIds.includes(trackId) ? _checkIcon(13) + ' na playlist' : 'adicionar'}</span>
         </div>
       `).join('');
     }
@@ -862,7 +886,7 @@ const UI = (() => {
       if (!track) return;
       const fav = Player.toggleFavorite(track.id);
       el.btnFav.classList.toggle('active', fav);
-      showToast(fav ? '❤️ Adicionado aos favoritos' : 'Removido dos favoritos');
+      showToast(fav ? 'Adicionado aos favoritos' : 'Removido dos favoritos');
     });
 
     // Download offline da faixa atual
@@ -929,19 +953,33 @@ const UI = (() => {
   }
 
   // ── BIND EVENTOS DE LISTA ──────────────────────
+  // As listas são re-renderizadas várias vezes (filtro, busca, upload,
+  // edição...). Sem isso, cada chamada empilhava outro listener no mesmo
+  // container e um clique disparava a ação repetida vezes — é o que
+  // fazia a seleção de músicas "não funcionar" (selecionava e
+  // desselecionava no mesmo clique). Agora o listener é criado uma
+  // única vez por container; só a referência de tracks é atualizada.
+  const _trackListData = new WeakMap();
+
   function bindTrackListEvents(container, tracks) {
+    _trackListData.set(container, tracks);
+    if (container.dataset.hmBound) return;
+    container.dataset.hmBound = '1';
+
     container.addEventListener('click', e => {
+      const currentTracks = _trackListData.get(container) || [];
+
       const dlBtn = e.target.closest('[data-dl]');
       if (dlBtn) {
         e.stopPropagation();
-        _handleDownloadClick(dlBtn.dataset.dl, tracks);
+        _handleDownloadClick(dlBtn.dataset.dl, currentTracks);
         return;
       }
 
       const menuBtn = e.target.closest('[data-menu]');
       if (menuBtn) {
         e.stopPropagation();
-        _openTrackMenu(menuBtn.dataset.menu, menuBtn, tracks);
+        _openTrackMenu(menuBtn.dataset.menu, menuBtn, currentTracks);
         return;
       }
 
@@ -959,7 +997,7 @@ const UI = (() => {
 
       const index = parseInt(item.dataset.index, 10);
       if (isNaN(index)) return;
-      Player.loadQueue(tracks, index);
+      Player.loadQueue(currentTracks, index);
     });
 
     container.addEventListener('keydown', e => {
@@ -972,14 +1010,19 @@ const UI = (() => {
   }
 
   function bindRecentEvents(tracks) {
+    _trackListData.set(el.recentList, tracks);
+    if (el.recentList.dataset.hmBound) return;
+    el.recentList.dataset.hmBound = '1';
+
     el.recentList.addEventListener('click', e => {
+      const currentTracks = _trackListData.get(el.recentList) || [];
       const item = e.target.closest('.recent-item');
       if (!item) return;
       const id = item.dataset.id;
-      const track = tracks.find(t => t.id === id);
+      const track = currentTracks.find(t => t.id === id);
       if (!track) return;
-      const index = tracks.indexOf(track);
-      Player.loadQueue(tracks, index >= 0 ? index : 0);
+      const index = currentTracks.indexOf(track);
+      Player.loadQueue(currentTracks, index >= 0 ? index : 0);
     });
   }
 
@@ -1048,6 +1091,8 @@ const UI = (() => {
 
     // Menu da faixa
     setTrackMenuHandlers,
+    checkIcon: _checkIcon,
+    playIcon: _playIcon,
 
     // Seleção múltipla / gênero em lote
     isSelectMode,
