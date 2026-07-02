@@ -123,7 +123,19 @@
         <div class="shelf">
           <div class="shelf-header">
             <h3 class="shelf-label">Todas as músicas</h3>
-            <button id="btn-refresh" class="text-btn">Atualizar</button>
+            <div style="display:flex; gap:10px;">
+              <button id="btn-select-mode" class="text-btn">Selecionar</button>
+              <button id="btn-refresh" class="text-btn">Atualizar</button>
+            </div>
+          </div>
+
+          <!-- Barra de seleção em lote -->
+          <div id="selection-bar" class="selection-bar hidden">
+            <span id="selection-count">0 selecionadas</span>
+            <div class="selection-bar-actions">
+              <button id="btn-selection-assign-genre" class="btn-primary btn-small" disabled>Atribuir gênero</button>
+              <button id="btn-selection-cancel" class="text-btn">Cancelar</button>
+            </div>
           </div>
 
           <!-- Filtros -->
@@ -366,6 +378,23 @@
         <div class="track-item skeleton" style="min-height:48px; border-radius:8px;"></div>
       </div>
       <button id="btn-folder-close" class="text-btn modal-skip">Cancelar</button>
+    </div>
+  </div>
+
+  <!-- MODAL: ATRIBUIR GÊNERO EM LOTE -->
+  <div id="modal-bulk-genre" class="modal-overlay hidden">
+    <div class="modal-box">
+      <h2 class="modal-title">Atribuir gênero</h2>
+      <p id="bulk-genre-count" class="modal-text">0 músicas selecionadas</p>
+      <div class="upload-field">
+        <label>Gênero</label>
+        <input id="bulk-genre-field" type="text" class="text-input" list="genre-suggestions" placeholder="Ex: MPB" />
+      </div>
+      <div id="bulk-genre-progress" class="dl-progress hidden">
+        <div class="dl-progress-bar"><div id="bulk-genre-progress-fill" class="dl-progress-fill" style="width:0%"></div></div>
+      </div>
+      <button id="btn-bulk-genre-save" class="btn-primary">Aplicar a todas</button>
+      <button id="btn-bulk-genre-cancel" class="text-btn modal-skip">Cancelar</button>
     </div>
   </div>
 
