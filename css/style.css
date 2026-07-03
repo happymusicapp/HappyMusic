@@ -1622,3 +1622,143 @@ img    { display: block; }
   align-items: center;
   gap: 4px;
 }
+
+/* ═══════════════════════════════════════════════
+   FILMES
+═══════════════════════════════════════════════ */
+.movie-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  padding: var(--sp-3);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-soft);
+  cursor: pointer;
+  position: relative;
+  transition: background var(--transition), border-color var(--transition), transform var(--transition), box-shadow var(--transition);
+}
+
+.movie-card:hover {
+  background: var(--surface2);
+  border-color: var(--purple);
+  box-shadow: 0 0 20px rgba(124,58,255,0.25);
+  transform: translateY(-2px);
+}
+
+.movie-card-art {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1.6;
+  border-radius: var(--radius-sm);
+  background: var(--gradient-brand);
+  background-size: cover;
+  background-position: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(255,255,255,0.9);
+  overflow: hidden;
+  transition: box-shadow var(--transition);
+}
+
+.movie-card:hover .movie-card-art { box-shadow: 0 6px 24px rgba(124,58,255,0.4); }
+
+.movie-card-art::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, transparent 55%, rgba(0,0,0,0.55) 100%);
+}
+
+.movie-card-play {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1;
+  opacity: 0.85;
+  transition: opacity var(--transition), transform var(--transition);
+}
+
+.movie-card:hover .movie-card-play { opacity: 1; transform: scale(1.08); }
+
+.movie-card-edit {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 28px;
+  height: 28px;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: rgba(0,0,0,0.45);
+  color: rgba(255,255,255,0.9);
+  backdrop-filter: blur(2px);
+  transition: background var(--transition), color var(--transition);
+}
+.movie-card-edit:hover { background: var(--purple); color: var(--white); }
+
+.movie-card-name {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--white);
+  width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.movie-card-meta {
+  font-size: 0.75rem;
+  color: var(--grey);
+}
+
+/* ── PLAYER DE FILME (tela cheia) ────────────── */
+.movie-player-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 700;
+  background: #000;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  animation: fade-in 0.2s var(--ease);
+}
+
+.movie-player-overlay.hidden { display: none; }
+
+.movie-video {
+  width: 100%;
+  max-height: 100vh;
+  background: #000;
+}
+
+.movie-player-title {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  right: 60px;
+  color: var(--white);
+  font-size: 0.9rem;
+  font-weight: 600;
+  text-shadow: 0 2px 8px rgba(0,0,0,0.8);
+  z-index: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.movie-player-close {
+  position: fixed;
+  top: 14px;
+  right: 14px;
+  z-index: 2;
+  background: rgba(0,0,0,0.5);
+  color: var(--white);
+}
+.movie-player-close:hover { background: var(--purple); }
