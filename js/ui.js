@@ -437,7 +437,7 @@ const UI = (() => {
           <span class="track-title">${_escape(track.title)}</span>
           <span class="track-meta">${_escape(track.artist)}${track.album ? ' · ' + _escape(track.album) : ''}${track.genre ? ' · ' + _escape(track.genre) : ''}</span>
         </div>
-        <span class="track-duration">${track.duration ? Player.formatTime(track.duration) : '—'}</span>
+        ${track.duration ? `<span class="track-duration">${Player.formatTime(track.duration)}</span>` : ''}
         ${_renderDlButton(track.id)}
         <button class="track-menu-btn" data-menu="${track.id}" aria-label="Mais opções">${_menuIcon()}</button>
       </div>
