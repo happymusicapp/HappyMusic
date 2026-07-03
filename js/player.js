@@ -194,8 +194,15 @@ const Player = (() => {
     return -1;
   }
 
+  let _userPaused = false; // distingue pause pedido pelo usuário de pause inesperado (ver listener 'pause' abaixo)
+
   function play()  { audio.play().then(() => _listeners.onPlay?.(getCurrentTrack())); }
-  function pause() { audio.pause(); _listeners.onPause?.(); }
+  function pause() {
+    _userPaused = true;
+    audio.pause();
+    if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'paused';
+    _listeners.onPause?.();
+  }
 
   function togglePlay() {
     if (audio.paused) play();
@@ -347,6 +354,25 @@ const Player = (() => {
     _handlePlaybackFailure(e, 0);
   });
 
+  // Detecta pause NÃO solicitado pelo usuário — ex.: o sistema de som do
+  // carro (Bluetooth/Android Auto) rouba o foco de áudio momentaneamente
+  // (uma notificação, o GPS falando) e devolve em seguida, mas o Chrome
+  // deixa o <audio> pausado em vez de retomar sozinho. Sem isso, a
+  // música "para" e só volta se o usuário abrir o app e apertar play.
+  audio.addEventListener('pause', () => {
+    if (_userPaused) { _userPaused = false; return; }
+    if (!getCurrentTrack()) return;
+    // Áudio terminou naturalmente (ended cuida disso) ou já está no fim
+    if (audio.ended || (audio.duration && audio.currentTime >= audio.duration - 0.5)) return;
+
+    // Pausa inesperada: tenta retomar. Se o navegador recusar (ex.: ainda
+    // sem permissão de autoplay depois de perder o foco de vez), não fica
+    // insistindo — só loga.
+    audio.play().catch(err => {
+      console.warn('[Player] Pausa inesperada, não foi possível retomar sozinho:', err);
+    });
+  });
+
   // Media Session API (controles na tela de bloqueio / Bluetooth)
   function _updateMediaSession(track) {
     if (!('mediaSession' in navigator)) return;
@@ -365,6 +391,7 @@ const Player = (() => {
     navigator.mediaSession.setActionHandler('nexttrack',      () => next());
     navigator.mediaSession.setActionHandler('previoustrack',  () => prev());
     navigator.mediaSession.setActionHandler('seekto', (d) => seek(d.seekTime));
+    navigator.mediaSession.playbackState = 'playing';
   }
 
   // ── REGISTRO DE CALLBACKS ─────────────────────

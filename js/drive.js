@@ -488,7 +488,36 @@ const Drive = (() => {
   // O Google Drive bloqueia o token como query param em alt=media.
   // Por isso buscamos o áudio via fetch (header Authorization) e
   // criamos uma Object URL local para o <audio> tocar.
-  const _blobCache = new Map(); // fileId -> object URL (evita re-fetch)
+  //
+  // IMPORTANTE — vazamento de memória corrigido: cada faixa tocada
+  // (e cada pré-carregada) baixa o arquivo inteiro como Blob pra RAM.
+  // Sem limite, isso crescia sem parar numa sessão longa (ex.: carro,
+  // dezenas de músicas seguidas, ou arquivos grandes tipo FLAC/WAV) até
+  // estourar a memória do processo — o Android então mata o WebView/aba
+  // do Chrome em segundo plano e a música para, sem relação nenhuma com
+  // uma faixa específica. Por isso agora é um cache com limite (LRU):
+  // guarda só as últimas MAX_BLOB_CACHE faixas e libera (revokeObjectURL)
+  // as mais antigas automaticamente. Faixas offline não perdem nada —
+  // continuam servidas instantaneamente do Cache Storage do Service
+  // Worker (sw.js), só o Blob em RAM que é recriado se tocar de novo.
+  const _blobCache = new Map(); // fileId -> object URL
+  const _blobOrder = [];        // ordem de inserção, pra saber o que é mais antigo
+  const MAX_BLOB_CACHE = 4;     // atual + próxima pré-carregada + folga
+
+  function _cacheBlob(fileId, objectUrl) {
+    _blobCache.set(fileId, objectUrl);
+    _blobOrder.push(fileId);
+
+    while (_blobOrder.length > MAX_BLOB_CACHE) {
+      const oldId = _blobOrder.shift();
+      if (oldId === fileId) continue; // nunca revoga o que acabou de entrar
+      const oldUrl = _blobCache.get(oldId);
+      if (oldUrl) {
+        URL.revokeObjectURL(oldUrl);
+        _blobCache.delete(oldId);
+      }
+    }
+  }
 
   async function fetchAudioUrl(fileId) {
     if (_blobCache.has(fileId)) return _blobCache.get(fileId);
@@ -512,17 +541,19 @@ const Drive = (() => {
 
     const blob = await res.blob();
     const objectUrl = URL.createObjectURL(blob);
-    _blobCache.set(fileId, objectUrl);
+    _cacheBlob(fileId, objectUrl);
     return objectUrl;
   }
 
-  // Libera memória de um blob específico (chamar ao trocar de música, se quiser)
+  // Libera memória de um blob específico (chamado ao remover um download)
   function revokeAudioUrl(fileId) {
     const url = _blobCache.get(fileId);
     if (url) {
       URL.revokeObjectURL(url);
       _blobCache.delete(fileId);
     }
+    const idx = _blobOrder.indexOf(fileId);
+    if (idx !== -1) _blobOrder.splice(idx, 1);
   }
 
   function searchTracks(query) {

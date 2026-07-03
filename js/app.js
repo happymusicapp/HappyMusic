@@ -108,6 +108,15 @@ const App = (() => {
       _updateOfflineSummary();
     });
 
+    // Pede armazenamento persistente: sem isso, o cache de áudio offline
+    // (Cache Storage do Service Worker) é "melhor esforço" e o Android
+    // pode apagá-lo sozinho sob pressão de espaço, sem avisar — fazendo
+    // faixas "baixadas" pararem de tocar offline do nada. Não bloqueia
+    // nada se for negado, só reduz a chance disso acontecer.
+    if (navigator.storage?.persist) {
+      navigator.storage.persist().catch(() => {});
+    }
+
     await _loadTracks();
     _updateOfflineSummary();
     _loadPlaylists();
