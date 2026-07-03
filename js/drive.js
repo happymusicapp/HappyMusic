@@ -46,6 +46,16 @@ const Drive = (() => {
     return AUDIO_EXTENSIONS.includes(ext);
   }
 
+  // Extensões de vídeo suportadas (filmes)
+  const VIDEO_EXTENSIONS = ['mp4', 'mkv', 'mov', 'webm', 'avi', 'm4v', 'wmv'];
+
+  function isVideoFile(file) {
+    if (!file) return false;
+    if (file.type && file.type.startsWith('video/')) return true;
+    const ext = (file.name || '').split('.').pop().toLowerCase();
+    return VIDEO_EXTENSIONS.includes(ext);
+  }
+
   // Chaves de armazenamento local
   const KEY_TOKEN      = 'hm_access_token';
   const KEY_EXPIRY     = 'hm_token_expiry';
@@ -58,6 +68,7 @@ const Drive = (() => {
   let _token  = null;
   let _user   = null;
   let _tracks = [];
+  let _videos = [];
 
   // ── PKCE HELPERS ──────────────────────────────
   function _randomBytes(length) {
@@ -339,6 +350,68 @@ const Drive = (() => {
 
     _tracks = allFiles.map(_parseTrack);
     return _tracks;
+  }
+
+  // ── FILMES ─────────────────────────────────────
+  // Mesma pasta configurada, filtrando por mimeType de vídeo.
+  // Usa "contains" em vez de lista fixa porque vídeo tem MUITO mais
+  // variação de mimeType (mp4, x-matroska, quicktime, x-msvideo...).
+  async function listVideos(folderId = null) {
+    const folder  = folderId || getFolderId();
+    const parentQ = folder ? `'${folder}' in parents and` : '';
+
+    let allFiles = [];
+    let pageToken = null;
+
+    do {
+      const params = {
+        q:        `${parentQ} mimeType contains 'video/' and trashed=false`,
+        fields:   'nextPageToken,files(id,name,size,mimeType,modifiedTime,thumbnailLink,videoMediaMetadata,properties)',
+        orderBy:  'name',
+        pageSize: 200,
+        supportsAllDrives: true,
+        includeItemsFromAllDrives: true,
+        corpora: 'allDrives',
+      };
+      if (pageToken) params.pageToken = pageToken;
+
+      const data = await _get('https://www.googleapis.com/drive/v3/files', params);
+      allFiles = allFiles.concat(data.files || []);
+      pageToken = data.nextPageToken || null;
+
+    } while (pageToken);
+
+    _videos = allFiles.map(_parseVideo);
+    return _videos;
+  }
+
+  function getCachedVideos() { return _videos; }
+
+  function _parseVideo(file) {
+    const name  = file.name || '';
+    const noExt = name.replace(/\.[^.]+$/, '');
+    const props = file.properties || {};
+
+    const title = props.hm_title || noExt;
+    const genre = props.hm_genre || null;
+    const year  = props.hm_year  || null;
+
+    const duration = file.videoMediaMetadata?.durationMillis
+      ? Math.floor(Number(file.videoMediaMetadata.durationMillis) / 1000)
+      : null;
+
+    return {
+      id:           file.id,
+      name:         file.name,
+      title,
+      genre,
+      year,
+      duration,
+      thumbnail:    file.thumbnailLink || null,
+      mimeType:     file.mimeType,
+      modifiedTime: file.modifiedTime,
+      size:         file.size ? parseInt(file.size, 10) : null,
+    };
   }
 
   // Metadados "cadastrados" pelo usuário (upload/edição pelo app) ficam
@@ -669,6 +742,30 @@ const Drive = (() => {
     return parsed;
   }
 
+  // ── ENVIO DE FILMES (mesmo mecanismo de upload resumable) ──
+  async function uploadVideo(file, metadata = {}, { folderId, onProgress } = {}) {
+    if (!isVideoFile(file)) throw new Error('Esse arquivo não é um vídeo suportado.');
+
+    const targetFolder = folderId || getFolderId();
+    const meta = {
+      name: file.name,
+      mimeType: file.type || 'application/octet-stream',
+      properties: {
+        hm_title: (metadata.title || '').slice(0, 120),
+        hm_genre: (metadata.genre || '').slice(0, 60),
+        hm_year:  (metadata.year  || '').toString().slice(0, 4),
+      },
+    };
+    if (targetFolder) meta.parents = [targetFolder];
+
+    const sessionUrl = await _initResumableSession(meta, file);
+    const created = await _uploadChunk(sessionUrl, file, 0, file.size, onProgress);
+
+    const parsed = _parseVideo(created);
+    _videos = [..._videos, parsed];
+    return parsed;
+  }
+
   // ── EDITAR METADADOS DE UMA FAIXA EXISTENTE ────
   async function updateTrackMetadata(fileId, metadata = {}) {
     const body = {
@@ -703,6 +800,62 @@ const Drive = (() => {
     const idx = _tracks.findIndex(t => t.id === fileId);
     if (idx !== -1) _tracks[idx] = parsed;
     return parsed;
+  }
+
+  async function updateVideoMetadata(fileId, metadata = {}) {
+    const body = {
+      properties: {
+        hm_title: (metadata.title || '').slice(0, 120),
+        hm_genre: (metadata.genre || '').slice(0, 60),
+        hm_year:  (metadata.year  || '').toString().slice(0, 4),
+      },
+    };
+
+    await _ensureValidToken();
+
+    const res = await fetch(
+      `https://www.googleapis.com/drive/v3/files/${fileId}` +
+      '?supportsAllDrives=true&fields=id,name,size,mimeType,modifiedTime,thumbnailLink,videoMediaMetadata,properties',
+      {
+        method: 'PATCH',
+        headers: {
+          Authorization: `Bearer ${_token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(body),
+      }
+    );
+
+    if (res.status === 401) { _clearSession(); throw new Error('UNAUTHORIZED'); }
+    if (!res.ok) throw new Error(`Falha ao salvar alterações (HTTP ${res.status})`);
+
+    const updated = await res.json();
+    const parsed = _parseVideo(updated);
+    const idx = _videos.findIndex(v => v.id === fileId);
+    if (idx !== -1) _videos[idx] = parsed;
+    return parsed;
+  }
+
+  function getKnownMovieGenres() {
+    const set = new Set();
+    _videos.forEach(v => { if (v.genre) set.add(v.genre); });
+    return [...set].sort((a, b) => a.localeCompare(b, 'pt-BR'));
+  }
+
+  function filterVideos({ genre } = {}) {
+    return _videos.filter(v => !genre || v.genre === genre);
+  }
+
+  // Filme é grande demais pra baixar inteiro na memória antes de tocar
+  // (como o áudio faz via blob). Em vez disso, montamos a URL direta da
+  // API com o token como query param — o Drive aceita isso (RFC 6750
+  // §2.3) e assim o <video> consegue fazer streaming com range requests
+  // nativo (seek instantâneo, sem esperar o arquivo inteiro baixar).
+  // É async e sempre garante um token válido antes de montar a URL —
+  // essencial porque filme pode passar de 1h (duração do access_token).
+  async function getVideoStreamUrl(fileId) {
+    await _ensureValidToken();
+    return `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media&access_token=${encodeURIComponent(_token)}`;
   }
 
   // ── PLAYLISTS (guardadas no appDataFolder do Drive) ──
@@ -845,6 +998,16 @@ const Drive = (() => {
     updateTrackMetadata,
     loadPlaylists,
     savePlaylists,
+
+    // Filmes
+    isVideoFile,
+    listVideos,
+    getCachedVideos,
+    uploadVideo,
+    updateVideoMetadata,
+    getKnownMovieGenres,
+    filterVideos,
+    getVideoStreamUrl,
   };
 
 })();

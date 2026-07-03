@@ -150,6 +150,33 @@ const UI = (() => {
     addToPlaylistNewName:    $('add-to-playlist-new-name'),
     btnAddToPlaylistCreate:  $('btn-add-to-playlist-create'),
     btnAddToPlaylistClose:   $('btn-add-to-playlist-close'),
+
+    // Filmes
+    movieGrid:            $('movie-grid'),
+    btnMovieRefresh:      $('btn-movie-refresh'),
+    btnMovieUploadOpen:   $('btn-movie-upload-open'),
+    inputUploadMovies:    $('input-upload-movies'),
+    movieFilterGenre:     $('movie-filter-genre'),
+    btnMovieFilterClear:  $('btn-movie-filter-clear'),
+
+    modalUploadMovie:       $('modal-upload-movie'),
+    movieUploadList:        $('movie-upload-list'),
+    btnMovieUploadAddMore:  $('btn-movie-upload-add-more'),
+    btnMovieUploadSendAll:  $('btn-movie-upload-send-all'),
+    btnUploadMovieClose:    $('btn-upload-movie-close'),
+
+    modalMovieEdit:         $('modal-movie-edit'),
+    editMovieTitle:         $('edit-movie-title'),
+    editMovieGenre:         $('edit-movie-genre'),
+    editMovieYear:          $('edit-movie-year'),
+    movieGenreSuggestions:  $('movie-genre-suggestions'),
+    btnMovieEditSave:       $('btn-movie-edit-save'),
+    btnMovieEditCancel:     $('btn-movie-edit-cancel'),
+
+    moviePlayerOverlay:  $('movie-player-overlay'),
+    movieVideo:          $('movie-video'),
+    moviePlayerTitle:    $('movie-player-title'),
+    btnMovieClose:       $('btn-movie-close'),
   };
 
   // ── TOAST ──────────────────────────────────────
@@ -784,6 +811,116 @@ const UI = (() => {
     delete el.modalAddToPlaylist.dataset.trackId;
   }
 
+  // ── FILMES ──────────────────────────────────────
+  function _filmIcon(size = 26) {
+    return `<svg width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
+      <rect x="2.5" y="5" width="19" height="14" rx="2"/>
+      <path d="M7 5v14M17 5v14M2.5 9.5H7M17 9.5h4.5M2.5 14.5H7M17 14.5h4.5"/>
+    </svg>`;
+  }
+
+  function _playCircleIcon() {
+    return `<svg width="34" height="34" fill="rgba(255,255,255,0.95)" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>`;
+  }
+
+  function _formatYearGenre(video) {
+    return [video.year, video.genre].filter(Boolean).join(' · ') || 'Sem informações';
+  }
+
+  function renderMovieGrid(videos) {
+    if (!videos.length) {
+      el.movieGrid.innerHTML = `<p class="empty-hint">Nenhum filme ainda.<br>Toque no ➕ acima pra enviar o primeiro.</p>`;
+      return;
+    }
+    el.movieGrid.innerHTML = videos.map(v => `
+      <div class="movie-card" data-id="${v.id}" role="button" tabindex="0">
+        <div class="movie-card-art" ${v.thumbnail ? `style="background-image:url('${v.thumbnail}')"` : ''}>
+          ${v.thumbnail ? '' : _filmIcon(30)}
+          <span class="movie-card-play">${_playCircleIcon()}</span>
+        </div>
+        <button class="movie-card-edit" data-edit="${v.id}" aria-label="Editar informações">${_editIcon()}</button>
+        <span class="movie-card-name">${_escape(v.title)}</span>
+        <span class="movie-card-meta">${_escape(_formatYearGenre(v))}</span>
+      </div>
+    `).join('');
+  }
+
+  const _movieGridData = new WeakMap();
+  let _movieMenuHandlers = { onEdit: null, onPlay: null };
+
+  function setMovieMenuHandlers(handlers) {
+    _movieMenuHandlers = { ..._movieMenuHandlers, ...handlers };
+  }
+
+  function bindMovieGridEvents(container, videos) {
+    _movieGridData.set(container, videos);
+    if (container.dataset.hmBound) return;
+    container.dataset.hmBound = '1';
+
+    container.addEventListener('click', e => {
+      const currentVideos = _movieGridData.get(container) || [];
+
+      const editBtn = e.target.closest('[data-edit]');
+      if (editBtn) {
+        e.stopPropagation();
+        const video = currentVideos.find(v => v.id === editBtn.dataset.edit);
+        if (video) _movieMenuHandlers.onEdit?.(video);
+        return;
+      }
+
+      const card = e.target.closest('.movie-card');
+      if (!card) return;
+      const video = currentVideos.find(v => v.id === card.dataset.id);
+      if (video) _movieMenuHandlers.onPlay?.(video);
+    });
+  }
+
+  // ── FILTRO DE FILMES (gênero) ───────────────────
+  function renderMovieFilterOptions(genres, activeGenre = '') {
+    _fillSelect(el.movieFilterGenre, genres, activeGenre, 'Gênero');
+    el.btnMovieFilterClear.classList.toggle('hidden', !activeGenre);
+  }
+
+  // ── MODAL: ENVIAR FILMES ────────────────────────
+  function showMovieUploadModal() { el.modalUploadMovie.classList.remove('hidden'); }
+  function hideMovieUploadModal() { el.modalUploadMovie.classList.add('hidden'); }
+
+  // ── MODAL: EDITAR INFORMAÇÕES DO FILME ─────────
+  function showMovieEditModal(video, knownGenres = []) {
+    el.editMovieTitle.value = video.title || '';
+    el.editMovieGenre.value = video.genre || '';
+    el.editMovieYear.value  = video.year  || '';
+    el.movieGenreSuggestions.innerHTML = knownGenres.map(g => `<option value="${_escape(g)}"></option>`).join('');
+    el.modalMovieEdit.classList.remove('hidden');
+    el.modalMovieEdit.dataset.videoId = video.id;
+    el.editMovieTitle.focus();
+  }
+  function hideMovieEditModal() {
+    el.modalMovieEdit.classList.add('hidden');
+    delete el.modalMovieEdit.dataset.videoId;
+  }
+  function getMovieEditForm() {
+    return {
+      title: el.editMovieTitle.value.trim(),
+      genre: el.editMovieGenre.value.trim(),
+      year:  el.editMovieYear.value.trim(),
+    };
+  }
+
+  // ── PLAYER DE FILME (tela cheia) ────────────────
+  function openMoviePlayer(title, streamUrl) {
+    el.moviePlayerTitle.textContent = title;
+    el.movieVideo.src = streamUrl;
+    el.moviePlayerOverlay.classList.remove('hidden');
+    el.movieVideo.play().catch(() => {}); // autoplay pode ser bloqueado; controles nativos resolvem
+  }
+  function closeMoviePlayer() {
+    el.movieVideo.pause();
+    el.movieVideo.removeAttribute('src');
+    el.movieVideo.load();
+    el.moviePlayerOverlay.classList.add('hidden');
+  }
+
   // ── SELEÇÃO MÚLTIPLA (atribuir gênero em lote) ─
   function isSelectMode(container) {
     return container.classList.contains('select-mode');
@@ -1123,6 +1260,19 @@ const UI = (() => {
     hideNewPlaylistModal,
     showAddToPlaylistModal,
     hideAddToPlaylistModal,
+
+    // Filmes
+    renderMovieGrid,
+    bindMovieGridEvents,
+    setMovieMenuHandlers,
+    renderMovieFilterOptions,
+    showMovieUploadModal,
+    hideMovieUploadModal,
+    showMovieEditModal,
+    hideMovieEditModal,
+    getMovieEditForm,
+    openMoviePlayer,
+    closeMoviePlayer,
   };
 
 })();
