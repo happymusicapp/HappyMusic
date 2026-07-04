@@ -138,6 +138,7 @@ const UI = (() => {
     btnPlaylistBack:      $('btn-playlist-back'),
     btnPlaylistDelete:    $('btn-playlist-delete'),
     btnPlaylistPlay:      $('btn-playlist-play'),
+    btnPlaylistAddTracks: $('btn-playlist-add-tracks'),
     playlistTracksList:   $('playlist-tracks-list'),
 
     modalNewPlaylist:     $('modal-new-playlist'),
@@ -150,6 +151,12 @@ const UI = (() => {
     addToPlaylistNewName:    $('add-to-playlist-new-name'),
     btnAddToPlaylistCreate:  $('btn-add-to-playlist-create'),
     btnAddToPlaylistClose:   $('btn-add-to-playlist-close'),
+
+    modalAddTracksToPlaylist:  $('modal-add-tracks-to-playlist'),
+    addTracksPickerSearch:     $('add-tracks-picker-search'),
+    addTracksPickerList:       $('add-tracks-picker-list'),
+    btnAddTracksPickerConfirm: $('btn-add-tracks-picker-confirm'),
+    btnAddTracksPickerClose:   $('btn-add-tracks-picker-close'),
 
     // Filmes
     movieGrid:            $('movie-grid'),
@@ -464,6 +471,12 @@ const UI = (() => {
     </svg>`;
   }
 
+  function _favIcon(active, size = 17) {
+    return `<svg width="${size}" height="${size}" fill="${active ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24" ${active ? 'style="color:var(--purple-soft)"' : ''}>
+      <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
+    </svg>`;
+  }
+
   function _checkIcon(size = 14) {
     return `<svg width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
       <polyline points="20 6 9 17 4 12"/>
@@ -496,9 +509,12 @@ const UI = (() => {
     const track = tracks.find(t => t.id === trackId);
     if (!track) return;
 
+    const isFav = Player.isFavorite(track.id);
+
     const pop = document.createElement('div');
     pop.className = 'track-menu-popover';
     pop.innerHTML = `
+      <button data-action="favorite">${_favIcon(isFav)}<span>${isFav ? 'Remover dos favoritos' : 'Adicionar aos favoritos'}</span></button>
       <button data-action="edit">${_editIcon()}<span>Editar informações</span></button>
       <button data-action="playlist">${_addToPlaylistIcon()}<span>Adicionar à playlist</span></button>
     `;
@@ -520,6 +536,13 @@ const UI = (() => {
       _closeTrackMenu();
       if (action === 'edit') _trackMenuHandlers.onEdit?.(track);
       if (action === 'playlist') _trackMenuHandlers.onAddToPlaylist?.(track);
+      if (action === 'favorite') {
+        const fav = Player.toggleFavorite(track.id);
+        showToast(fav ? 'Adicionado aos favoritos' : 'Removido dos favoritos');
+        const current = Player.getCurrentTrack();
+        if (current && current.id === track.id) el.btnFav.classList.toggle('active', fav);
+        document.dispatchEvent(new CustomEvent('hm-favorite-change', { detail: { trackId: track.id, isFav: fav } }));
+      }
     });
 
     setTimeout(() => document.addEventListener('click', _outsideMenuHandler, { once: true }), 0);
@@ -746,11 +769,19 @@ const UI = (() => {
   }
 
   function renderPlaylists(playlists) {
+    const favCount = Player.getFavorites().length;
+    const favCard = `
+      <div class="playlist-card playlist-card-fav" data-id="__favorites__" role="button" tabindex="0">
+        <div class="playlist-card-art playlist-card-art-fav">${_favIcon(true, 26)}</div>
+        <span class="playlist-card-name">Favoritas</span>
+        <span class="playlist-card-count">${favCount} música${favCount === 1 ? '' : 's'}</span>
+      </div>`;
+
     if (!playlists.length) {
-      el.playlistsList.innerHTML = `<p class="empty-hint">Nenhuma playlist ainda. Crie a primeira!</p>`;
+      el.playlistsList.innerHTML = favCard + `<p class="empty-hint">Nenhuma playlist ainda. Crie a primeira!</p>`;
       return;
     }
-    el.playlistsList.innerHTML = playlists.map(p => `
+    el.playlistsList.innerHTML = favCard + playlists.map(p => `
       <div class="playlist-card" data-id="${p.id}" role="button" tabindex="0">
         <div class="playlist-card-art">${_playlistIcon()}</div>
         <span class="playlist-card-name">${_escape(p.name)}</span>
@@ -763,17 +794,21 @@ const UI = (() => {
     el.playlistsListWrap.classList.remove('hidden');
     el.playlistDetail.classList.add('hidden');
   }
-  function showPlaylistDetail(playlist) {
+  function showPlaylistDetail(playlist, opts = {}) {
     el.playlistsListWrap.classList.add('hidden');
     el.playlistDetail.classList.remove('hidden');
     el.playlistDetailTitle.textContent = playlist.name;
     el.playlistDetail.dataset.id = playlist.id;
+    const isFav = !!opts.isFavorites;
+    el.btnPlaylistDelete.classList.toggle('hidden', isFav);
+    el.btnPlaylistAddTracks.classList.toggle('hidden', isFav);
   }
 
-  function renderPlaylistTracks(tracks, currentId = null) {
+  function renderPlaylistTracks(tracks, currentId = null, isFavorites = false) {
     if (!tracks.length) {
-      el.playlistTracksList.innerHTML = `
-        <p class="empty-hint">Essa playlist ainda está vazia.<br>Adicione músicas pelo menu de qualquer faixa.</p>`;
+      el.playlistTracksList.innerHTML = isFavorites
+        ? `<p class="empty-hint">Você ainda não tem favoritas.<br>Toque no ❤ do menu de qualquer faixa para adicionar.</p>`
+        : `<p class="empty-hint">Essa playlist ainda está vazia.<br>Toque em "Adicionar músicas" acima ou use o menu de qualquer faixa.</p>`;
       return;
     }
     renderTrackList(el.playlistTracksList, tracks, currentId);
@@ -809,6 +844,32 @@ const UI = (() => {
   function hideAddToPlaylistModal() {
     el.modalAddToPlaylist.classList.add('hidden');
     delete el.modalAddToPlaylist.dataset.trackId;
+  }
+
+  // ── MODAL: ADICIONAR MÚSICAS A UMA PLAYLIST (picker) ──
+  function showAddTracksPickerModal(tracks, selectedIds) {
+    el.addTracksPickerSearch.value = '';
+    renderAddTracksPicker(tracks, selectedIds);
+    el.modalAddTracksToPlaylist.classList.remove('hidden');
+    el.addTracksPickerSearch.focus();
+  }
+  function hideAddTracksPickerModal() {
+    el.modalAddTracksToPlaylist.classList.add('hidden');
+  }
+  function renderAddTracksPicker(tracks, selectedIds) {
+    if (!tracks.length) {
+      el.addTracksPickerList.innerHTML = `<p class="empty-hint">Nenhuma música encontrada.</p>`;
+      return;
+    }
+    el.addTracksPickerList.innerHTML = tracks.map(t => `
+      <div class="folder-item track-picker-item ${selectedIds.has(t.id) ? 'selected' : ''}" data-id="${t.id}">
+        <input type="checkbox" ${selectedIds.has(t.id) ? 'checked' : ''} tabindex="-1" />
+        <span style="flex:1; min-width:0; overflow:hidden;">
+          <span class="track-title" style="display:block;">${_escape(t.title)}</span>
+          <span class="track-meta" style="display:block;">${_escape(t.artist)}</span>
+        </span>
+      </div>
+    `).join('');
   }
 
   // ── FILMES ──────────────────────────────────────
@@ -1024,6 +1085,7 @@ const UI = (() => {
       const fav = Player.toggleFavorite(track.id);
       el.btnFav.classList.toggle('active', fav);
       showToast(fav ? 'Adicionado aos favoritos' : 'Removido dos favoritos');
+      document.dispatchEvent(new CustomEvent('hm-favorite-change', { detail: { trackId: track.id, isFav: fav } }));
     });
 
     // Download offline da faixa atual
@@ -1260,6 +1322,9 @@ const UI = (() => {
     hideNewPlaylistModal,
     showAddToPlaylistModal,
     hideAddToPlaylistModal,
+    showAddTracksPickerModal,
+    hideAddTracksPickerModal,
+    renderAddTracksPicker,
 
     // Filmes
     renderMovieGrid,
