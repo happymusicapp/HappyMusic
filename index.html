@@ -223,6 +223,10 @@
               <svg width="15" height="15" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
               Tocar tudo
             </button>
+            <button id="btn-playlist-add-tracks" class="btn-outline btn-small btn-icon-label">
+              <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+              Adicionar músicas
+            </button>
           </div>
           <div id="playlist-tracks-list" class="track-list"></div>
         </div>
@@ -533,6 +537,17 @@
           <button id="btn-add-to-playlist-create" class="btn-outline btn-small">Criar</button>
         </div>
       </div>
+    </div>
+  </div>
+
+  <!-- MODAL: ADICIONAR MÚSICAS À PLAYLIST -->
+  <div id="modal-add-tracks-to-playlist" class="modal-overlay hidden">
+    <div class="modal-box">
+      <button id="btn-add-tracks-picker-close" class="modal-close" aria-label="Fechar"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+      <h2 class="modal-title">Adicionar músicas</h2>
+      <input id="add-tracks-picker-search" type="text" class="text-input" placeholder="Buscar na sua biblioteca…" style="margin-bottom:var(--sp-2);" />
+      <div id="add-tracks-picker-list" class="folder-list"></div>
+      <button id="btn-add-tracks-picker-confirm" class="btn-primary" style="margin-top:var(--sp-3);">Concluir</button>
     </div>
   </div>
 
