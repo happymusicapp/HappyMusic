@@ -1559,7 +1559,18 @@ img    { display: block; }
 }
 .playlist-detail-header h2 { flex: 1; }
 
-.playlist-detail-actions { margin-bottom: var(--sp-3); }
+.playlist-detail-actions { display: flex; gap: var(--sp-2); flex-wrap: wrap; margin-bottom: var(--sp-3); }
+
+/* Card fixo de Favoritas no topo da grade de playlists */
+.playlist-card-art-fav { background: linear-gradient(135deg, #ff5c8a, #ff8fab); }
+
+/* Itens do seletor de músicas (modal "Adicionar músicas") */
+.track-picker-item input[type="checkbox"] {
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  accent-color: var(--purple);
+}
 
 .playlist-pick-item { justify-content: space-between; }
 .playlist-pick-item.selected { border-color: var(--purple); background: rgba(124,58,255,0.1); }
