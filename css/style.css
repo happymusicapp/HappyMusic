@@ -1408,6 +1408,13 @@ img    { display: block; }
 
 .track-menu-popover button:hover { background: var(--surface2); }
 
+.track-menu-popover-divider { height: 1px; background: var(--border); margin: 4px 0; }
+
+.track-menu-popover button.danger { color: #FF6B6B; }
+.track-menu-popover button.danger svg { color: #FF6B6B; }
+.track-menu-popover button.danger:hover { background: rgba(255,107,107,0.1); }
+.track-menu-popover button.danger:hover svg { color: #FF6B6B; }
+
 /* ═══════════════════════════════════════════════
    CAMPOS DE TEXTO (upload / edição de metadados)
 ═══════════════════════════════════════════════ */
