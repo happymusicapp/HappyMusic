@@ -120,13 +120,13 @@ img    { display: block; }
   width: 100px;
   height: 100px;
   border-radius: 28px;
-  box-shadow: 0 0 50px var(--purple-glow), 0 16px 40px rgba(0,0,0,0.5);
+  box-shadow: 0 0 50px var(--purple-glow);
   animation: pulse-glow 3.5s ease-in-out infinite;
 }
 
 @keyframes pulse-glow {
-  0%, 100% { box-shadow: 0 0 50px var(--purple-glow), 0 16px 40px rgba(0,0,0,0.5); }
-  50%       { box-shadow: 0 0 72px rgba(124,58,255,0.42), 0 16px 40px rgba(0,0,0,0.5); }
+  0%, 100% { box-shadow: 0 0 50px var(--purple-glow); }
+  50%       { box-shadow: 0 0 72px rgba(124,58,255,0.42); }
 }
 
 .login-title {
