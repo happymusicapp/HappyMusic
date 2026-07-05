@@ -28,6 +28,8 @@ const UI = (() => {
 
     // Listas
     recentList:     $('recent-list'),
+    recentCollectionsShelf: $('recent-collections-shelf'),
+    recentCollectionsList:  $('recent-collections-list'),
     allTracksList:  $('all-tracks-list'),
     searchResults:  $('search-results'),
 
@@ -99,6 +101,8 @@ const UI = (() => {
     btnSelectMode:          $('btn-select-mode'),
     selectionBar:           $('selection-bar'),
     selectionCount:         $('selection-count'),
+    btnSelectionFavorite:   $('btn-selection-favorite'),
+    btnSelectionAddPlaylist:$('btn-selection-add-playlist'),
     btnSelectionAssignGenre:$('btn-selection-assign-genre'),
     btnSelectionCancel:     $('btn-selection-cancel'),
     modalBulkGenre:         $('modal-bulk-genre'),
@@ -147,6 +151,7 @@ const UI = (() => {
     btnNewPlaylistCancel: $('btn-new-playlist-cancel'),
 
     modalAddToPlaylist:      $('modal-add-to-playlist'),
+    addToPlaylistSubtitle:   $('add-to-playlist-subtitle'),
     addToPlaylistList:       $('add-to-playlist-list'),
     addToPlaylistNewName:    $('add-to-playlist-new-name'),
     btnAddToPlaylistCreate:  $('btn-add-to-playlist-create'),
@@ -394,7 +399,7 @@ const UI = (() => {
     }
   }
 
-  // ── RECENT GRID ────────────────────────────────
+  // ── RECENT LIST (formato compacto, igual à lista) ─
   function renderRecent(tracks) {
     if (!tracks.length) {
       el.recentList.innerHTML = `<p class="empty-hint">Nenhuma música tocada ainda.</p>`;
@@ -402,17 +407,38 @@ const UI = (() => {
     }
 
     el.recentList.innerHTML = tracks.map(track => `
-      <div class="recent-item" data-id="${track.id}" role="button" tabindex="0" aria-label="${_escape(track.title)}">
-        <div class="recent-art">
+      <div class="track-item recent-track-item" data-id="${track.id}" role="button" tabindex="0" aria-label="${_escape(track.title)} — ${_escape(track.artist)}">
+        <div class="track-art">
           ${track.thumbnail
             ? `<img src="${track.thumbnail}" alt="" loading="lazy" />`
-            : _musicIcon(22)}
+            : _musicIcon(20)}
         </div>
-        <span class="recent-name">${_escape(track.title)}</span>
+        <div class="track-info">
+          <span class="track-title">${_escape(track.title)}</span>
+          <span class="track-meta">${_escape(track.artist)}</span>
+        </div>
       </div>
     `).join('');
 
     tracks.forEach(track => _queueCoverFetch(track));
+  }
+
+  // ── COLEÇÕES RECENTES (playlists / favoritas abertas recentemente) ─
+  function renderRecentCollections(items) {
+    if (!items.length) {
+      el.recentCollectionsShelf.classList.add('hidden');
+      el.recentCollectionsList.innerHTML = '';
+      return;
+    }
+    el.recentCollectionsShelf.classList.remove('hidden');
+    el.recentCollectionsList.innerHTML = items.map(it => `
+      <div class="recent-collection-chip" data-id="${it.id}" role="button" tabindex="0" aria-label="${_escape(it.name)}">
+        <div class="recent-collection-chip-art ${it.isFavorites ? 'is-fav' : ''}">
+          ${it.isFavorites ? _favIcon(true, 24) : _playlistIcon()}
+        </div>
+        <span class="recent-collection-chip-name">${_escape(it.name)}</span>
+      </div>
+    `).join('');
   }
 
   // ── TRACK LIST ─────────────────────────────────
@@ -824,26 +850,39 @@ const UI = (() => {
   function hideNewPlaylistModal() { el.modalNewPlaylist.classList.add('hidden'); }
 
   // ── MODAL: ADICIONAR À PLAYLIST ────────────────
-  function showAddToPlaylistModal(playlists, trackId) {
+  function showAddToPlaylistModal(playlists, trackIdOrIds) {
+    const ids = Array.isArray(trackIdOrIds) ? trackIdOrIds : [trackIdOrIds];
     el.addToPlaylistNewName.value = '';
-    el.modalAddToPlaylist.dataset.trackId = trackId;
+    el.modalAddToPlaylist.dataset.trackIds = JSON.stringify(ids);
+
+    if (ids.length > 1) {
+      el.addToPlaylistSubtitle.textContent = `${ids.length} músicas selecionadas`;
+      el.addToPlaylistSubtitle.classList.remove('hidden');
+    } else {
+      el.addToPlaylistSubtitle.classList.add('hidden');
+    }
 
     if (!playlists.length) {
       el.addToPlaylistList.innerHTML = `<p class="empty-hint">Você ainda não tem playlists.</p>`;
     } else {
-      el.addToPlaylistList.innerHTML = playlists.map(p => `
-        <div class="folder-item playlist-pick-item ${p.trackIds.includes(trackId) ? 'selected' : ''}" data-id="${p.id}">
-          ${_playlistIcon()}
-          <span style="flex:1;">${_escape(p.name)}</span>
-          <span class="profile-section-hint" style="margin:0; display:flex; align-items:center; gap:4px;">${p.trackIds.includes(trackId) ? _checkIcon(13) + ' na playlist' : 'adicionar'}</span>
-        </div>
-      `).join('');
+      el.addToPlaylistList.innerHTML = playlists.map(p => {
+        const allIn  = ids.every(id => p.trackIds.includes(id));
+        const someIn = !allIn && ids.some(id => p.trackIds.includes(id));
+        const hint = allIn ? (_checkIcon(13) + ' na playlist') : someIn ? 'algumas na playlist' : 'adicionar';
+        return `
+          <div class="folder-item playlist-pick-item ${allIn ? 'selected' : ''}" data-id="${p.id}">
+            ${_playlistIcon()}
+            <span style="flex:1;">${_escape(p.name)}</span>
+            <span class="profile-section-hint" style="margin:0; display:flex; align-items:center; gap:4px;">${hint}</span>
+          </div>
+        `;
+      }).join('');
     }
     el.modalAddToPlaylist.classList.remove('hidden');
   }
   function hideAddToPlaylistModal() {
     el.modalAddToPlaylist.classList.add('hidden');
-    delete el.modalAddToPlaylist.dataset.trackId;
+    delete el.modalAddToPlaylist.dataset.trackIds;
   }
 
   // ── MODAL: ADICIONAR MÚSICAS A UMA PLAYLIST (picker) ──
@@ -1005,6 +1044,8 @@ const UI = (() => {
   function updateSelectionBar(count) {
     el.selectionCount.textContent = count === 1 ? '1 selecionada' : `${count} selecionadas`;
     el.btnSelectionAssignGenre.disabled = count === 0;
+    el.btnSelectionFavorite.disabled = count === 0;
+    el.btnSelectionAddPlaylist.disabled = count === 0;
   }
 
   function showSelectionBar() { el.selectionBar.classList.remove('hidden'); }
@@ -1215,7 +1256,7 @@ const UI = (() => {
 
     el.recentList.addEventListener('click', e => {
       const currentTracks = _trackListData.get(el.recentList) || [];
-      const item = e.target.closest('.recent-item');
+      const item = e.target.closest('.track-item');
       if (!item) return;
       const id = item.dataset.id;
       const track = currentTracks.find(t => t.id === id);
@@ -1263,6 +1304,7 @@ const UI = (() => {
     renderProfile,
     setGreeting,
     renderRecent,
+    renderRecentCollections,
     renderTrackList,
     setPlayingTrack,
     updatePlayerTrack,

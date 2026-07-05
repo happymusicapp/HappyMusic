@@ -18,6 +18,8 @@ const App = (() => {
   // Playlists (cache em memória; fonte de verdade é o Drive.loadPlaylists/savePlaylists)
   let _playlists = [];
   let _activePlaylistId = null;
+  const KEY_RECENT_PLAYLISTS = 'hm_recent_playlists';
+  const MAX_RECENT_PLAYLISTS = 8;
 
   // Fila de upload — cada item guarda o File + os metadados digitados
   let _uploadItems = [];
@@ -182,6 +184,7 @@ const App = (() => {
 
     UI.renderRecent(recentFull);
     UI.bindRecentEvents(_tracks);
+    _renderRecentCollections();
   }
 
   function _currentId() {
@@ -278,12 +281,21 @@ const App = (() => {
     }
   }
 
-  // ── SELEÇÃO MÚLTIPLA / GÊNERO EM LOTE ──────────
+  // ── SELEÇÃO MÚLTIPLA / AÇÕES EM LOTE ───────────
   // Útil pra quem já tem um monte de música solta no Drive e quer
-  // organizar por gênero sem editar faixa por faixa.
+  // organizar por gênero, favoritar ou montar uma playlist sem
+  // editar faixa por faixa.
   function _updateSelectionUI() {
     const count = UI.getSelectedIds(UI.el.allTracksList).length;
     UI.updateSelectionBar(count);
+  }
+
+  function _exitSelectMode() {
+    UI.setSelectMode(UI.el.allTracksList, false);
+    UI.hideSelectionBar();
+    UI.el.btnSelectMode.classList.remove('active');
+    UI.el.btnSelectMode.title = 'Selecionar';
+    UI.el.btnSelectMode.setAttribute('aria-label', 'Selecionar músicas');
   }
 
   async function _applyBulkGenre(genre) {
@@ -320,17 +332,40 @@ const App = (() => {
     }
 
     UI.hideBulkGenreModal();
-    UI.setSelectMode(UI.el.allTracksList, false);
-    UI.hideSelectionBar();
-    UI.el.btnSelectMode.classList.remove('active');
-    UI.el.btnSelectMode.title = 'Selecionar';
-    UI.el.btnSelectMode.setAttribute('aria-label', 'Selecionar músicas');
+    _exitSelectMode();
     _refreshFilterBar();
     _renderAllTracksList();
 
     UI.showToast(failed
       ? `Gênero aplicado a ${done - failed} de ${ids.length} (${failed} falharam — tenta de novo nessas)`
       : `Gênero "${genre}" aplicado a ${done} música${done === 1 ? '' : 's'}`);
+  }
+
+  function _applyBulkFavorite() {
+    const ids = UI.getSelectedIds(UI.el.allTracksList);
+    if (!ids.length) return;
+
+    let added = 0;
+    ids.forEach(id => {
+      if (!Player.isFavorite(id)) {
+        Player.toggleFavorite(id);
+        added++;
+      }
+    });
+
+    document.dispatchEvent(new CustomEvent('hm-favorite-change'));
+    _exitSelectMode();
+    _renderAllTracksList();
+
+    UI.showToast(added
+      ? `${added} música${added === 1 ? '' : 's'} adicionada${added === 1 ? '' : 's'} aos favoritos`
+      : 'Essas músicas já estavam nos favoritos');
+  }
+
+  function _openBulkAddToPlaylist() {
+    const ids = UI.getSelectedIds(UI.el.allTracksList);
+    if (!ids.length) return;
+    UI.showAddToPlaylistModal(_playlists, ids);
   }
 
   function _bindSelectionEvents() {
@@ -344,13 +379,11 @@ const App = (() => {
       else { UI.hideSelectionBar(); }
     });
 
-    UI.el.btnSelectionCancel.addEventListener('click', () => {
-      UI.setSelectMode(UI.el.allTracksList, false);
-      UI.hideSelectionBar();
-      UI.el.btnSelectMode.classList.remove('active');
-      UI.el.btnSelectMode.title = 'Selecionar';
-      UI.el.btnSelectMode.setAttribute('aria-label', 'Selecionar músicas');
-    });
+    UI.el.btnSelectionCancel.addEventListener('click', () => _exitSelectMode());
+
+    UI.el.btnSelectionFavorite.addEventListener('click', () => _applyBulkFavorite());
+
+    UI.el.btnSelectionAddPlaylist.addEventListener('click', () => _openBulkAddToPlaylist());
 
     UI.el.btnSelectionAssignGenre.addEventListener('click', () => {
       const count = UI.getSelectedIds(UI.el.allTracksList).length;
@@ -372,6 +405,7 @@ const App = (() => {
       if (e.target === UI.el.modalBulkGenre) UI.hideBulkGenreModal();
     });
   }
+
 
   // ── FILTROS (gênero / artista / álbum) ─────────
   function _visibleTracks() {
@@ -685,12 +719,35 @@ const App = (() => {
   async function _loadPlaylists() {
     _playlists = await Drive.loadPlaylists();
     UI.renderPlaylists(_playlists);
+    _renderRecentCollections();
   }
 
   async function _persistPlaylists() {
     const ok = await Drive.savePlaylists(_playlists);
     if (!ok) UI.showToast('Playlist salva neste aparelho — sincronização com o Drive falhou.');
     return ok;
+  }
+
+  // ── COLEÇÕES RECENTES (mostradas na Home) ──────
+  function _getRecentPlaylistIds() {
+    try { return JSON.parse(localStorage.getItem(KEY_RECENT_PLAYLISTS) || '[]'); }
+    catch { return []; }
+  }
+
+  function _addRecentPlaylist(id) {
+    let recent = _getRecentPlaylistIds().filter(pid => pid !== id);
+    recent.unshift(id);
+    if (recent.length > MAX_RECENT_PLAYLISTS) recent = recent.slice(0, MAX_RECENT_PLAYLISTS);
+    localStorage.setItem(KEY_RECENT_PLAYLISTS, JSON.stringify(recent));
+  }
+
+  function _renderRecentCollections() {
+    const items = _getRecentPlaylistIds().map(id => {
+      if (id === FAVORITES_ID) return { id: FAVORITES_ID, name: 'Favoritas', isFavorites: true };
+      const p = _playlists.find(pl => pl.id === id);
+      return p ? { id: p.id, name: p.name, isFavorites: false } : null;
+    }).filter(Boolean).slice(0, 6);
+    UI.renderRecentCollections(items);
   }
 
   function _renderActivePlaylistTracks() {
@@ -709,12 +766,16 @@ const App = (() => {
     _activePlaylistId = id;
     UI.showPlaylistDetail(playlist);
     _renderActivePlaylistTracks();
+    _addRecentPlaylist(id);
+    _renderRecentCollections();
   }
 
   function _openFavoritesView() {
     _activePlaylistId = FAVORITES_ID;
     UI.showPlaylistDetail({ id: FAVORITES_ID, name: 'Favoritas' }, { isFavorites: true });
     _renderActivePlaylistTracks();
+    _addRecentPlaylist(FAVORITES_ID);
+    _renderRecentCollections();
   }
 
   function _bindPlaylistEvents() {
@@ -741,6 +802,14 @@ const App = (() => {
       else _openPlaylist(card.dataset.id);
     });
 
+    UI.el.recentCollectionsList.addEventListener('click', e => {
+      const chip = e.target.closest('.recent-collection-chip');
+      if (!chip) return;
+      UI.showView('playlists');
+      if (chip.dataset.id === FAVORITES_ID) _openFavoritesView();
+      else _openPlaylist(chip.dataset.id);
+    });
+
     UI.el.btnPlaylistBack.addEventListener('click', () => {
       _activePlaylistId = null;
       UI.showPlaylistsRoot();
@@ -756,6 +825,8 @@ const App = (() => {
       _activePlaylistId = null;
       UI.showPlaylistsRoot();
       UI.renderPlaylists(_playlists);
+      localStorage.setItem(KEY_RECENT_PLAYLISTS, JSON.stringify(_getRecentPlaylistIds().filter(id => id !== playlist.id)));
+      _renderRecentCollections();
       UI.showToast('Playlist excluída');
       await _persistPlaylists();
     });
@@ -823,21 +894,32 @@ const App = (() => {
   }
 
   function _openAddToPlaylistModal(track) {
-    UI.showAddToPlaylistModal(_playlists, track.id);
+    UI.showAddToPlaylistModal(_playlists, [track.id]);
+  }
+
+  function _closeAddToPlaylistModal() {
+    UI.hideAddToPlaylistModal();
+    if (UI.isSelectMode(UI.el.allTracksList)) _exitSelectMode();
   }
 
   function _bindAddToPlaylistModalEvents() {
     UI.el.addToPlaylistList.addEventListener('click', async e => {
       const item = e.target.closest('.playlist-pick-item');
       if (!item) return;
-      const trackId = UI.el.modalAddToPlaylist.dataset.trackId;
+      const trackIds = JSON.parse(UI.el.modalAddToPlaylist.dataset.trackIds || '[]');
       const playlist = _playlists.find(p => p.id === item.dataset.id);
-      if (!playlist || !trackId) return;
+      if (!playlist || !trackIds.length) return;
 
-      const has = playlist.trackIds.includes(trackId);
-      playlist.trackIds = has ? playlist.trackIds.filter(id => id !== trackId) : [...playlist.trackIds, trackId];
+      const allIn = trackIds.every(id => playlist.trackIds.includes(id));
+      if (allIn) {
+        playlist.trackIds = playlist.trackIds.filter(id => !trackIds.includes(id));
+      } else {
+        const set = new Set(playlist.trackIds);
+        trackIds.forEach(id => set.add(id));
+        playlist.trackIds = [...set];
+      }
 
-      UI.showAddToPlaylistModal(_playlists, trackId); // re-renderiza com o novo estado
+      UI.showAddToPlaylistModal(_playlists, trackIds); // re-renderiza com o novo estado
       UI.renderPlaylists(_playlists);
       if (_activePlaylistId === playlist.id) _renderActivePlaylistTracks();
       await _persistPlaylists();
@@ -845,18 +927,20 @@ const App = (() => {
 
     UI.el.btnAddToPlaylistCreate.addEventListener('click', async () => {
       const name = UI.el.addToPlaylistNewName.value.trim();
-      const trackId = UI.el.modalAddToPlaylist.dataset.trackId;
-      if (!name || !trackId) { UI.showToast('Dê um nome pra playlist.'); return; }
+      const trackIds = JSON.parse(UI.el.modalAddToPlaylist.dataset.trackIds || '[]');
+      if (!name || !trackIds.length) { UI.showToast('Dê um nome pra playlist.'); return; }
 
-      const playlist = { id: _uuid(), name, trackIds: [trackId], createdAt: Date.now() };
+      const playlist = { id: _uuid(), name, trackIds: [...trackIds], createdAt: Date.now() };
       _playlists = [..._playlists, playlist];
-      UI.showAddToPlaylistModal(_playlists, trackId);
+      UI.showAddToPlaylistModal(_playlists, trackIds);
       UI.renderPlaylists(_playlists);
-      UI.showToast(`Playlist "${name}" criada e música adicionada`);
+      UI.showToast(trackIds.length > 1
+        ? `Playlist "${name}" criada com ${trackIds.length} músicas`
+        : `Playlist "${name}" criada e música adicionada`);
       await _persistPlaylists();
     });
 
-    UI.el.btnAddToPlaylistClose.addEventListener('click', () => UI.hideAddToPlaylistModal());
+    UI.el.btnAddToPlaylistClose.addEventListener('click', () => _closeAddToPlaylistModal());
   }
 
   // ── FILMES ──────────────────────────────────────
@@ -1340,7 +1424,7 @@ const App = (() => {
           UI.hideUploadModal();
         } else if (modal === UI.el.modalTrackEdit) UI.hideTrackEditModal();
         else if (modal === UI.el.modalNewPlaylist) UI.hideNewPlaylistModal();
-        else if (modal === UI.el.modalAddToPlaylist) UI.hideAddToPlaylistModal();
+        else if (modal === UI.el.modalAddToPlaylist) _closeAddToPlaylistModal();
         else if (modal === UI.el.modalAddTracksToPlaylist) UI.hideAddTracksPickerModal();
       });
     });
