@@ -503,6 +503,14 @@ const UI = (() => {
     </svg>`;
   }
 
+  function _trashIcon() {
+    return `<svg width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
+      <path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+      <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+      <path d="M10 11v6"/><path d="M14 11v6"/>
+    </svg>`;
+  }
+
   function _checkIcon(size = 14) {
     return `<svg width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
       <polyline points="20 6 9 17 4 12"/>
@@ -516,7 +524,7 @@ const UI = (() => {
   // ── MENU DE AÇÕES DA FAIXA (editar / add à playlist) ──
   // Popover simples e independente, sem framework — app.js registra o
   // que cada ação deve fazer via setTrackMenuHandlers.
-  let _trackMenuHandlers = { onEdit: null, onAddToPlaylist: null };
+  let _trackMenuHandlers = { onEdit: null, onAddToPlaylist: null, onDelete: null };
 
   function setTrackMenuHandlers(handlers) {
     _trackMenuHandlers = { ..._trackMenuHandlers, ...handlers };
@@ -543,6 +551,8 @@ const UI = (() => {
       <button data-action="favorite">${_favIcon(isFav)}<span>${isFav ? 'Remover dos favoritos' : 'Adicionar aos favoritos'}</span></button>
       <button data-action="edit">${_editIcon()}<span>Editar informações</span></button>
       <button data-action="playlist">${_addToPlaylistIcon()}<span>Adicionar à playlist</span></button>
+      <div class="track-menu-popover-divider"></div>
+      <button data-action="delete" class="danger">${_trashIcon()}<span>Excluir do Drive</span></button>
     `;
     document.body.appendChild(pop);
 
@@ -562,6 +572,7 @@ const UI = (() => {
       _closeTrackMenu();
       if (action === 'edit') _trackMenuHandlers.onEdit?.(track);
       if (action === 'playlist') _trackMenuHandlers.onAddToPlaylist?.(track);
+      if (action === 'delete') _trackMenuHandlers.onDelete?.(track);
       if (action === 'favorite') {
         const fav = Player.toggleFavorite(track.id);
         showToast(fav ? 'Adicionado aos favoritos' : 'Removido dos favoritos');

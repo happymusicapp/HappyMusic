@@ -833,6 +833,38 @@ const Drive = (() => {
     return parsed;
   }
 
+  // ── EXCLUIR UMA FAIXA (manda pra lixeira do Drive) ──
+  // Usa trashed:true em vez de DELETE definitivo — o arquivo continua
+  // recuperável pela lixeira do Google Drive por um tempo, é mais seguro
+  // do que apagar de vez direto pelo app.
+  async function deleteTrack(fileId) {
+    await _ensureValidToken();
+
+    const res = await fetch(
+      `https://www.googleapis.com/drive/v3/files/${fileId}?supportsAllDrives=true`,
+      {
+        method: 'PATCH',
+        headers: {
+          Authorization: `Bearer ${_token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ trashed: true }),
+      }
+    );
+
+    if (res.status === 401) { _clearSession(); throw new Error('UNAUTHORIZED'); }
+    if (res.status === 404) {
+      // Já não existe no Drive (apagado por fora) — trata como sucesso local.
+      _tracks = _tracks.filter(t => t.id !== fileId);
+      return true;
+    }
+    if (!res.ok) throw new Error(`Falha ao excluir a música (HTTP ${res.status})`);
+
+    _tracks = _tracks.filter(t => t.id !== fileId);
+    _blobCache.delete(fileId);
+    return true;
+  }
+
   async function updateVideoMetadata(fileId, metadata = {}) {
     const body = {
       properties: {
@@ -1027,6 +1059,7 @@ const Drive = (() => {
     filterTracks,
     uploadTrack,
     updateTrackMetadata,
+    deleteTrack,
     loadPlaylists,
     savePlaylists,
 

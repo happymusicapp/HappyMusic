@@ -672,6 +672,50 @@ const App = (() => {
     UI.showTrackEditModal(track, _knownGenres());
   }
 
+  // ── EXCLUIR UMA FAIXA DO DRIVE ──────────────────
+  async function _deleteTrack(track) {
+    if (!window.confirm(`Excluir "${track.title}" do Google Drive? O arquivo vai pra lixeira do Drive (fica recuperável por lá), mas some do HappyMusic.`)) return;
+
+    try {
+      await Drive.deleteTrack(track.id);
+
+      _tracks = _tracks.filter(t => t.id !== track.id);
+
+      // Remove a faixa de qualquer playlist que a continha
+      let touchedPlaylists = false;
+      _playlists.forEach(p => {
+        if (p.trackIds.includes(track.id)) {
+          p.trackIds = p.trackIds.filter(id => id !== track.id);
+          touchedPlaylists = true;
+        }
+      });
+
+      // Pausa se a faixa excluída era a que estava tocando
+      const current = Player.getCurrentTrack();
+      if (current && current.id === track.id) Player.pause();
+
+      // Se tinha sido baixada pra ouvir offline, remove do cache também
+      if (Downloads.isDownloaded(track.id)) Downloads.removeTrack(track.id);
+      UI.refreshDownloadBadges();
+
+      UI.renderPlaylists(_playlists);
+      _reRenderCurrentViews();
+      _renderRecent();
+      UI.showToast('Música excluída — foi pra lixeira do Drive');
+
+      if (touchedPlaylists) await _persistPlaylists();
+    } catch (err) {
+      console.error('[App] Erro ao excluir música:', err);
+      if (err?.message === 'UNAUTHORIZED') {
+        Drive.logout();
+        UI.showLogin();
+        UI.showToast('Sessão expirada. Faça login novamente.');
+        return;
+      }
+      UI.showToast('Não foi possível excluir a música. Tente de novo.');
+    }
+  }
+
   function _reRenderCurrentViews() {
     _refreshFilterBar();
     if (UI.getCurrentView() === 'home') _renderAllTracksList();
@@ -1413,6 +1457,7 @@ const App = (() => {
     UI.setTrackMenuHandlers({
       onEdit: track => _openEditModal(track),
       onAddToPlaylist: track => _openAddToPlaylistModal(track),
+      onDelete: track => _deleteTrack(track),
     });
 
     // Fecha modais novos ao clicar fora da caixa (mesmo padrão dos outros modais)
