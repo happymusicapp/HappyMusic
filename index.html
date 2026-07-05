@@ -111,12 +111,19 @@
         <!-- Recentes -->
         <div class="shelf">
           <h3 class="shelf-label">Tocadas recentemente</h3>
-          <div id="recent-list" class="recent-grid">
+          <div id="recent-list" class="track-list">
             <!-- preenchido por app.js -->
-            <div class="recent-item skeleton"></div>
-            <div class="recent-item skeleton"></div>
-            <div class="recent-item skeleton"></div>
-            <div class="recent-item skeleton"></div>
+            <div class="track-item skeleton"></div>
+            <div class="track-item skeleton"></div>
+            <div class="track-item skeleton"></div>
+          </div>
+        </div>
+
+        <!-- Coleções recentes (playlists e favoritas abertas recentemente) -->
+        <div class="shelf hidden" id="recent-collections-shelf">
+          <h3 class="shelf-label">Coleções recentes</h3>
+          <div id="recent-collections-list" class="recent-collections-list">
+            <!-- preenchido por app.js -->
           </div>
         </div>
 
@@ -142,15 +149,23 @@
           <!-- Barra de seleção em lote -->
           <div id="selection-bar" class="selection-bar hidden">
             <span id="selection-count">0 selecionadas</span>
-            <div class="selection-bar-actions">
-              <button id="btn-selection-assign-genre" class="btn-primary btn-small btn-icon-label" disabled>
-                <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="m9 11 3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
-                Atribuir gênero
+            <div id="selection-bar-actions" class="selection-bar-actions">
+              <button id="btn-selection-favorite" class="btn-outline btn-small btn-icon-label" disabled>
+                <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+                Favoritar
               </button>
-              <button id="btn-selection-cancel" class="icon-btn icon-btn-sm" aria-label="Cancelar seleção" title="Cancelar">
-                <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg>
+              <button id="btn-selection-add-playlist" class="btn-outline btn-small btn-icon-label" disabled>
+                <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M3 6h13M3 12h9M3 18h9"/><path d="M18 14v6M15 17h6"/></svg>
+                Playlist
+              </button>
+              <button id="btn-selection-assign-genre" class="btn-outline btn-small btn-icon-label" disabled>
+                <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="m9 11 3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+                Gênero
               </button>
             </div>
+            <button id="btn-selection-cancel" class="icon-btn icon-btn-sm" aria-label="Cancelar seleção" title="Cancelar">
+              <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg>
+            </button>
           </div>
 
           <!-- Filtros -->
@@ -529,6 +544,7 @@
     <div class="modal-box">
       <button id="btn-add-to-playlist-close" class="modal-close" aria-label="Fechar"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
       <h2 class="modal-title">Adicionar à playlist</h2>
+      <p id="add-to-playlist-subtitle" class="profile-section-hint hidden" style="margin:0 0 var(--sp-2);"></p>
       <div id="add-to-playlist-list" class="folder-list"></div>
       <div class="upload-field" style="margin-top:var(--sp-3);">
         <label>Ou crie uma nova</label>
