@@ -80,6 +80,9 @@ const Player = (() => {
 
   function getRepeat() { return _repeat; }
 
+  // ── ELEMENTO DE ÁUDIO (usado pelo visualizer.js) ──
+  function getAudioElement() { return audio; }
+
   // ── PLAY / PAUSE ──────────────────────────────
   let _loadToken = 0; // evita race condition ao trocar de faixa rápido
 
@@ -450,6 +453,9 @@ const Player = (() => {
 
     // Histórico
     getRecent,
+
+    // Elemento de áudio bruto (visualizer)
+    getAudioElement,
 
     // Callbacks
     on,

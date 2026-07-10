@@ -176,14 +176,10 @@ const App = (() => {
   }
 
   function _renderRecent() {
-    const recent = Player.getRecent();
-    // Cruza com _tracks pra garantir dados completos e atualizados
-    const recentFull = recent
-      .map(r => _tracks.find(t => t.id === r.id) || r)
-      .filter(Boolean);
-
-    UI.renderRecent(recentFull);
-    UI.bindRecentEvents(_tracks);
+    // A prateleira "Tocadas recentemente" foi substituída pelo
+    // visualizador (js/visualizer.js). O histórico em si (Player.getRecent)
+    // continua sendo gravado — só não é mais exibido como lista aqui.
+    // Mantemos apenas a atualização das "Coleções recentes".
     _renderRecentCollections();
   }
 
