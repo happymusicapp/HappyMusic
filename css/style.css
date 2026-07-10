@@ -407,6 +407,42 @@ img    { display: block; }
   z-index: 1;
 }
 
+/* "Sol" neon atrás de tudo — só CSS (transform/opacity via variável),
+   nunca escrito pelo JS como `filter`, pra não voltar o problema de
+   música engasgando (filter animado por JS a cada frame é caro). O
+   brilho reage ao volume geral através de uma custom property que o
+   JS só atualiza (--viz-energy), o que é barato pro navegador. */
+.play-sun-glow {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 150px;
+  height: 150px;
+  border-radius: 50%;
+  transform: translate(-50%, -50%) scale(1);
+  background: radial-gradient(circle,
+    rgba(255,255,255,0.6) 0%,
+    rgba(199,125,255,0.65) 24%,
+    rgba(124,58,255,0.4) 44%,
+    rgba(124,58,255,0.12) 64%,
+    transparent 78%);
+  filter: blur(14px);
+  z-index: -1;
+  pointer-events: none;
+  animation: play-sun-breathe 2.6s ease-in-out infinite;
+}
+
+@keyframes play-sun-breathe {
+  0%, 100% { transform: translate(-50%, -50%) scale(0.88); opacity: 0.5; }
+  50%      { transform: translate(-50%, -50%) scale(1.18); opacity: 0.85; }
+}
+
+.play-btn-stage.viz-active .play-sun-glow {
+  animation: none;
+  transform: translate(-50%, -50%) scale(calc(0.95 + var(--viz-energy, 0) * 0.5));
+  opacity: calc(0.55 + var(--viz-energy, 0) * 0.45);
+}
+
 .play-ring {
   position: absolute;
   top: 50%;
@@ -421,6 +457,8 @@ img    { display: block; }
   pointer-events: none;
   will-change: transform, opacity;
   transition: transform 0.08s linear, opacity 0.08s linear;
+  /* brilho fixo (não é reescrito pelo JS) — barato de manter */
+  filter: drop-shadow(0 0 6px rgba(255,255,255,0.55));
 }
 
 /* Parado: o anel de grave "respira" sozinho, igual ao splash de abertura */
@@ -436,7 +474,8 @@ img    { display: block; }
 
 /* Ondas sonoras (médio/agudo) — polígonos com os pontos recalculados a
    cada frame em js/visualizer.js, por isso não têm transition de forma
-   (só a opacidade suaviza; a "tremida" em si é o efeito desejado). */
+   (só a opacidade suaviza; a "tremida" em si é o efeito desejado). O
+   brilho (drop-shadow) é fixo por CSS — o JS nunca escreve em `filter`. */
 .play-wave-svg {
   position: absolute;
   top: 50%;
@@ -451,7 +490,7 @@ img    { display: block; }
 
 .play-wave {
   fill: none;
-  stroke-width: 1.6;
+  stroke-width: 2;
   vector-effect: non-scaling-stroke;
   transform-box: fill-box;
   transform-origin: center;
@@ -459,8 +498,14 @@ img    { display: block; }
   transition: opacity 0.08s linear;
 }
 
-.play-wave-2 { stroke: rgba(199,125,255,0.85); }
-.play-wave-3 { stroke: rgba(255,255,255,0.6); }
+.play-wave-2 {
+  stroke: rgba(199,125,255,0.9);
+  filter: drop-shadow(0 0 5px rgba(199,125,255,0.85));
+}
+.play-wave-3 {
+  stroke: rgba(255,255,255,0.7);
+  filter: drop-shadow(0 0 5px rgba(255,255,255,0.6));
+}
 
 /* Parado: as ondas "respiram" sozinhas também, com defasagem entre si */
 .play-btn-stage:not(.viz-active) .play-wave {
