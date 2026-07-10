@@ -386,14 +386,56 @@ img    { display: block; }
   gap: 6px;
 }
 
-/* ── PULSO NA BATIDA (botão de play) ────────────
-   O visualizador agora vive dentro do próprio botão de play/pause: ele
-   pulsa (escala + brilho) em cima da batida detectada no grave da
-   música (ver js/visualizer.js). Enquanto isso roda, a animação padrão
-   'play-pulse' (contínua, decorativa) fica desligada — ela volta
-   sozinha quando pausa. */
-.play-btn.viz-active {
-  animation: none;
+/* ── ARGOLAS NEON ATRÁS DO PLAY (batida da música) ──
+   O botão de play fica parado — quem pulsa é isso aqui atrás dele: três
+   anéis concêntricos que crescem/acendem no tempo da batida detectada no
+   grave da música (ver js/visualizer.js). Em repouso, "respiram" sozinhos
+   via CSS, igual à animação de abertura do app. Só roxo e branco. */
+.play-btn-stage {
+  position: relative;
+  width: 52px;
+  height: 52px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.play-btn-stage .play-btn {
+  position: relative;
+  z-index: 1;
+}
+
+.play-ring {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  border: 1.5px solid rgba(255,255,255,0.65);
+  transform: translate(-50%, -50%) scale(1);
+  opacity: 0.3;
+  z-index: 0;
+  pointer-events: none;
+  will-change: transform, opacity;
+  transition: transform 0.08s linear, opacity 0.08s linear;
+}
+
+.play-ring-2 { border-color: rgba(199,125,255,0.75); }
+.play-ring-3 { border-color: rgba(124,58,255,0.75); }
+
+/* Parado: os anéis "respiram" sozinhos, igual ao splash de abertura */
+.play-btn-stage:not(.viz-active) .play-ring {
+  animation: viz-idle-pulse 2.2s var(--ease) infinite;
+  transition: none;
+}
+.play-btn-stage:not(.viz-active) .play-ring-1 { animation-delay: 0s; }
+.play-btn-stage:not(.viz-active) .play-ring-2 { animation-delay: 0.45s; }
+.play-btn-stage:not(.viz-active) .play-ring-3 { animation-delay: 0.9s; }
+
+@keyframes viz-idle-pulse {
+  0%   { transform: translate(-50%, -50%) scale(0.85); opacity: 0.5; }
+  100% { transform: translate(-50%, -50%) scale(2.2); opacity: 0; }
 }
 
 /* ── TOCADAS RECENTEMENTE ─────────────────────
