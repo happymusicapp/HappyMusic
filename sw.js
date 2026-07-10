@@ -3,8 +3,8 @@
    Service Worker: cache offline + estratégia de rede
 ═══════════════════════════════════════════════ */
 
-const CACHE_NAME    = 'happymusic-v24';
-const CACHE_STATIC  = 'happymusic-static-v24';
+const CACHE_NAME    = 'happymusic-v25';
+const CACHE_STATIC  = 'happymusic-static-v25';
 const CACHE_AUDIO   = 'happymusic-audio-v2';
 
 // Arquivos do app shell — cacheados no install
