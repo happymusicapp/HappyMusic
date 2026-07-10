@@ -725,15 +725,35 @@ const App = (() => {
     UI.el.btnEditSave.addEventListener('click', async () => {
       const trackId = UI.el.modalTrackEdit.dataset.trackId;
       if (!trackId) return;
-      const form = UI.getTrackEditForm();
+      const form  = UI.getTrackEditForm();
+      const track = _findTrackAnywhere(trackId);
 
       try {
+        // A capa é salva à parte (arquivo de imagem próprio no Drive),
+        // então processa isso antes/independente dos campos de texto.
+        if (track && form.coverAction === 'set' && form.coverFile) {
+          await Drive.setCustomCover(track, form.coverFile);
+        } else if (track && form.coverAction === 'remove') {
+          await Drive.removeCustomCover(track);
+        }
+
         await Drive.updateTrackMetadata(trackId, form);
         const idx = _tracks.findIndex(t => t.id === trackId);
-        if (idx !== -1) _tracks[idx] = Drive.getCachedTracks().find(t => t.id === trackId) || _tracks[idx];
+        if (idx !== -1) {
+          const fresh = Drive.getCachedTracks().find(t => t.id === trackId) || _tracks[idx];
+          // updateTrackMetadata só mexe em título/artista/álbum/gênero — a capa
+          // que acabamos de aplicar (ou tirar) fica guardada em `track`, então
+          // preserva ela aqui em vez de deixar o objeto "novo" sobrescrever.
+          if (track) {
+            fresh.thumbnail = track.thumbnail;
+            fresh.coverId   = track.coverId;
+          }
+          _tracks[idx] = fresh;
+        }
         UI.hideTrackEditModal();
         UI.showToast('Informações atualizadas');
         _reRenderCurrentViews();
+        UI.refreshTrackArt(trackId, track ? track.thumbnail : null);
       } catch (err) {
         console.error('[App] Erro ao editar metadados:', err);
         if (err.message === 'UNAUTHORIZED') {

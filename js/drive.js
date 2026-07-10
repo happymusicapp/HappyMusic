@@ -476,6 +476,7 @@ const Drive = (() => {
       hasCustomMetadata,
       duration,
       thumbnail:    file.thumbnailLink || null,
+      coverId:      props.hm_cover_id || null, // capa personalizada (arquivo separado no Drive), ver setCustomCover
       mimeType:     file.mimeType,
       modifiedTime: file.modifiedTime,
       size:         file.size ? parseInt(file.size, 10) : null,
@@ -589,18 +590,28 @@ const Drive = (() => {
     );
   }
 
-  // ── CAPA EMBUTIDA (ID3 / MP4) ──────────────────
-  // O Drive raramente gera thumbnailLink pra áudio (diferente de imagem/vídeo),
-  // então quando falta capa buscamos a arte embutida no próprio arquivo
-  // (tag ID3 APIC no MP3, atom "covr" no M4A) lendo só o início do arquivo.
+  // ── CAPA EMBUTIDA (ID3 / MP4) OU PERSONALIZADA ─
+  // O Drive raramente gera thumbnailLink pra áudio (diferente de imagem/vídeo).
+  // Prioridade: 1) capa personalizada enviada pelo usuário (arquivo separado
+  // no Drive, ver setCustomCover) — 2) arte embutida no próprio arquivo de
+  // áudio (tag ID3 APIC no MP3, atom "covr" no M4A).
   const _coverCache = new Map(); // fileId -> dataURL | null
 
-  async function fetchEmbeddedCover(fileId) {
+  async function fetchEmbeddedCover(fileId, customCoverId = null) {
     if (_coverCache.has(fileId)) return _coverCache.get(fileId);
     if (!_token) return null;
 
     try {
       await _ensureValidToken();
+
+      if (customCoverId) {
+        const dataUrl = await _fetchImageAsDataUrl(customCoverId);
+        if (dataUrl) {
+          _coverCache.set(fileId, dataUrl);
+          return dataUrl;
+        }
+        // Se a capa personalizada falhar ao carregar, cai pro fallback abaixo.
+      }
 
       const res = await fetch(
         `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`,
@@ -624,10 +635,32 @@ const Drive = (() => {
       return dataUrl;
 
     } catch (err) {
-      console.warn('[Drive] capa embutida indisponível:', fileId, err);
+      console.warn('[Drive] capa indisponível:', fileId, err);
       _coverCache.set(fileId, null);
       return null;
     }
+  }
+
+  // Baixa uma imagem do Drive (arquivo de capa personalizada) e devolve
+  // como dataURL, pro mesmo formato usado pela capa embutida/ID3.
+  async function _fetchImageAsDataUrl(fileId) {
+    const res = await fetch(
+      `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`,
+      { headers: { Authorization: `Bearer ${_token}` } }
+    );
+    if (res.status === 401) { _clearSession(); throw new Error('UNAUTHORIZED'); }
+    if (!res.ok) return null;
+    const blob = await res.blob();
+    return _blobToDataUrl(blob);
+  }
+
+  function _blobToDataUrl(blob) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload  = () => resolve(reader.result);
+      reader.onerror = () => reject(reader.error);
+      reader.readAsDataURL(blob);
+    });
   }
 
   function _readCoverFromBlob(blob) {
@@ -831,6 +864,118 @@ const Drive = (() => {
     const idx = _tracks.findIndex(t => t.id === fileId);
     if (idx !== -1) _tracks[idx] = parsed;
     return parsed;
+  }
+
+  // ── CAPA PERSONALIZADA (imagem escolhida pelo usuário) ──
+  // A capa é salva como um arquivo de imagem separado, na mesma pasta da
+  // música no Drive, e associada à faixa via a property `hm_cover_id`.
+  // Isso evita ter que reescrever a tag ID3 dentro do arquivo de áudio
+  // (arriscado e nem sempre suportado pelo formato) — o Drive é quem guarda
+  // o vínculo, então continua funcionando mesmo se o arquivo for renomeado.
+  async function _uploadCoverImage(track, imageFile) {
+    await _ensureValidToken();
+
+    const meta = {
+      name: `.happymusic_capa_${track.id}`,
+      properties: { hm_cover_for: track.id },
+    };
+    const folderId = getFolderId();
+    if (folderId) meta.parents = [folderId];
+
+    const form = new FormData();
+    form.append('metadata', new Blob([JSON.stringify(meta)], { type: 'application/json; charset=UTF-8' }));
+    form.append('file', imageFile);
+
+    const res = await fetch(
+      'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true&fields=id',
+      {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${_token}` },
+        body: form,
+      }
+    );
+
+    if (res.status === 401) { _clearSession(); throw new Error('UNAUTHORIZED'); }
+    if (!res.ok) throw new Error(`Falha ao enviar a capa (HTTP ${res.status})`);
+
+    const created = await res.json();
+    return created.id;
+  }
+
+  // Atualiza só as properties informadas, sem mexer nas outras já salvas —
+  // a Drive API faz merge por chave (valor `null` remove a chave).
+  async function _patchProperties(fileId, propsPatch) {
+    await _ensureValidToken();
+
+    const res = await fetch(
+      `https://www.googleapis.com/drive/v3/files/${fileId}?supportsAllDrives=true&fields=id,properties`,
+      {
+        method: 'PATCH',
+        headers: {
+          Authorization: `Bearer ${_token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ properties: propsPatch }),
+      }
+    );
+
+    if (res.status === 401) { _clearSession(); throw new Error('UNAUTHORIZED'); }
+    if (!res.ok) throw new Error(`Falha ao salvar alterações (HTTP ${res.status})`);
+    return res.json();
+  }
+
+  // Manda um arquivo pra lixeira sem derrubar o fluxo principal se falhar
+  // (ex.: capa antiga já tinha sido apagada por fora) — não é crítico.
+  async function _trashFileSilently(fileId) {
+    try {
+      await _ensureValidToken();
+      await fetch(
+        `https://www.googleapis.com/drive/v3/files/${fileId}?supportsAllDrives=true`,
+        {
+          method: 'PATCH',
+          headers: {
+            Authorization: `Bearer ${_token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ trashed: true }),
+        }
+      );
+    } catch (err) {
+      console.warn('[Drive] não foi possível descartar a capa antiga:', fileId, err);
+    }
+  }
+
+  // Envia (ou substitui) a capa personalizada de uma faixa.
+  // Retorna a dataURL da nova capa, já pronta pra exibir.
+  async function setCustomCover(track, imageFile) {
+    const oldCoverId = track.coverId || null;
+
+    const newCoverId = await _uploadCoverImage(track, imageFile);
+    await _patchProperties(track.id, { hm_cover_id: newCoverId });
+
+    if (oldCoverId && oldCoverId !== newCoverId) _trashFileSilently(oldCoverId);
+
+    track.coverId      = newCoverId;
+    track._coverTried  = false;
+    _coverCache.delete(track.id);
+
+    const dataUrl = await fetchEmbeddedCover(track.id, newCoverId);
+    track.thumbnail = dataUrl;
+    return dataUrl;
+  }
+
+  // Remove a capa personalizada de uma faixa (volta a usar a capa embutida
+  // no áudio, se houver, ou o placeholder padrão).
+  async function removeCustomCover(track) {
+    const oldCoverId = track.coverId || null;
+
+    await _patchProperties(track.id, { hm_cover_id: null });
+    if (oldCoverId) _trashFileSilently(oldCoverId);
+
+    track.coverId     = null;
+    track.thumbnail   = null;
+    track._coverTried = false;
+    _coverCache.delete(track.id);
   }
 
   // ── EXCLUIR UMA FAIXA (manda pra lixeira do Drive) ──
@@ -1052,6 +1197,8 @@ const Drive = (() => {
     revokeAudioUrl,
     searchTracks,
     fetchEmbeddedCover,
+    setCustomCover,
+    removeCustomCover,
     isAudioFile,
     getKnownGenres,
     getKnownArtists,

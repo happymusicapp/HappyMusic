@@ -124,6 +124,12 @@ const UI = (() => {
 
     // Editar faixa
     modalTrackEdit:  $('modal-track-edit'),
+    editCoverPreview:     $('edit-cover-preview-img'),
+    editCoverPlaceholder: $('edit-cover-placeholder'),
+    editCoverInput:       $('edit-cover-input'),
+    btnEditCoverPick:     $('btn-edit-cover-pick'),
+    btnEditCoverChoose:   $('btn-edit-cover-choose'),
+    btnEditCoverRemove:   $('btn-edit-cover-remove'),
     editFieldTitle:  $('edit-field-title'),
     editFieldArtist: $('edit-field-artist'),
     editFieldAlbum:  $('edit-field-album'),
@@ -373,7 +379,7 @@ const UI = (() => {
     while (_coverActive < COVER_CONCURRENCY && _coverQueue.length) {
       const track = _coverQueue.shift();
       _coverActive++;
-      Drive.fetchEmbeddedCover(track.id)
+      Drive.fetchEmbeddedCover(track.id, track.coverId)
         .then(dataUrl => {
           if (dataUrl) {
             track.thumbnail = dataUrl;
@@ -391,12 +397,18 @@ const UI = (() => {
   function _applyCoverToDom(trackId, dataUrl) {
     document.querySelectorAll(`[data-id="${trackId}"]`).forEach(item => {
       const art = item.querySelector('.track-art, .recent-art');
-      if (art) art.innerHTML = `<img src="${dataUrl}" alt="" loading="lazy" />`;
+      if (art) art.innerHTML = dataUrl ? `<img src="${dataUrl}" alt="" loading="lazy" />` : _musicIcon(20);
     });
     const current = Player.getCurrentTrack();
     if (current && current.id === trackId) {
-      el.playerArt.innerHTML = `<img src="${dataUrl}" alt="" />`;
+      el.playerArt.innerHTML = dataUrl ? `<img src="${dataUrl}" alt="" />` : _musicIcon(24);
     }
+  }
+
+  // Wrapper público — usado depois de salvar/remover uma capa personalizada
+  // no modal de editar informações, pra refletir na hora sem esperar re-render.
+  function refreshTrackArt(trackId, dataUrl) {
+    _applyCoverToDom(trackId, dataUrl || null);
   }
 
   // ── RECENT LIST (formato compacto, igual à lista) ─
@@ -771,12 +783,39 @@ const UI = (() => {
   }
 
   // ── MODAL: EDITAR METADADOS DA FAIXA ───────────
+  // Estado do seletor de capa — não dá pra guardar um File num <input
+  // type=text>, então fica numa variável do módulo enquanto o modal
+  // está aberto. `_editCoverAction` diz o que fazer ao salvar:
+  // null = não mexe na capa · 'set' = subir _editCoverFile · 'remove' = tirar a capa atual.
+  let _editCoverFile   = null;
+  let _editCoverAction = null;
+
+  function _setCoverPreview(dataUrl) {
+    if (dataUrl) {
+      el.editCoverPreview.src = dataUrl;
+      el.editCoverPreview.classList.remove('hidden');
+      el.editCoverPlaceholder.classList.add('hidden');
+      el.btnEditCoverRemove.classList.remove('hidden');
+    } else {
+      el.editCoverPreview.src = '';
+      el.editCoverPreview.classList.add('hidden');
+      el.editCoverPlaceholder.classList.remove('hidden');
+      el.btnEditCoverRemove.classList.add('hidden');
+    }
+  }
+
   function showTrackEditModal(track, knownGenres = []) {
     el.editFieldTitle.value  = track.title  || '';
     el.editFieldArtist.value = track.artist === 'Desconhecido' ? '' : (track.artist || '');
     el.editFieldAlbum.value  = track.album  || '';
     el.editFieldGenre.value  = track.genre  || '';
     el.genreSuggestions.innerHTML = knownGenres.map(g => `<option value="${_escape(g)}"></option>`).join('');
+
+    _editCoverFile   = null;
+    _editCoverAction = null;
+    el.editCoverInput.value = '';
+    _setCoverPreview(track.thumbnail || null);
+
     el.modalTrackEdit.classList.remove('hidden');
     el.modalTrackEdit.dataset.trackId = track.id;
     el.editFieldTitle.focus();
@@ -784,6 +823,8 @@ const UI = (() => {
   function hideTrackEditModal() {
     el.modalTrackEdit.classList.add('hidden');
     delete el.modalTrackEdit.dataset.trackId;
+    _editCoverFile   = null;
+    _editCoverAction = null;
   }
   function getTrackEditForm() {
     return {
@@ -791,8 +832,40 @@ const UI = (() => {
       artist: el.editFieldArtist.value.trim(),
       album:  el.editFieldAlbum.value.trim(),
       genre:  el.editFieldGenre.value.trim(),
+      coverAction: _editCoverAction, // null | 'set' | 'remove'
+      coverFile:   _editCoverFile,   // File, só quando coverAction === 'set'
     };
   }
+
+  // Escolher imagem (toca na miniatura ou no botão "Escolher imagem")
+  function _bindCoverPickerEvents() {
+    const openPicker = () => el.editCoverInput.click();
+    el.btnEditCoverPick.addEventListener('click', openPicker);
+    el.btnEditCoverChoose.addEventListener('click', openPicker);
+
+    el.editCoverInput.addEventListener('change', () => {
+      const file = el.editCoverInput.files && el.editCoverInput.files[0];
+      if (!file) return;
+      if (!file.type.startsWith('image/')) {
+        showToast('Escolha um arquivo de imagem.');
+        return;
+      }
+      _editCoverFile   = file;
+      _editCoverAction = 'set';
+
+      const reader = new FileReader();
+      reader.onload = () => _setCoverPreview(reader.result);
+      reader.readAsDataURL(file);
+    });
+
+    el.btnEditCoverRemove.addEventListener('click', () => {
+      _editCoverFile   = null;
+      _editCoverAction = 'remove';
+      el.editCoverInput.value = '';
+      _setCoverPreview(null);
+    });
+  }
+  _bindCoverPickerEvents();
 
   // ── UPLOAD DE MÚSICAS ──────────────────────────
   function showUploadModal() { el.modalUpload.classList.remove('hidden'); }
@@ -1361,6 +1434,7 @@ const UI = (() => {
     showTrackEditModal,
     hideTrackEditModal,
     getTrackEditForm,
+    refreshTrackArt,
 
     // Upload
     showUploadModal,
