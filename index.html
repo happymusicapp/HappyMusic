@@ -108,14 +108,12 @@
       <section id="view-home" class="view active">
         <h2 class="section-title">Boa tarde</h2>
 
-        <!-- Recentes -->
+        <!-- Visualização (barras neon estilo Windows Media Player) -->
         <div class="shelf">
-          <h3 class="shelf-label">Tocadas recentemente</h3>
-          <div id="recent-list" class="track-list">
-            <!-- preenchido por app.js -->
-            <div class="track-item skeleton"></div>
-            <div class="track-item skeleton"></div>
-            <div class="track-item skeleton"></div>
+          <h3 class="shelf-label">Visualização</h3>
+          <div class="visualizer-wrap" id="visualizer-wrap">
+            <canvas id="visualizer-canvas"></canvas>
+            <p class="visualizer-hint" id="visualizer-hint">Toque uma música pra ver a visualização</p>
           </div>
         </div>
 
@@ -628,6 +626,7 @@
   <script src="js/drive.js"></script>
   <script src="js/downloads.js"></script>
   <script src="js/player.js"></script>
+  <script src="js/visualizer.js"></script>
   <script src="js/ui.js"></script>
   <script src="js/app.js"></script>
   <script>
