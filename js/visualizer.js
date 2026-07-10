@@ -1,9 +1,10 @@
 /* ═══════════════════════════════════════════════
    HAPPY MUSIC – visualizer.js
-   Visualizador de áudio: três argolas neon atrás do
-   botão de play, que pulsam no tempo da batida da
-   música. O botão em si fica parado — quem "dança"
-   é a luz por trás dele.
+   Visualizador de áudio atrás do botão de play:
+   um anel liso reage à batida do grave, e dois
+   polígonos SVG "tremem" como ondas sonoras, com
+   os pontos recalculados a partir do médio/agudo
+   da música a cada frame. O botão em si fica parado.
    Usa a Web Audio API (AnalyserNode) ligada direto no
    <audio> do player.js — sem alterar o playback.
 ═══════════════════════════════════════════════ */
@@ -14,8 +15,8 @@ const Visualizer = (() => {
   let _audioEl  = null;
   let _stageEl  = null;
   let _ring1    = null;
-  let _ring2    = null;
-  let _ring3    = null;
+  let _wave2    = null;
+  let _wave3    = null;
 
   let _audioCtx     = null;
   let _analyser     = null;
@@ -25,6 +26,7 @@ const Visualizer = (() => {
   let _rafId      = null;
   let _ready      = false; // grafo de áudio já montado?
   let _watchdogId = null;
+  let _frameCount = 0;
 
   // Detecção de batida: janela curta de energia grave recente + um
   // "impulso" que dispara nos picos (kick/batida) e decai a cada frame,
@@ -32,6 +34,10 @@ const Visualizer = (() => {
   // volume suavemente.
   let _bassHistory = [];
   let _beatPulse   = 0;
+
+  // Raio-base (em unidades do viewBox do SVG) de cada onda, parado
+  const WAVE2_BASE = 34;
+  const WAVE3_BASE = 42;
 
   // ── INICIALIZAÇÃO ─────────────────────────────
   function init() {
@@ -41,10 +47,12 @@ const Visualizer = (() => {
 
     _stageEl = document.getElementById('play-btn-stage');
     _ring1   = document.getElementById('play-ring-1');
-    _ring2   = document.getElementById('play-ring-2');
-    _ring3   = document.getElementById('play-ring-3');
+    _wave2   = document.getElementById('play-wave-2');
+    _wave3   = document.getElementById('play-wave-3');
 
     if (!_audioEl || !_stageEl) return; // markup/áudio ainda não disponíveis
+
+    _resetWaves(); // desenha o círculo-base antes de qualquer música tocar
 
     _audioEl.addEventListener('play',  _onPlay);
     _audioEl.addEventListener('pause', _onPause);
@@ -81,7 +89,7 @@ const Visualizer = (() => {
       _sourceNode = _audioCtx.createMediaElementSource(_audioEl);
       _analyser   = _audioCtx.createAnalyser();
       _analyser.fftSize = 128;
-      _analyser.smoothingTimeConstant = 0.78;
+      _analyser.smoothingTimeConstant = 0.7; // um pouco menos suave = mais "tremido"
 
       _dataArray = new Uint8Array(_analyser.frequencyBinCount);
 
@@ -117,7 +125,8 @@ const Visualizer = (() => {
     if (_watchdogId) { clearInterval(_watchdogId); _watchdogId = null; }
 
     _stageEl.classList.remove('viz-active'); // volta a "respirar" sozinho
-    _resetRings();
+    if (_ring1) { _ring1.style.transform = ''; _ring1.style.opacity = ''; }
+    _resetWaves();
   }
 
   // ── LOOP DE ANIMAÇÃO ───────────────────────────
@@ -125,7 +134,8 @@ const Visualizer = (() => {
     _rafId = requestAnimationFrame(_loop);
     if (!_analyser) return;
     _analyser.getByteFrequencyData(_dataArray);
-    _updateRings(_dataArray);
+    _frameCount++;
+    _update(_dataArray);
   }
 
   // Média normalizada (0..1) de uma faixa do espectro
@@ -158,8 +168,42 @@ const Visualizer = (() => {
     el.style.opacity   = opacity.toFixed(3);
   }
 
-  // ── ARGOLAS REAGINDO À MÚSICA (grave/médio/agudo) ──
-  function _updateRings(data) {
+  // Gera um círculo perfeito (usado no repouso, antes de tocar qualquer coisa)
+  function _circlePoints(radius, pointCount) {
+    const pts = [];
+    for (let i = 0; i < pointCount; i++) {
+      const angle = (i / pointCount) * Math.PI * 2;
+      pts.push(`${(Math.cos(angle) * radius).toFixed(1)},${(Math.sin(angle) * radius).toFixed(1)}`);
+    }
+    return pts.join(' ');
+  }
+
+  function _resetWaves() {
+    if (_wave2) { _wave2.setAttribute('points', _circlePoints(WAVE2_BASE, 20)); _wave2.style.opacity = ''; }
+    if (_wave3) { _wave3.setAttribute('points', _circlePoints(WAVE3_BASE, 24)); _wave3.style.opacity = ''; }
+  }
+
+  // Monta o polígono "tremido": cada ponto amostra um bin de frequência
+  // diferente (bins vizinhos variam bastante de amplitude, o que já dá
+  // aquele serrilhado natural de onda sonora) + um chacoalho fininho
+  // independente do áudio, só pra garantir tremor visível mesmo em
+  // trechos mais quietos da música.
+  function _wavePoints(data, startIdx, endIdx, baseRadius, jitter, pointCount) {
+    const pts = [];
+    const span = Math.max(1, endIdx - startIdx);
+    for (let i = 0; i < pointCount; i++) {
+      const angle  = (i / pointCount) * Math.PI * 2;
+      const binIdx = startIdx + Math.floor((i / pointCount) * span);
+      const amp    = data[Math.min(binIdx, data.length - 1)] / 255;
+      const noise  = Math.sin(i * 12.9898 + _frameCount * 0.6) * 0.12;
+      const r      = baseRadius + amp * jitter + noise * jitter * 0.4;
+      pts.push(`${(Math.cos(angle) * r).toFixed(1)},${(Math.sin(angle) * r).toFixed(1)}`);
+    }
+    return pts.join(' ');
+  }
+
+  // ── ATUALIZA O ANEL DE GRAVE + AS DUAS ONDAS ───
+  function _update(data) {
     const n       = data.length;
     const bassEnd = Math.max(1, Math.floor(n * 0.15));
     const midEnd  = Math.max(bassEnd + 1, Math.floor(n * 0.5));
@@ -169,20 +213,19 @@ const Visualizer = (() => {
     const treble = _bandAvg(data, midEnd, n);
     const beat   = _detectBeat(bass); // 0..1, pico seco a cada batida
 
-    // A argola mais próxima do botão soma grave contínuo + o impulso da
-    // batida — dá aquele "salto" nítido a cada kick.
+    // Anel de grave: liso, soma energia contínua + o impulso da batida
     _setRing(_ring1, Math.min(1, bass + beat * 0.6), 1.00, 1.9, 0.9);
-    _setRing(_ring2, mid,                             1.15, 2.5, 0.65);
-    _setRing(_ring3, treble,                           1.30, 3.2, 0.5);
-  }
 
-  // Estado parado: devolve o controle pro CSS (animação "respirando" sozinha)
-  function _resetRings() {
-    [_ring1, _ring2, _ring3].forEach(el => {
-      if (!el) return;
-      el.style.transform = '';
-      el.style.opacity   = '';
-    });
+    // Ondas de médio/agudo: pontos tremidos, cuja amplitude também cresce
+    // com a energia da faixa (fica mais "espinhento" quanto mais forte)
+    if (_wave2) {
+      _wave2.setAttribute('points', _wavePoints(data, bassEnd, midEnd, WAVE2_BASE, 10 + mid * 22, 20));
+      _wave2.style.opacity = Math.min(0.9, 0.25 + mid * 0.75).toFixed(3);
+    }
+    if (_wave3) {
+      _wave3.setAttribute('points', _wavePoints(data, midEnd, n, WAVE3_BASE, 8 + treble * 20, 24));
+      _wave3.style.opacity = Math.min(0.85, 0.2 + treble * 0.7).toFixed(3);
+    }
   }
 
   return { init };
