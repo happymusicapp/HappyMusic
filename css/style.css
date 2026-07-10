@@ -387,48 +387,49 @@ img    { display: block; }
 }
 
 /* ── VISUALIZADOR (logo + esferas pulsantes, igual à abertura do app) ──
-   Reaproveita a linguagem visual do splash (aurora + anéis pulsantes em
-   torno do logo), só que aqui reagindo em tempo real ao áudio via
-   Web Audio API (ver js/visualizer.js). Só roxo e branco — sem arco-íris.
-   Em repouso os anéis pulsam sozinhos (CSS); ao tocar, o JS assume o
-   controle e cada anel reage a uma faixa de frequência (grave/médio/agudo). */
+   Sem caixa/retângulo de fundo — o orb flutua direto sobre o fundo do
+   app. Um "sol roxo" desfocado brilha atrás do logo, e os três anéis ao
+   redor pulsam com a batida da música (grave/médio/agudo), com um
+   impulso extra a cada "batida" detectada no grave (ver js/visualizer.js).
+   Só roxo e branco. Em repouso tudo "respira" sozinho via CSS. */
 .visualizer-wrap {
   position: relative;
   height: 168px;
-  border-radius: var(--radius-lg, 18px);
-  overflow: hidden;
   display: flex;
   align-items: center;
   justify-content: center;
-  background:
-    radial-gradient(120% 160% at 50% 120%, rgba(124,58,255,0.20), transparent 60%),
-    #0A0912;
-  border: 1px solid rgba(124,58,255,0.32);
-  box-shadow:
-    0 0 30px rgba(124,58,255,0.22),
-    0 0 46px rgba(124,58,255,0.12) inset;
-}
-
-.viz-aurora {
-  position: absolute;
-  inset: -30%;
-  background:
-    radial-gradient(circle at 28% 30%, rgba(124,58,255,0.38) 0%, transparent 42%),
-    radial-gradient(circle at 72% 68%, rgba(199,125,255,0.26) 0%, transparent 45%),
-    radial-gradient(circle at 50% 50%, rgba(255,255,255,0.06) 0%, transparent 55%);
-  filter: blur(42px);
-  animation: aurora-drift 10s ease-in-out infinite alternate;
-  pointer-events: none;
 }
 
 .viz-orb-stage {
   position: relative;
   z-index: 1;
-  width: 96px;
-  height: 96px;
+  width: 140px;
+  height: 140px;
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+/* "Sol" roxo desfocado atrás do logo — a fonte de luz da cena */
+.viz-sun {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 132px;
+  height: 132px;
+  border-radius: 50%;
+  transform: translate(-50%, -50%) scale(1);
+  background: radial-gradient(circle,
+    rgba(255,255,255,0.75) 0%,
+    rgba(199,125,255,0.85) 22%,
+    rgba(124,58,255,0.55) 45%,
+    rgba(124,58,255,0.16) 65%,
+    transparent 78%);
+  filter: blur(16px);
+  opacity: 0.65;
+  z-index: 0;
+  will-change: transform, opacity;
+  transition: transform 0.08s linear, opacity 0.08s linear;
 }
 
 .viz-ring {
@@ -441,6 +442,7 @@ img    { display: block; }
   border: 1.5px solid rgba(255,255,255,0.6);
   transform: translate(-50%, -50%) scale(1);
   opacity: 0.3;
+  z-index: 1;
   will-change: transform, opacity;
   /* transição curta suaviza o passo a passo dos frames do analyser
      sem introduzir atraso perceptível em relação à música */
@@ -450,7 +452,11 @@ img    { display: block; }
 .viz-ring-2 { border-color: rgba(199,125,255,0.7); }
 .viz-ring-3 { border-color: rgba(124,58,255,0.7); }
 
-/* Parado: os três anéis "respiram" sozinhos, igual ao splash de abertura */
+/* Parado: sol + anéis "respiram" sozinhos, igual ao splash de abertura */
+.visualizer-wrap:not(.viz-active) .viz-sun {
+  animation: viz-sun-breathe 2.6s var(--ease) infinite;
+  transition: none;
+}
 .visualizer-wrap:not(.viz-active) .viz-ring {
   animation: viz-idle-pulse 2.6s var(--ease) infinite;
   transition: none;
@@ -458,6 +464,11 @@ img    { display: block; }
 .visualizer-wrap:not(.viz-active) .viz-ring-1 { animation-delay: 0s; }
 .visualizer-wrap:not(.viz-active) .viz-ring-2 { animation-delay: 0.55s; }
 .visualizer-wrap:not(.viz-active) .viz-ring-3 { animation-delay: 1.1s; }
+
+@keyframes viz-sun-breathe {
+  0%, 100% { transform: translate(-50%, -50%) scale(0.92); opacity: 0.5; }
+  50%      { transform: translate(-50%, -50%) scale(1.12); opacity: 0.78; }
+}
 
 @keyframes viz-idle-pulse {
   0%   { transform: translate(-50%, -50%) scale(0.8); opacity: 0.5; }
@@ -473,7 +484,6 @@ img    { display: block; }
   display: flex;
   align-items: center;
   justify-content: center;
-  background: radial-gradient(circle, rgba(255,255,255,0.16), rgba(124,58,255,0.10) 68%, transparent);
   transition: transform 0.08s linear;
   will-change: transform;
 }
@@ -489,25 +499,6 @@ img    { display: block; }
 
 .visualizer-wrap.viz-active .viz-logo {
   animation: none; /* JS assume o brilho quando está tocando */
-}
-
-.visualizer-hint {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 10px;
-  z-index: 2;
-  margin: 0;
-  padding: 0 var(--sp-4, 16px);
-  text-align: center;
-  font-size: 0.78rem;
-  color: var(--grey-soft);
-  pointer-events: none;
-  transition: opacity 0.3s var(--ease, ease);
-}
-
-.visualizer-hint.hidden {
-  opacity: 0;
 }
 
 /* ── TOCADAS RECENTEMENTE ─────────────────────
