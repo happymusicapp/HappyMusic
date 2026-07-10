@@ -125,6 +125,7 @@ const Visualizer = (() => {
     if (_watchdogId) { clearInterval(_watchdogId); _watchdogId = null; }
 
     _stageEl.classList.remove('viz-active'); // volta a "respirar" sozinho
+    _stageEl.style.removeProperty('--viz-energy');
     if (_ring1) { _ring1.style.transform = ''; _ring1.style.opacity = ''; }
     _resetWaves();
   }
@@ -211,7 +212,13 @@ const Visualizer = (() => {
     const bass   = _bandAvg(data, 0, bassEnd);
     const mid    = _bandAvg(data, bassEnd, midEnd);
     const treble = _bandAvg(data, midEnd, n);
+    const overall = _bandAvg(data, 0, n);
     const beat   = _detectBeat(bass); // 0..1, pico seco a cada batida
+
+    // Alimenta o "sol" atrás de tudo — só uma custom property (barato,
+    // o CSS é quem faz scale/opacity com ela; nunca escrevemos `filter`
+    // aqui, que foi o que causava engasgo na música antes).
+    _stageEl.style.setProperty('--viz-energy', Math.min(1, overall + beat * 0.3).toFixed(3));
 
     // Anel de grave: liso, soma energia contínua + o impulso da batida
     _setRing(_ring1, Math.min(1, bass + beat * 0.6), 1.00, 1.9, 0.9);
