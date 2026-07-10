@@ -28,6 +28,8 @@ const Visualizer = (() => {
 
   let _rafId  = null;
   let _ready  = false; // grafo de áudio já montado?
+  let _watchdogId = null;
+  let _frameCount = 0;
 
   // Detecção de batida: janela curta de energia grave recente + um
   // "impulso" que dispara nos picos (kick/batida) e decai a cada frame,
@@ -55,6 +57,21 @@ const Visualizer = (() => {
     _audioEl.addEventListener('play',  _onPlay);
     _audioEl.addEventListener('pause', _onPause);
     _audioEl.addEventListener('ended', _onPause);
+
+    // O áudio agora passa PELO AudioContext (pra o analyser conseguir ler
+    // os dados) — se o navegador suspender o contexto (tela bloqueada, app
+    // em segundo plano, economia de energia), o SOM PARA de verdade, não
+    // é só o visual que congela. Por isso resume agressivamente sempre
+    // que a página volta a ficar visível/em foco.
+    document.addEventListener('visibilitychange', _resumeIfNeeded);
+    window.addEventListener('focus', _resumeIfNeeded);
+    window.addEventListener('pageshow', _resumeIfNeeded);
+  }
+
+  function _resumeIfNeeded() {
+    if (_audioCtx && _audioCtx.state === 'suspended' && _audioEl && !_audioEl.paused) {
+      _audioCtx.resume().catch(() => {});
+    }
   }
 
   // Cria o grafo de áudio (AudioContext → AnalyserNode → destino) só na
@@ -95,11 +112,17 @@ const Visualizer = (() => {
     _beatPulse   = 0;
 
     if (!_rafId) _loop();
+
+    // Watchdog: alguns Android suspendem o AudioContext sem disparar
+    // nenhum evento (nem visibilitychange) — confere de tempos em tempos
+    // se ainda está tocando de verdade enquanto o <audio> diz que sim.
+    if (!_watchdogId) _watchdogId = setInterval(_resumeIfNeeded, 2000);
   }
 
   function _onPause() {
     if (_rafId) cancelAnimationFrame(_rafId);
     _rafId = null;
+    if (_watchdogId) { clearInterval(_watchdogId); _watchdogId = null; }
 
     if (_wrapEl) _wrapEl.classList.remove('viz-active'); // volta a "respirar" sozinho
     _resetOrb();
@@ -110,6 +133,7 @@ const Visualizer = (() => {
     _rafId = requestAnimationFrame(_loop);
     if (!_analyser) return;
     _analyser.getByteFrequencyData(_dataArray);
+    _frameCount++;
     _updateOrb(_dataArray);
   }
 
@@ -175,11 +199,16 @@ const Visualizer = (() => {
       _core.style.transform = `scale(${(1 + overall * 0.16 + beat * 0.22).toFixed(3)})`;
     }
     if (_logo) {
-      const glow1 = 10 + overall * 26 + beat * 20;
-      const glow2 = 18 + overall * 36 + beat * 30;
-      _logo.style.filter =
-        `drop-shadow(0 0 ${glow1.toFixed(0)}px rgba(124,58,255,${Math.min(1, 0.5 + overall * 0.3 + beat * 0.3).toFixed(2)})) ` +
-        `drop-shadow(0 0 ${glow2.toFixed(0)}px rgba(255,255,255,${Math.min(1, 0.22 + overall * 0.3 + beat * 0.3).toFixed(2)}))`;
+      // drop-shadow com blur é a parte mais cara de repintar — atualiza só
+      // a cada 2 frames (ainda parece suave, mas reduz a carga na CPU/GPU
+      // em aparelhos mais fracos, que é onde a música mais engasgava).
+      if (_frameCount % 2 === 0) {
+        const glow1 = 10 + overall * 26 + beat * 20;
+        const glow2 = 18 + overall * 36 + beat * 30;
+        _logo.style.filter =
+          `drop-shadow(0 0 ${glow1.toFixed(0)}px rgba(124,58,255,${Math.min(1, 0.5 + overall * 0.3 + beat * 0.3).toFixed(2)})) ` +
+          `drop-shadow(0 0 ${glow2.toFixed(0)}px rgba(255,255,255,${Math.min(1, 0.22 + overall * 0.3 + beat * 0.3).toFixed(2)}))`;
+      }
     }
   }
 
