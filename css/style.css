@@ -332,6 +332,48 @@ img    { display: block; }
 
 .text-btn:hover { color: var(--white); }
 
+/* ── VISUALIZADOR (barras neon estilo Windows Media Player) ──
+   Canvas com barras verticais reagindo em tempo real ao áudio
+   via Web Audio API (ver js/visualizer.js). */
+.visualizer-wrap {
+  position: relative;
+  height: 168px;
+  border-radius: var(--radius-lg, 18px);
+  overflow: hidden;
+  background:
+    radial-gradient(120% 160% at 50% 120%, rgba(124,58,255,0.16), transparent 60%),
+    var(--bg-elevated);
+  border: 1px solid rgba(124,58,255,0.22);
+  box-shadow: 0 0 28px rgba(124,58,255,0.10) inset;
+}
+
+#visualizer-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.visualizer-hint {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  padding: 0 var(--sp-4, 16px);
+  text-align: center;
+  font-size: 0.82rem;
+  color: var(--grey-soft);
+  pointer-events: none;
+  transition: opacity 0.3s var(--ease, ease);
+}
+
+.visualizer-hint.hidden {
+  opacity: 0;
+}
+
 /* ── TOCADAS RECENTEMENTE ─────────────────────
    Reaproveita o mesmo visual da lista de músicas
    (.track-item / .track-art / .track-info), só que
