@@ -386,119 +386,14 @@ img    { display: block; }
   gap: 6px;
 }
 
-/* ── VISUALIZADOR (logo + esferas pulsantes, igual à abertura do app) ──
-   Sem caixa/retângulo de fundo — o orb flutua direto sobre o fundo do
-   app. Um "sol roxo" desfocado brilha atrás do logo, e os três anéis ao
-   redor pulsam com a batida da música (grave/médio/agudo), com um
-   impulso extra a cada "batida" detectada no grave (ver js/visualizer.js).
-   Só roxo e branco. Em repouso tudo "respira" sozinho via CSS. */
-.visualizer-wrap {
-  position: relative;
-  height: 168px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.viz-orb-stage {
-  position: relative;
-  z-index: 1;
-  width: 140px;
-  height: 140px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-/* "Sol" roxo desfocado atrás do logo — a fonte de luz da cena */
-.viz-sun {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  width: 132px;
-  height: 132px;
-  border-radius: 50%;
-  transform: translate(-50%, -50%) scale(1);
-  background: radial-gradient(circle,
-    rgba(255,255,255,0.75) 0%,
-    rgba(199,125,255,0.85) 22%,
-    rgba(124,58,255,0.55) 45%,
-    rgba(124,58,255,0.16) 65%,
-    transparent 78%);
-  filter: blur(16px);
-  opacity: 0.65;
-  z-index: 0;
-  will-change: transform, opacity;
-  transition: transform 0.08s linear, opacity 0.08s linear;
-}
-
-.viz-ring {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  width: 58px;
-  height: 58px;
-  border-radius: 50%;
-  border: 1.5px solid rgba(255,255,255,0.6);
-  transform: translate(-50%, -50%) scale(1);
-  opacity: 0.3;
-  z-index: 1;
-  will-change: transform, opacity;
-  /* transição curta suaviza o passo a passo dos frames do analyser
-     sem introduzir atraso perceptível em relação à música */
-  transition: transform 0.08s linear, opacity 0.08s linear;
-}
-
-.viz-ring-2 { border-color: rgba(199,125,255,0.7); }
-.viz-ring-3 { border-color: rgba(124,58,255,0.7); }
-
-/* Parado: sol + anéis "respiram" sozinhos, igual ao splash de abertura */
-.visualizer-wrap:not(.viz-active) .viz-sun {
-  animation: viz-sun-breathe 2.6s var(--ease) infinite;
-  transition: none;
-}
-.visualizer-wrap:not(.viz-active) .viz-ring {
-  animation: viz-idle-pulse 2.6s var(--ease) infinite;
-  transition: none;
-}
-.visualizer-wrap:not(.viz-active) .viz-ring-1 { animation-delay: 0s; }
-.visualizer-wrap:not(.viz-active) .viz-ring-2 { animation-delay: 0.55s; }
-.visualizer-wrap:not(.viz-active) .viz-ring-3 { animation-delay: 1.1s; }
-
-@keyframes viz-sun-breathe {
-  0%, 100% { transform: translate(-50%, -50%) scale(0.92); opacity: 0.5; }
-  50%      { transform: translate(-50%, -50%) scale(1.12); opacity: 0.78; }
-}
-
-@keyframes viz-idle-pulse {
-  0%   { transform: translate(-50%, -50%) scale(0.8); opacity: 0.5; }
-  100% { transform: translate(-50%, -50%) scale(2.0); opacity: 0; }
-}
-
-.viz-core {
-  position: relative;
-  z-index: 2;
-  width: 52px;
-  height: 52px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: transform 0.08s linear;
-  will-change: transform;
-}
-
-.viz-logo {
-  width: 34px;
-  height: 34px;
-  object-fit: contain;
-  filter: drop-shadow(0 0 14px rgba(124,58,255,0.55)) drop-shadow(0 0 24px rgba(255,255,255,0.22));
-  transition: filter 0.08s linear;
-  animation: splash-glow 2.2s ease-in-out infinite;
-}
-
-.visualizer-wrap.viz-active .viz-logo {
-  animation: none; /* JS assume o brilho quando está tocando */
+/* ── PULSO NA BATIDA (botão de play) ────────────
+   O visualizador agora vive dentro do próprio botão de play/pause: ele
+   pulsa (escala + brilho) em cima da batida detectada no grave da
+   música (ver js/visualizer.js). Enquanto isso roda, a animação padrão
+   'play-pulse' (contínua, decorativa) fica desligada — ela volta
+   sozinha quando pausa. */
+.play-btn.viz-active {
+  animation: none;
 }
 
 /* ── TOCADAS RECENTEMENTE ─────────────────────
