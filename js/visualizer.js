@@ -1,8 +1,9 @@
 /* ═══════════════════════════════════════════════
    HAPPY MUSIC – visualizer.js
-   Visualizador de áudio: em vez de um widget à parte,
-   o próprio botão de play/pause pulsa (escala + brilho
-   roxo) no tempo da batida da música.
+   Visualizador de áudio: três argolas neon atrás do
+   botão de play, que pulsam no tempo da batida da
+   música. O botão em si fica parado — quem "dança"
+   é a luz por trás dele.
    Usa a Web Audio API (AnalyserNode) ligada direto no
    <audio> do player.js — sem alterar o playback.
 ═══════════════════════════════════════════════ */
@@ -11,7 +12,10 @@ const Visualizer = (() => {
 
   // ── ESTADO ────────────────────────────────────
   let _audioEl  = null;
-  let _playBtn  = null;
+  let _stageEl  = null;
+  let _ring1    = null;
+  let _ring2    = null;
+  let _ring3    = null;
 
   let _audioCtx     = null;
   let _analyser     = null;
@@ -21,7 +25,6 @@ const Visualizer = (() => {
   let _rafId      = null;
   let _ready      = false; // grafo de áudio já montado?
   let _watchdogId = null;
-  let _frameCount = 0;
 
   // Detecção de batida: janela curta de energia grave recente + um
   // "impulso" que dispara nos picos (kick/batida) e decai a cada frame,
@@ -35,9 +38,13 @@ const Visualizer = (() => {
     _audioEl = (typeof Player !== 'undefined' && Player.getAudioElement)
       ? Player.getAudioElement()
       : null;
-    _playBtn = document.getElementById('btn-play-pause');
 
-    if (!_audioEl || !_playBtn) return; // markup/áudio ainda não disponíveis
+    _stageEl = document.getElementById('play-btn-stage');
+    _ring1   = document.getElementById('play-ring-1');
+    _ring2   = document.getElementById('play-ring-2');
+    _ring3   = document.getElementById('play-ring-3');
+
+    if (!_audioEl || !_stageEl) return; // markup/áudio ainda não disponíveis
 
     _audioEl.addEventListener('play',  _onPlay);
     _audioEl.addEventListener('pause', _onPause);
@@ -92,8 +99,7 @@ const Visualizer = (() => {
     _ensureAudioGraph();
     if (_audioCtx && _audioCtx.state === 'suspended') _audioCtx.resume();
 
-    // Desliga o pulso decorativo padrão (CSS) — o JS assume o controle
-    _playBtn.classList.add('viz-active');
+    _stageEl.classList.add('viz-active'); // desliga o "respirar" via CSS, JS assume
     _bassHistory = [];
     _beatPulse   = 0;
 
@@ -110,9 +116,8 @@ const Visualizer = (() => {
     _rafId = null;
     if (_watchdogId) { clearInterval(_watchdogId); _watchdogId = null; }
 
-    _playBtn.classList.remove('viz-active'); // volta pro pulso decorativo padrão
-    _playBtn.style.transform = '';
-    _playBtn.style.boxShadow = '';
+    _stageEl.classList.remove('viz-active'); // volta a "respirar" sozinho
+    _resetRings();
   }
 
   // ── LOOP DE ANIMAÇÃO ───────────────────────────
@@ -120,8 +125,7 @@ const Visualizer = (() => {
     _rafId = requestAnimationFrame(_loop);
     if (!_analyser) return;
     _analyser.getByteFrequencyData(_dataArray);
-    _frameCount++;
-    _updateButton(_dataArray);
+    _updateRings(_dataArray);
   }
 
   // Média normalizada (0..1) de uma faixa do espectro
@@ -146,30 +150,39 @@ const Visualizer = (() => {
     return _beatPulse;
   }
 
-  // ── ANIMA O BOTÃO DE PLAY NO RITMO DA MÚSICA ───
-  function _updateButton(data) {
+  function _setRing(el, energy, minScale, maxScale, maxOpacity) {
+    if (!el) return;
+    const scale   = minScale + energy * (maxScale - minScale);
+    const opacity = Math.min(maxOpacity, 0.15 + energy * maxOpacity);
+    el.style.transform = `translate(-50%, -50%) scale(${scale.toFixed(3)})`;
+    el.style.opacity   = opacity.toFixed(3);
+  }
+
+  // ── ARGOLAS REAGINDO À MÚSICA (grave/médio/agudo) ──
+  function _updateRings(data) {
     const n       = data.length;
     const bassEnd = Math.max(1, Math.floor(n * 0.15));
+    const midEnd  = Math.max(bassEnd + 1, Math.floor(n * 0.5));
 
-    const bass    = _bandAvg(data, 0, bassEnd);
-    const overall = _bandAvg(data, 0, n);
-    const beat    = _detectBeat(bass); // 0..1, pico seco a cada batida
+    const bass   = _bandAvg(data, 0, bassEnd);
+    const mid    = _bandAvg(data, bassEnd, midEnd);
+    const treble = _bandAvg(data, midEnd, n);
+    const beat   = _detectBeat(bass); // 0..1, pico seco a cada batida
 
-    // Escala é barata (compositor) — dá pra atualizar todo frame
-    const scale = 1 + overall * 0.05 + beat * 0.14;
-    _playBtn.style.transform = `scale(${scale.toFixed(3)})`;
+    // A argola mais próxima do botão soma grave contínuo + o impulso da
+    // batida — dá aquele "salto" nítido a cada kick.
+    _setRing(_ring1, Math.min(1, bass + beat * 0.6), 1.00, 1.9, 0.9);
+    _setRing(_ring2, mid,                             1.15, 2.5, 0.65);
+    _setRing(_ring3, treble,                           1.30, 3.2, 0.5);
+  }
 
-    // box-shadow é a parte cara de repintar — atualiza só a cada 2 frames
-    // (ainda parece suave, mas alivia CPU/GPU em aparelhos mais fracos).
-    if (_frameCount % 2 === 0) {
-      const spread = 22 + overall * 14 + beat * 26;
-      const glowA  = Math.min(0.85, 0.38 + overall * 0.2 + beat * 0.35);
-      const halo   = 20 + beat * 36;
-      const glowB  = Math.min(0.6, 0.15 + beat * 0.4);
-      _playBtn.style.boxShadow =
-        `0 6px ${spread.toFixed(0)}px rgba(124,58,255,${glowA.toFixed(2)}), ` +
-        `0 0 ${halo.toFixed(0)}px rgba(199,125,255,${glowB.toFixed(2)})`;
-    }
+  // Estado parado: devolve o controle pro CSS (animação "respirando" sozinha)
+  function _resetRings() {
+    [_ring1, _ring2, _ring3].forEach(el => {
+      if (!el) return;
+      el.style.transform = '';
+      el.style.opacity   = '';
+    });
   }
 
   return { init };
