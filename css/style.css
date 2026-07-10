@@ -341,10 +341,29 @@ img    { display: block; }
   border-radius: var(--radius-lg, 18px);
   overflow: hidden;
   background:
-    radial-gradient(120% 160% at 50% 120%, rgba(124,58,255,0.16), transparent 60%),
-    var(--bg-elevated);
-  border: 1px solid rgba(124,58,255,0.22);
-  box-shadow: 0 0 28px rgba(124,58,255,0.10) inset;
+    radial-gradient(120% 160% at 50% 120%, rgba(124,58,255,0.22), transparent 60%),
+    #08060E;
+  border: 1px solid rgba(199,125,255,0.35);
+  box-shadow:
+    0 0 30px rgba(124,58,255,0.28),
+    0 0 60px rgba(199,125,255,0.14),
+    0 0 40px rgba(124,58,255,0.18) inset;
+  animation: visualizer-glow-pulse 3.2s ease-in-out infinite;
+}
+
+@keyframes visualizer-glow-pulse {
+  0%, 100% {
+    box-shadow:
+      0 0 30px rgba(124,58,255,0.28),
+      0 0 60px rgba(199,125,255,0.14),
+      0 0 40px rgba(124,58,255,0.18) inset;
+  }
+  50% {
+    box-shadow:
+      0 0 44px rgba(255,0,229,0.32),
+      0 0 84px rgba(0,240,255,0.20),
+      0 0 52px rgba(124,58,255,0.26) inset;
+  }
 }
 
 #visualizer-canvas {
