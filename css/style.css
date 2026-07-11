@@ -1985,8 +1985,67 @@ img    { display: block; }
 }
 
 /* ═══════════════════════════════════════════════
-   FILMES
+   VÍDEOS
 ═══════════════════════════════════════════════ */
+
+.yt-search-row {
+  display: flex;
+  gap: 8px;
+}
+.yt-search-row .text-input { flex: 1; }
+
+.yt-search-results {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+  margin-top: 10px;
+  max-height: 260px;
+  overflow-y: auto;
+  padding-right: 2px;
+}
+.yt-search-results.hidden { display: none; }
+
+.yt-search-result {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-soft);
+  overflow: hidden;
+  background: none;
+  padding: 0;
+  text-align: left;
+  transition: border-color var(--transition), transform var(--transition);
+}
+.yt-search-result:hover,
+.yt-search-result:focus-visible {
+  border-color: var(--purple-soft);
+  transform: translateY(-1px);
+}
+.yt-search-result-thumb {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  background-size: cover;
+  background-position: center;
+  background-color: var(--surface2);
+}
+.yt-search-result-title {
+  font-size: 12px;
+  line-height: 1.3;
+  padding: 4px 6px 6px;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.yt-search-empty {
+  grid-column: 1 / -1;
+  font-size: 13px;
+  color: var(--grey);
+  padding: 8px 2px;
+}
+
 .movie-card {
   display: flex;
   flex-direction: column;
@@ -2078,7 +2137,7 @@ img    { display: block; }
   color: var(--grey);
 }
 
-/* ── PLAYER DE FILME (tela cheia) ────────────── */
+/* ── PLAYER DE VÍDEO (tela cheia) ────────────── */
 .movie-player-overlay {
   position: fixed;
   inset: 0;
@@ -2141,7 +2200,7 @@ img    { display: block; }
   border: 0;
 }
 
-/* ── CONTROLES NEON DO PLAYER DE FILME ──────── */
+/* ── CONTROLES NEON DO PLAYER DE VÍDEO ──────── */
 /* Reaproveita as mesmas classes do player de música (.seek-bar,
    .play-btn etc.) — assim herda o visual neon automaticamente e sem
    duplicar CSS. Só o layout do container é específico daqui. */
