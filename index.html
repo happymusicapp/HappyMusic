@@ -254,7 +254,7 @@
                 <path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 4v6h-6"/>
               </svg>
             </button>
-            <button id="btn-movie-upload-open" class="icon-btn icon-btn-sm icon-btn-accent" aria-label="Enviar filme" title="Enviar filme">
+            <button id="btn-movie-upload-open" class="icon-btn icon-btn-sm icon-btn-accent" aria-label="Adicionar filme" title="Adicionar filme (link do YouTube)">
               <svg width="19" height="19" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
             </button>
           </div>
@@ -277,15 +277,36 @@
         </div>
       </section>
 
-      <input type="file" id="input-upload-movies" accept="video/*" multiple hidden />
-
       <!-- PLAYER DE FILME (tela cheia) -->
       <div id="movie-player-overlay" class="movie-player-overlay hidden">
         <button id="btn-movie-close" class="modal-close movie-player-close" aria-label="Fechar">
           <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg>
         </button>
         <p id="movie-player-title" class="movie-player-title"></p>
-        <video id="movie-video" class="movie-video" controls playsinline></video>
+
+        <div class="movie-video-wrap">
+          <div id="movie-video-target"></div>
+        </div>
+
+        <!-- Controles neon próprios — os nativos do YouTube ficam escondidos -->
+        <div class="movie-player-controls">
+          <span id="movie-time-current" class="time-label">0:00</span>
+          <div class="seek-bar-wrap" id="movie-seek-bar-wrap">
+            <input id="movie-seek-bar" type="range" min="0" max="100" value="0" class="seek-bar" />
+            <div class="seek-bar-fill-clip" id="movie-seek-bar-fill-clip">
+              <div class="seek-bar-shimmer" aria-hidden="true"></div>
+            </div>
+          </div>
+          <span id="movie-time-total" class="time-label">0:00</span>
+          <button id="btn-movie-play-pause" class="play-btn play-btn-sm" aria-label="Play/Pause">
+            <svg id="movie-icon-play" width="20" height="20" fill="currentColor" viewBox="0 0 24 24">
+              <polygon points="5 3 19 12 5 21 5 3"/>
+            </svg>
+            <svg id="movie-icon-pause" width="20" height="20" fill="currentColor" viewBox="0 0 24 24" class="hidden">
+              <rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/>
+            </svg>
+          </button>
+        </div>
       </div>
 
       <!-- VIEW: PERFIL -->
@@ -612,20 +633,22 @@
     </div>
   </div>
 
-  <!-- MODAL: ENVIAR FILMES -->
+  <!-- MODAL: ADICIONAR FILME (link do YouTube) -->
   <div id="modal-upload-movie" class="modal-overlay hidden">
-    <div class="modal-box modal-box-wide">
+    <div class="modal-box">
       <button id="btn-upload-movie-close" class="modal-close" aria-label="Fechar"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
-      <h2 class="modal-title">Enviar filmes</h2>
-      <p class="modal-text">Só arquivos de vídeo são aceitos. Vídeo é pesado — o envio pode demorar dependendo da conexão, mas retoma sozinho se cair.</p>
-      <div id="movie-upload-list" class="upload-list"></div>
-      <div class="upload-actions">
-        <button id="btn-movie-upload-add-more" class="btn-outline btn-small btn-icon-label">
-          <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
-          Adicionar arquivos
-        </button>
-        <button id="btn-movie-upload-send-all" class="btn-primary btn-small" disabled>Enviar tudo</button>
+      <h2 class="modal-title">Adicionar filme</h2>
+      <p class="modal-text">Cole o link de um vídeo do YouTube (público ou não-listado).</p>
+      <div class="upload-field">
+        <label>Link do YouTube</label>
+        <input id="movie-add-url" type="url" class="text-input" placeholder="https://youtube.com/watch?v=..." />
       </div>
+      <div class="upload-field">
+        <label>Gênero</label>
+        <input id="movie-add-genre" type="text" class="text-input" list="movie-add-genre-suggestions" />
+        <datalist id="movie-add-genre-suggestions"></datalist>
+      </div>
+      <button id="btn-movie-add-save" class="btn-primary">Adicionar</button>
     </div>
   </div>
 
@@ -643,11 +666,8 @@
         <input id="edit-movie-genre" type="text" class="text-input" list="movie-genre-suggestions" />
         <datalist id="movie-genre-suggestions"></datalist>
       </div>
-      <div class="upload-field">
-        <label>Ano</label>
-        <input id="edit-movie-year" type="number" inputmode="numeric" class="text-input" placeholder="Ex: 1999" min="1900" max="2100" />
-      </div>
       <button id="btn-movie-edit-save" class="btn-primary">Salvar</button>
+      <button id="btn-movie-edit-delete" class="text-btn upload-item-remove" style="margin-top:10px;width:100%;text-align:center;">Remover dos filmes</button>
     </div>
   </div>
 
@@ -660,6 +680,7 @@
   <script src="js/drive.js"></script>
   <script src="js/downloads.js"></script>
   <script src="js/player.js"></script>
+  <script src="js/ytplayer.js"></script>
   <script src="js/ui.js"></script>
   <script src="js/app.js"></script>
   <script>
