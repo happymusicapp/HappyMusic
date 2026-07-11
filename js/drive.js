@@ -46,16 +46,6 @@ const Drive = (() => {
     return AUDIO_EXTENSIONS.includes(ext);
   }
 
-  // Extensões de vídeo suportadas (filmes)
-  const VIDEO_EXTENSIONS = ['mp4', 'mkv', 'mov', 'webm', 'avi', 'm4v', 'wmv'];
-
-  function isVideoFile(file) {
-    if (!file) return false;
-    if (file.type && file.type.startsWith('video/')) return true;
-    const ext = (file.name || '').split('.').pop().toLowerCase();
-    return VIDEO_EXTENSIONS.includes(ext);
-  }
-
   // Chaves de armazenamento local
   const KEY_TOKEN      = 'hm_access_token';
   const KEY_EXPIRY     = 'hm_token_expiry';
@@ -352,66 +342,159 @@ const Drive = (() => {
     return _tracks;
   }
 
-  // ── FILMES ─────────────────────────────────────
-  // Mesma pasta configurada, filtrando por mimeType de vídeo.
-  // Usa "contains" em vez de lista fixa porque vídeo tem MUITO mais
-  // variação de mimeType (mp4, x-matroska, quicktime, x-msvideo...).
-  async function listVideos(folderId = null) {
-    const folder  = folderId || getFolderId();
-    const parentQ = folder ? `'${folder}' in parents and` : '';
+  // ── FILMES (catálogo de vídeos do YouTube) ─────
+  // Filme não é mais um arquivo enviado pro Drive — é só um link do
+  // YouTube. O YouTube cuida do streaming/armazenamento; a gente só
+  // guarda a listinha (id, título, gênero, miniatura) num JSON no
+  // appDataFolder do Drive, exatamente como já é feito com as playlists
+  // — sincroniza entre os aparelhos da família sem subir vídeo nenhum.
+  const VIDEOS_FILENAME  = 'happymusic-videos.json';
+  const KEY_VIDEOS_CACHE = 'hm_videos_cache';
+  let _videosFileId = null;
 
-    let allFiles = [];
-    let pageToken = null;
+  function _loadVideosCache() {
+    try { return JSON.parse(localStorage.getItem(KEY_VIDEOS_CACHE) || '[]'); }
+    catch { return []; }
+  }
+  function _saveVideosCache(list) {
+    try { localStorage.setItem(KEY_VIDEOS_CACHE, JSON.stringify(list)); } catch {}
+  }
 
-    do {
-      const params = {
-        q:        `${parentQ} mimeType contains 'video/' and trashed=false`,
-        fields:   'nextPageToken,files(id,name,size,mimeType,modifiedTime,thumbnailLink,videoMediaMetadata,properties)',
-        orderBy:  'name',
-        pageSize: 200,
-        supportsAllDrives: true,
-        includeItemsFromAllDrives: true,
-        corpora: 'allDrives',
-      };
-      if (pageToken) params.pageToken = pageToken;
+  async function _findVideosFile() {
+    const data = await _get('https://www.googleapis.com/drive/v3/files', {
+      q: `name='${VIDEOS_FILENAME}' and trashed=false`,
+      spaces: 'appDataFolder',
+      fields: 'files(id,name)',
+      pageSize: 1,
+    });
+    return (data.files && data.files[0]) || null;
+  }
 
-      const data = await _get('https://www.googleapis.com/drive/v3/files', params);
-      allFiles = allFiles.concat(data.files || []);
-      pageToken = data.nextPageToken || null;
+  async function loadVideos() {
+    try {
+      const file = await _findVideosFile();
+      if (!file) {
+        _videosFileId = null;
+        _videos = _loadVideosCache();
+        return _videos;
+      }
+      _videosFileId = file.id;
 
-    } while (pageToken);
+      await _ensureValidToken();
 
-    _videos = allFiles.map(_parseVideo);
-    return _videos;
+      const res = await fetch(`https://www.googleapis.com/drive/v3/files/${file.id}?alt=media`, {
+        headers: { Authorization: `Bearer ${_token}` },
+      });
+      if (res.status === 401) { _clearSession(); throw new Error('UNAUTHORIZED'); }
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+      const list = await res.json();
+      _videos = Array.isArray(list) ? list : [];
+      _saveVideosCache(_videos);
+      return _videos;
+    } catch (err) {
+      if (err?.message === 'UNAUTHORIZED') throw err;
+      console.warn('[Drive] Não deu pra carregar filmes do Drive, usando cópia local:', err);
+      _videos = _loadVideosCache();
+      return _videos;
+    }
   }
 
   function getCachedVideos() { return _videos; }
 
-  function _parseVideo(file) {
-    const name  = file.name || '';
-    const noExt = name.replace(/\.[^.]+$/, '');
-    const props = file.properties || {};
+  // Salva local primeiro (nunca perde o catálogo por falha de rede) e só
+  // depois sincroniza com o Drive — mesmo mecanismo das playlists.
+  async function _saveVideosCatalog() {
+    _saveVideosCache(_videos);
+    const content = JSON.stringify(_videos);
+    try {
+      if (_videosFileId) {
+        await _mediaUpdateJson(_videosFileId, content);
+      } else {
+        const created = await _multipartCreateJson(VIDEOS_FILENAME, content);
+        _videosFileId = created.id;
+      }
+      return true;
+    } catch (err) {
+      console.error('[Drive] Filme salvo só neste aparelho — falha ao sincronizar com o Drive:', err);
+      return false;
+    }
+  }
 
-    const title = props.hm_title || noExt;
-    const genre = props.hm_genre || null;
-    const year  = props.hm_year  || null;
+  // Aceita link comum (watch?v=), encurtado (youtu.be/), shorts, embed,
+  // ou o ID puro (11 caracteres) colado direto.
+  function extractYouTubeId(url) {
+    if (!url) return null;
+    const trimmed = url.trim();
+    const m = trimmed.match(/(?:youtube\.com\/(?:watch\?v=|shorts\/|embed\/|live\/)|youtu\.be\/)([\w-]{11})/);
+    if (m) return m[1];
+    if (/^[\w-]{11}$/.test(trimmed)) return trimmed;
+    return null;
+  }
 
-    const duration = file.videoMediaMetadata?.durationMillis
-      ? Math.floor(Number(file.videoMediaMetadata.durationMillis) / 1000)
-      : null;
+  // Busca título/miniatura/canal públicos via oEmbed do YouTube — não
+  // precisa de API key nem de cota, e funciona com vídeos não-listados
+  // (desde que a incorporação não esteja desabilitada pelo dono).
+  async function _fetchYouTubeOEmbed(videoId) {
+    const oembedUrl = `https://www.youtube.com/oembed?url=${encodeURIComponent('https://www.youtube.com/watch?v=' + videoId)}&format=json`;
+    const res = await fetch(oembedUrl);
+    if (!res.ok) throw new Error('Não foi possível encontrar esse vídeo no YouTube. Verifique o link.');
+    return res.json();
+  }
 
-    return {
-      id:           file.id,
-      name:         file.name,
-      title,
-      genre,
-      year,
-      duration,
-      thumbnail:    file.thumbnailLink || null,
-      mimeType:     file.mimeType,
-      modifiedTime: file.modifiedTime,
-      size:         file.size ? parseInt(file.size, 10) : null,
+  // Adiciona um filme ao catálogo a partir de um link do YouTube.
+  async function addVideo({ url, genre = '' } = {}) {
+    const videoId = extractYouTubeId(url);
+    if (!videoId) throw new Error('Link do YouTube inválido.');
+    if (_videos.some(v => v.id === videoId)) throw new Error('Esse vídeo já está na sua lista.');
+
+    const meta = await _fetchYouTubeOEmbed(videoId);
+
+    const entry = {
+      id:        videoId,
+      title:     meta.title || 'Sem título',
+      channel:   meta.author_name || null,
+      thumbnail: meta.thumbnail_url || `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`,
+      genre:     (genre || '').trim().slice(0, 60) || null,
+      addedAt:   Date.now(),
     };
+
+    _videos = [entry, ..._videos];
+    await _saveVideosCatalog();
+    return entry;
+  }
+
+  // Edita só título/gênero (dados que o próprio app guarda) — canal e
+  // miniatura continuam vindo do YouTube.
+  async function updateVideoMetadata(videoId, metadata = {}) {
+    const idx = _videos.findIndex(v => v.id === videoId);
+    if (idx === -1) throw new Error('Filme não encontrado.');
+
+    _videos[idx] = {
+      ..._videos[idx],
+      title: (metadata.title || _videos[idx].title || '').slice(0, 120),
+      genre: (metadata.genre || '').trim().slice(0, 60) || null,
+    };
+
+    await _saveVideosCatalog();
+    return _videos[idx];
+  }
+
+  // Remove um filme só do catálogo (o vídeo continua no YouTube).
+  async function deleteVideo(videoId) {
+    _videos = _videos.filter(v => v.id !== videoId);
+    await _saveVideosCatalog();
+    return true;
+  }
+
+  function getKnownMovieGenres() {
+    const set = new Set();
+    _videos.forEach(v => { if (v.genre) set.add(v.genre); });
+    return [...set].sort((a, b) => a.localeCompare(b, 'pt-BR'));
+  }
+
+  function filterVideos({ genre } = {}) {
+    return _videos.filter(v => !genre || v.genre === genre);
   }
 
   // Metadados "cadastrados" pelo usuário (upload/edição pelo app) ficam
@@ -806,30 +889,6 @@ const Drive = (() => {
     return parsed;
   }
 
-  // ── ENVIO DE FILMES (mesmo mecanismo de upload resumable) ──
-  async function uploadVideo(file, metadata = {}, { folderId, onProgress } = {}) {
-    if (!isVideoFile(file)) throw new Error('Esse arquivo não é um vídeo suportado.');
-
-    const targetFolder = folderId || getFolderId();
-    const meta = {
-      name: file.name,
-      mimeType: file.type || 'application/octet-stream',
-      properties: {
-        hm_title: (metadata.title || '').slice(0, 120),
-        hm_genre: (metadata.genre || '').slice(0, 60),
-        hm_year:  (metadata.year  || '').toString().slice(0, 4),
-      },
-    };
-    if (targetFolder) meta.parents = [targetFolder];
-
-    const sessionUrl = await _initResumableSession(meta, file);
-    const created = await _uploadChunk(sessionUrl, file, 0, file.size, onProgress);
-
-    const parsed = _parseVideo(created);
-    _videos = [..._videos, parsed];
-    return parsed;
-  }
-
   // ── EDITAR METADADOS DE UMA FAIXA EXISTENTE ────
   async function updateTrackMetadata(fileId, metadata = {}) {
     const body = {
@@ -1010,62 +1069,6 @@ const Drive = (() => {
     return true;
   }
 
-  async function updateVideoMetadata(fileId, metadata = {}) {
-    const body = {
-      properties: {
-        hm_title: (metadata.title || '').slice(0, 120),
-        hm_genre: (metadata.genre || '').slice(0, 60),
-        hm_year:  (metadata.year  || '').toString().slice(0, 4),
-      },
-    };
-
-    await _ensureValidToken();
-
-    const res = await fetch(
-      `https://www.googleapis.com/drive/v3/files/${fileId}` +
-      '?supportsAllDrives=true&fields=id,name,size,mimeType,modifiedTime,thumbnailLink,videoMediaMetadata,properties',
-      {
-        method: 'PATCH',
-        headers: {
-          Authorization: `Bearer ${_token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(body),
-      }
-    );
-
-    if (res.status === 401) { _clearSession(); throw new Error('UNAUTHORIZED'); }
-    if (!res.ok) throw new Error(`Falha ao salvar alterações (HTTP ${res.status})`);
-
-    const updated = await res.json();
-    const parsed = _parseVideo(updated);
-    const idx = _videos.findIndex(v => v.id === fileId);
-    if (idx !== -1) _videos[idx] = parsed;
-    return parsed;
-  }
-
-  function getKnownMovieGenres() {
-    const set = new Set();
-    _videos.forEach(v => { if (v.genre) set.add(v.genre); });
-    return [...set].sort((a, b) => a.localeCompare(b, 'pt-BR'));
-  }
-
-  function filterVideos({ genre } = {}) {
-    return _videos.filter(v => !genre || v.genre === genre);
-  }
-
-  // Filme é grande demais pra baixar inteiro na memória antes de tocar
-  // (como o áudio faz via blob). Em vez disso, montamos a URL direta da
-  // API com o token como query param — o Drive aceita isso (RFC 6750
-  // §2.3) e assim o <video> consegue fazer streaming com range requests
-  // nativo (seek instantâneo, sem esperar o arquivo inteiro baixar).
-  // É async e sempre garante um token válido antes de montar a URL —
-  // essencial porque filme pode passar de 1h (duração do access_token).
-  async function getVideoStreamUrl(fileId) {
-    await _ensureValidToken();
-    return `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media&access_token=${encodeURIComponent(_token)}`;
-  }
-
   // ── PLAYLISTS (guardadas no appDataFolder do Drive) ──
   // Ficam numa pasta invisível ao usuário, vinculada à própria conta
   // Google — sincroniza entre aparelhos sem poluir o Drive dele.
@@ -1210,15 +1213,15 @@ const Drive = (() => {
     loadPlaylists,
     savePlaylists,
 
-    // Filmes
-    isVideoFile,
-    listVideos,
+    // Filmes (catálogo de vídeos do YouTube)
+    loadVideos,
     getCachedVideos,
-    uploadVideo,
+    addVideo,
     updateVideoMetadata,
+    deleteVideo,
+    extractYouTubeId,
     getKnownMovieGenres,
     filterVideos,
-    getVideoStreamUrl,
   };
 
 })();

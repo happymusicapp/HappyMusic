@@ -180,28 +180,35 @@ const UI = (() => {
     movieGrid:            $('movie-grid'),
     btnMovieRefresh:      $('btn-movie-refresh'),
     btnMovieUploadOpen:   $('btn-movie-upload-open'),
-    inputUploadMovies:    $('input-upload-movies'),
     movieFilterGenre:     $('movie-filter-genre'),
     btnMovieFilterClear:  $('btn-movie-filter-clear'),
 
     modalUploadMovie:       $('modal-upload-movie'),
-    movieUploadList:        $('movie-upload-list'),
-    btnMovieUploadAddMore:  $('btn-movie-upload-add-more'),
-    btnMovieUploadSendAll:  $('btn-movie-upload-send-all'),
+    movieAddUrl:            $('movie-add-url'),
+    movieAddGenre:          $('movie-add-genre'),
+    movieAddGenreSuggestions: $('movie-add-genre-suggestions'),
+    btnMovieAddSave:        $('btn-movie-add-save'),
     btnUploadMovieClose:    $('btn-upload-movie-close'),
 
     modalMovieEdit:         $('modal-movie-edit'),
     editMovieTitle:         $('edit-movie-title'),
     editMovieGenre:         $('edit-movie-genre'),
-    editMovieYear:          $('edit-movie-year'),
     movieGenreSuggestions:  $('movie-genre-suggestions'),
     btnMovieEditSave:       $('btn-movie-edit-save'),
     btnMovieEditCancel:     $('btn-movie-edit-cancel'),
+    btnMovieEditDelete:     $('btn-movie-edit-delete'),
 
     moviePlayerOverlay:  $('movie-player-overlay'),
-    movieVideo:          $('movie-video'),
+    movieVideoTarget:    $('movie-video-target'),
     moviePlayerTitle:    $('movie-player-title'),
     btnMovieClose:       $('btn-movie-close'),
+    btnMoviePlayPause:   $('btn-movie-play-pause'),
+    movieIconPlay:       $('movie-icon-play'),
+    movieIconPause:      $('movie-icon-pause'),
+    movieSeekBar:        $('movie-seek-bar'),
+    movieSeekBarFillClip: $('movie-seek-bar-fill-clip'),
+    movieTimeCurrent:    $('movie-time-current'),
+    movieTimeTotal:      $('movie-time-total'),
   };
 
   // ── TOAST ──────────────────────────────────────
@@ -1104,8 +1111,8 @@ const UI = (() => {
     return `<svg width="34" height="34" fill="rgba(255,255,255,0.95)" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>`;
   }
 
-  function _formatYearGenre(video) {
-    return [video.year, video.genre].filter(Boolean).join(' · ') || 'Sem informações';
+  function _formatChannelGenre(video) {
+    return [video.channel, video.genre].filter(Boolean).join(' · ') || 'Sem informações';
   }
 
   function renderMovieGrid(videos) {
@@ -1121,7 +1128,7 @@ const UI = (() => {
         </div>
         <button class="movie-card-edit" data-edit="${v.id}" aria-label="Editar informações">${_editIcon()}</button>
         <span class="movie-card-name">${_escape(v.title)}</span>
-        <span class="movie-card-meta">${_escape(_formatYearGenre(v))}</span>
+        <span class="movie-card-meta">${_escape(_formatChannelGenre(v))}</span>
       </div>
     `).join('');
   }
@@ -1162,15 +1169,30 @@ const UI = (() => {
     el.btnMovieFilterClear.classList.toggle('hidden', !activeGenre);
   }
 
-  // ── MODAL: ENVIAR FILMES ────────────────────────
-  function showMovieUploadModal() { el.modalUploadMovie.classList.remove('hidden'); }
-  function hideMovieUploadModal() { el.modalUploadMovie.classList.add('hidden'); }
+  // ── MODAL: ADICIONAR FILME (link do YouTube) ───
+  function showMovieAddModal(knownGenres = []) {
+    el.movieAddUrl.value = '';
+    el.movieAddGenre.value = '';
+    el.movieAddGenreSuggestions.innerHTML = knownGenres.map(g => `<option value="${_escape(g)}"></option>`).join('');
+    el.modalUploadMovie.classList.remove('hidden');
+    el.movieAddUrl.focus();
+  }
+  function hideMovieAddModal() { el.modalUploadMovie.classList.add('hidden'); }
+  function getMovieAddForm() {
+    return {
+      url:   el.movieAddUrl.value.trim(),
+      genre: el.movieAddGenre.value.trim(),
+    };
+  }
+  function setMovieAddSaving(saving) {
+    el.btnMovieAddSave.disabled = saving;
+    el.btnMovieAddSave.textContent = saving ? 'Adicionando…' : 'Adicionar';
+  }
 
   // ── MODAL: EDITAR INFORMAÇÕES DO FILME ─────────
   function showMovieEditModal(video, knownGenres = []) {
     el.editMovieTitle.value = video.title || '';
     el.editMovieGenre.value = video.genre || '';
-    el.editMovieYear.value  = video.year  || '';
     el.movieGenreSuggestions.innerHTML = knownGenres.map(g => `<option value="${_escape(g)}"></option>`).join('');
     el.modalMovieEdit.classList.remove('hidden');
     el.modalMovieEdit.dataset.videoId = video.id;
@@ -1184,22 +1206,39 @@ const UI = (() => {
     return {
       title: el.editMovieTitle.value.trim(),
       genre: el.editMovieGenre.value.trim(),
-      year:  el.editMovieYear.value.trim(),
     };
   }
 
   // ── PLAYER DE FILME (tela cheia) ────────────────
-  function openMoviePlayer(title, streamUrl) {
+  // O vídeo em si é carregado à parte (YTPlayer.load, chamado pelo
+  // app.js) — aqui só cuidamos da tela: título, overlay e resetar os
+  // controles customizados (mesmo visual neon da barra do player de
+  // música) pro estado inicial.
+  function openMoviePlayer(title) {
     el.moviePlayerTitle.textContent = title;
-    el.movieVideo.src = streamUrl;
     el.moviePlayerOverlay.classList.remove('hidden');
-    el.movieVideo.play().catch(() => {}); // autoplay pode ser bloqueado; controles nativos resolvem
+    setMoviePlayState(false);
+    updateMovieProgress(0, 0);
   }
   function closeMoviePlayer() {
-    el.movieVideo.pause();
-    el.movieVideo.removeAttribute('src');
-    el.movieVideo.load();
     el.moviePlayerOverlay.classList.add('hidden');
+  }
+
+  function setMoviePlayState(playing) {
+    el.movieIconPlay.classList.toggle('hidden', playing);
+    el.movieIconPause.classList.toggle('hidden', !playing);
+    el.btnMoviePlayPause.classList.toggle('is-playing', playing);
+  }
+
+  function updateMovieProgress(current, duration) {
+    el.movieTimeCurrent.textContent = Player.formatTime(current);
+    el.movieTimeTotal.textContent   = Player.formatTime(duration);
+
+    const pct = duration ? (current / duration) * 100 : 0;
+    el.movieSeekBar.value = pct;
+    el.movieSeekBar.style.background =
+      `linear-gradient(to right, var(--purple) ${pct}%, var(--border) ${pct}%)`;
+    el.movieSeekBarFillClip.style.width = `${pct}%`;
   }
 
   // ── SELEÇÃO MÚLTIPLA (atribuir gênero em lote) ─
@@ -1563,13 +1602,17 @@ const UI = (() => {
     bindMovieGridEvents,
     setMovieMenuHandlers,
     renderMovieFilterOptions,
-    showMovieUploadModal,
-    hideMovieUploadModal,
+    showMovieAddModal,
+    hideMovieAddModal,
+    getMovieAddForm,
+    setMovieAddSaving,
     showMovieEditModal,
     hideMovieEditModal,
     getMovieEditForm,
     openMoviePlayer,
     closeMoviePlayer,
+    setMoviePlayState,
+    updateMovieProgress,
   };
 
 })();

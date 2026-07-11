@@ -25,11 +25,9 @@ const App = (() => {
   let _uploadItems = [];
   let _uploadCounter = 0;
 
-  // Filmes
+  // Filmes (catálogo de links do YouTube)
   let _videos = [];
   let _movieFilterGenre = '';
-  let _movieUploadItems = [];
-  let _movieUploadCounter = 0;
 
   // Sugestões de gênero pra facilitar o cadastro (além dos gêneros já usados)
   const DEFAULT_GENRES = [
@@ -1068,7 +1066,7 @@ const App = (() => {
 
   async function _loadMovies() {
     try {
-      _videos = await Drive.listVideos();
+      _videos = await Drive.loadVideos();
       _refreshMovieFilterBar();
       _renderMovieGrid();
     } catch (err) {
@@ -1104,182 +1102,58 @@ const App = (() => {
     UI.el.btnMovieRefresh.addEventListener('click', () => _loadMovies());
   }
 
-  // ── ENVIO DE FILMES ─────────────────────────────
-  function _renderMovieUploadList() {
-    const genreOptions = _knownMovieGenres().map(g => `<option value="${g}"></option>`).join('');
-
-    if (!_movieUploadItems.length) {
-      UI.el.movieUploadList.innerHTML = `<p class="empty-hint">Nenhum arquivo selecionado ainda.</p>`;
-      UI.el.btnMovieUploadSendAll.disabled = true;
-      return;
-    }
-
-    UI.el.movieUploadList.innerHTML = _movieUploadItems.map(item => `
-      <div class="upload-item upload-item-${item.status}" data-upload-id="${item.localId}">
-        <div class="upload-item-head">
-          <span class="upload-item-filename">${_escHtml(item.file.name)}</span>
-          ${item.status === 'done' ? `<span class="upload-item-badge">${UI.checkIcon(13)} Enviado</span>` : ''}
-          ${item.status !== 'uploading' ? `<button class="text-btn upload-item-remove" data-remove="${item.localId}">Remover</button>` : ''}
-        </div>
-
-        ${item.status !== 'done' ? `
-          <div class="upload-field">
-            <label>Título</label>
-            <input type="text" class="text-input" data-field="title" data-id="${item.localId}" value="${_escHtml(item.title)}" />
-          </div>
-          <div class="upload-field">
-            <label>Gênero</label>
-            <input type="text" class="text-input" data-field="genre" data-id="${item.localId}" value="${_escHtml(item.genre)}" list="movie-upload-genre-suggestions" />
-          </div>
-          <div class="upload-field">
-            <label>Ano</label>
-            <input type="text" inputmode="numeric" class="text-input" data-field="year" data-id="${item.localId}" value="${_escHtml(item.year)}" placeholder="Ex: 1999" />
-          </div>
-        ` : ''}
-
-        ${item.status === 'uploading' ? `
-          <div class="dl-progress">
-            <div class="dl-progress-bar"><div class="dl-progress-fill" style="width:${item.progress}%"></div></div>
-            <span class="profile-section-hint" style="margin:0;">${item.progress}%</span>
-          </div>` : ''}
-
-        ${item.status === 'error' ? `
-          <p class="upload-item-error">${_escHtml(item.errorMsg || 'Falha ao enviar.')}</p>
-          <button class="btn-outline btn-small" data-retry="${item.localId}">Tentar novamente</button>
-        ` : ''}
-      </div>
-    `).join('') + `<datalist id="movie-upload-genre-suggestions">${genreOptions}</datalist>`;
-
-    UI.el.btnMovieUploadSendAll.disabled = !_movieUploadItems.some(i => i.status === 'pending' || i.status === 'error');
+  // ── ADICIONAR FILME (link do YouTube) ──────────
+  function _openMovieAddModal() {
+    UI.showMovieAddModal(_knownMovieGenres());
   }
 
-  function _addFilesToMovieUploadQueue(fileList) {
-    let rejected = 0;
-    Array.from(fileList).forEach(file => {
-      if (!Drive.isVideoFile(file)) { rejected++; return; }
-      _movieUploadItems.push({
-        localId: ++_movieUploadCounter,
-        file,
-        title:  _filenameToTitle(file.name),
-        genre:  '',
-        year:   '',
-        status: 'pending',
-        progress: 0,
-        errorMsg: null,
-      });
-    });
-    if (rejected) {
-      UI.showToast(rejected === 1
-        ? '1 arquivo ignorado: não é um vídeo suportado.'
-        : `${rejected} arquivos ignorados: não são vídeos suportados.`);
-    }
-    _renderMovieUploadList();
-  }
+  async function _submitMovieAdd() {
+    const form = UI.getMovieAddForm();
+    if (!form.url.trim()) { UI.showToast('Cole o link do vídeo.'); return; }
 
-  async function _uploadMovieOne(item) {
-    item.status = 'uploading';
-    item.progress = 0;
-    item.errorMsg = null;
-    _renderMovieUploadList();
-
+    UI.setMovieAddSaving(true);
     try {
-      const video = await Drive.uploadVideo(item.file, {
-        title: item.title.trim() || _filenameToTitle(item.file.name),
-        genre: item.genre.trim(),
-        year:  item.year.trim(),
-      }, {
-        onProgress: (loaded, total) => {
-          item.progress = total ? Math.round((loaded / total) * 100) : 0;
-          const row = document.querySelector(`[data-upload-id="${item.localId}"] .dl-progress-fill`);
-          const pctLabel = document.querySelector(`[data-upload-id="${item.localId}"] .dl-progress .profile-section-hint`);
-          if (row) row.style.width = item.progress + '%';
-          if (pctLabel) pctLabel.textContent = item.progress + '%';
-        },
-      });
-
-      item.status = 'done';
-      _videos = [..._videos, video];
+      const video = await Drive.addVideo({ url: form.url.trim(), genre: form.genre.trim() });
+      _videos = [video, ..._videos];
       _refreshMovieFilterBar();
       _renderMovieGrid();
-      UI.showToast(`"${video.title}" enviado`);
+      UI.hideMovieAddModal();
+      UI.showToast(`"${video.title}" adicionado`);
     } catch (err) {
-      console.error('[App] Erro ao enviar filme:', err);
-      item.status = 'error';
-      item.errorMsg = err?.message === 'UNAUTHORIZED'
-        ? 'Sessão expirada — faça login novamente.'
-        : (err?.message || 'Falha ao enviar. Tente novamente.');
-
-      if (err?.message === 'UNAUTHORIZED') { Drive.logout(); UI.showLogin(); }
-    }
-    _renderMovieUploadList();
-  }
-
-  const MOVIE_UPLOAD_CONCURRENCY = 1; // vídeo é pesado — um de cada vez evita saturar a conexão
-  let _movieUploadRunning = false;
-
-  async function _uploadAllPendingMovies() {
-    if (_movieUploadRunning) return;
-    _movieUploadRunning = true;
-
-    const pending = () => _movieUploadItems.filter(i => i.status === 'pending' || i.status === 'error');
-    async function worker() {
-      let next;
-      while ((next = pending()[0])) {
-        await _uploadMovieOne(next);
-      }
-    }
-    await Promise.all(Array(MOVIE_UPLOAD_CONCURRENCY).fill(0).map(worker));
-
-    _movieUploadRunning = false;
-  }
-
-  function _bindMovieUploadEvents() {
-    UI.el.btnMovieUploadOpen.addEventListener('click', () => {
-      UI.showMovieUploadModal();
-      _renderMovieUploadList();
-    });
-
-    UI.el.inputUploadMovies.addEventListener('change', e => {
-      if (e.target.files?.length) _addFilesToMovieUploadQueue(e.target.files);
-      e.target.value = '';
-    });
-
-    UI.el.btnMovieUploadAddMore.addEventListener('click', () => UI.el.inputUploadMovies.click());
-    UI.el.btnMovieUploadSendAll.addEventListener('click', () => _uploadAllPendingMovies());
-
-    UI.el.btnUploadMovieClose.addEventListener('click', () => {
-      if (_movieUploadRunning) { UI.showToast('Aguarde o envio terminar antes de fechar.'); return; }
-      UI.hideMovieUploadModal();
-      _movieUploadItems = _movieUploadItems.filter(i => i.status !== 'done');
-    });
-
-    UI.el.modalUploadMovie.addEventListener('click', e => {
-      if (e.target !== UI.el.modalUploadMovie) return;
-      if (_movieUploadRunning) { UI.showToast('Aguarde o envio terminar antes de fechar.'); return; }
-      UI.hideMovieUploadModal();
-    });
-
-    UI.el.movieUploadList.addEventListener('input', e => {
-      const input = e.target.closest('[data-field]');
-      if (!input) return;
-      const item = _movieUploadItems.find(i => i.localId === parseInt(input.dataset.id, 10));
-      if (!item) return;
-      item[input.dataset.field] = input.value;
-    });
-
-    UI.el.movieUploadList.addEventListener('click', e => {
-      const removeBtn = e.target.closest('[data-remove]');
-      if (removeBtn) {
-        _movieUploadItems = _movieUploadItems.filter(i => i.localId !== parseInt(removeBtn.dataset.remove, 10));
-        _renderMovieUploadList();
+      console.error('[App] Erro ao adicionar filme:', err);
+      if (err?.message === 'UNAUTHORIZED') {
+        Drive.logout();
+        UI.showLogin();
+        UI.showToast('Sessão expirada. Faça login novamente.');
         return;
       }
-      const retryBtn = e.target.closest('[data-retry]');
-      if (retryBtn) {
-        const item = _movieUploadItems.find(i => i.localId === parseInt(retryBtn.dataset.retry, 10));
-        if (item) _uploadMovieOne(item);
-      }
+      UI.showToast(err?.message || 'Não foi possível adicionar esse vídeo.');
+    } finally {
+      UI.setMovieAddSaving(false);
+    }
+  }
+
+  function _bindMovieAddEvents() {
+    UI.el.btnMovieUploadOpen.addEventListener('click', () => _openMovieAddModal());
+    UI.el.btnMovieAddSave.addEventListener('click', () => _submitMovieAdd());
+    UI.el.btnUploadMovieClose.addEventListener('click', () => UI.hideMovieAddModal());
+    UI.el.modalUploadMovie.addEventListener('click', e => {
+      if (e.target === UI.el.modalUploadMovie) UI.hideMovieAddModal();
     });
+  }
+
+  // ── EXCLUIR FILME DO CATÁLOGO ───────────────────
+  async function _deleteMovie(video) {
+    try {
+      await Drive.deleteVideo(video.id);
+      _videos = _videos.filter(v => v.id !== video.id);
+      _refreshMovieFilterBar();
+      _renderMovieGrid();
+      UI.showToast('Filme removido da lista');
+    } catch (err) {
+      console.error('[App] Erro ao remover filme:', err);
+      UI.showToast('Não foi possível remover. Tente novamente.');
+    }
   }
 
   // ── EDITAR INFORMAÇÕES DE UM FILME ─────────────
@@ -1317,60 +1191,47 @@ const App = (() => {
     UI.el.modalMovieEdit.addEventListener('click', e => {
       if (e.target === UI.el.modalMovieEdit) UI.hideMovieEditModal();
     });
+
+    UI.el.btnMovieEditDelete.addEventListener('click', () => {
+      const videoId = UI.el.modalMovieEdit.dataset.videoId;
+      const video = _videos.find(v => v.id === videoId);
+      if (!video) return;
+      UI.hideMovieEditModal();
+      _deleteMovie(video);
+    });
   }
 
   // ── PLAYER DE FILME (tela cheia) ────────────────
-  // Filme pode passar de 1h (duração do access_token). Enquanto o
-  // player está aberto, verifica de tempos em tempos se o token foi
-  // renovado (Drive.getVideoStreamUrl já garante isso) e, se a URL
-  // mudou, troca o src preservando o ponto exato e o estado de
-  // reprodução — sem isso, o vídeo travaria no meio depois de ~1h.
-  let _moviePlayerVideoId = null;
-  let _moviePlayerRefreshTimer = null;
+  // O vídeo em si é tocado pelo player embutido do YouTube (YTPlayer) —
+  // sem token de acesso pra renovar, sem stream próprio pra manter vivo.
+  let _moviePlayerBound = false;
 
-  function _stopMoviePlayerRefreshTimer() {
-    if (_moviePlayerRefreshTimer) {
-      clearInterval(_moviePlayerRefreshTimer);
-      _moviePlayerRefreshTimer = null;
-    }
-  }
+  function _bindMovieCustomControls() {
+    if (_moviePlayerBound) return;
+    _moviePlayerBound = true;
 
-  function _startMoviePlayerRefreshTimer() {
-    _stopMoviePlayerRefreshTimer();
-    _moviePlayerRefreshTimer = setInterval(async () => {
-      if (!_moviePlayerVideoId) return;
-      try {
-        const freshUrl = await Drive.getVideoStreamUrl(_moviePlayerVideoId);
-        const video = UI.el.movieVideo;
-        if (video.src === freshUrl) return; // token ainda válido, nada a fazer
+    YTPlayer.on('onStateChange', playing => UI.setMoviePlayState(playing));
+    YTPlayer.on('onProgress', (current, duration) => UI.updateMovieProgress(current, duration));
 
-        const wasPlaying = !video.paused;
-        const resumeAt = video.currentTime;
-        video.src = freshUrl;
-        video.currentTime = resumeAt;
-        if (wasPlaying) video.play().catch(() => {});
-      } catch (err) {
-        console.warn('[App] Falha ao renovar sessão do filme:', err);
-      }
-    }, 15 * 60 * 1000); // checa a cada 15min — bem antes da validade de ~1h do token
+    UI.el.btnMoviePlayPause.addEventListener('click', () => YTPlayer.togglePlay());
+    UI.el.movieSeekBar.addEventListener('input', () => {
+      YTPlayer.seekPercent(parseFloat(UI.el.movieSeekBar.value));
+    });
   }
 
   async function _openMoviePlayerFor(video) {
     try {
-      const streamUrl = await Drive.getVideoStreamUrl(video.id);
-      _moviePlayerVideoId = video.id;
-      UI.openMoviePlayer(video.title, streamUrl);
-      _startMoviePlayerRefreshTimer();
+      UI.openMoviePlayer(video.title);
+      _bindMovieCustomControls();
+      await YTPlayer.load(video.id, 'movie-video-target');
     } catch (err) {
       console.error('[App] Erro ao abrir filme:', err);
-      if (err?.message === 'UNAUTHORIZED') { Drive.logout(); UI.showLogin(); return; }
       UI.showToast('Não foi possível abrir o filme. Tente novamente.');
     }
   }
 
   function _closeMoviePlayer() {
-    _stopMoviePlayerRefreshTimer();
-    _moviePlayerVideoId = null;
+    YTPlayer.stop();
     UI.closeMoviePlayer();
   }
 
@@ -1523,7 +1384,7 @@ const App = (() => {
 
     // Filmes
     _bindMovieFilterEvents();
-    _bindMovieUploadEvents();
+    _bindMovieAddEvents();
     _bindMovieEditModalEvents();
     _bindMoviePlayerEvents();
 
