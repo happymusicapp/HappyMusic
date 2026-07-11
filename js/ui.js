@@ -176,7 +176,7 @@ const UI = (() => {
     btnAddTracksPickerConfirm: $('btn-add-tracks-picker-confirm'),
     btnAddTracksPickerClose:   $('btn-add-tracks-picker-close'),
 
-    // Filmes
+    // Vídeos
     movieGrid:            $('movie-grid'),
     btnMovieRefresh:      $('btn-movie-refresh'),
     btnMovieUploadOpen:   $('btn-movie-upload-open'),
@@ -184,6 +184,9 @@ const UI = (() => {
     btnMovieFilterClear:  $('btn-movie-filter-clear'),
 
     modalUploadMovie:       $('modal-upload-movie'),
+    movieSearchInput:       $('movie-search-input'),
+    btnMovieSearch:         $('btn-movie-search'),
+    movieSearchResults:     $('movie-search-results'),
     movieAddUrl:            $('movie-add-url'),
     movieAddGenre:          $('movie-add-genre'),
     movieAddGenreSuggestions: $('movie-add-genre-suggestions'),
@@ -775,7 +778,7 @@ const UI = (() => {
   }
 
   // ── BARRA DE FILTROS (gênero / artista / álbum) ────
-  // Ainda usado pelo filtro de gênero dos filmes (select nativo simples,
+  // Ainda usado pelo filtro de gênero dos vídeos (select nativo simples,
   // só uma opção, sem necessidade do modal de busca das músicas).
   function _fillSelect(select, values, activeValue, placeholder) {
     const current = activeValue || '';
@@ -1099,7 +1102,7 @@ const UI = (() => {
     `).join('');
   }
 
-  // ── FILMES ──────────────────────────────────────
+  // ── VÍDEOS ──────────────────────────────────────
   function _filmIcon(size = 26) {
     return `<svg width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
       <rect x="2.5" y="5" width="19" height="14" rx="2"/>
@@ -1117,7 +1120,7 @@ const UI = (() => {
 
   function renderMovieGrid(videos) {
     if (!videos.length) {
-      el.movieGrid.innerHTML = `<p class="empty-hint">Nenhum filme ainda.<br>Toque no ➕ acima pra enviar o primeiro.</p>`;
+      el.movieGrid.innerHTML = `<p class="empty-hint">Nenhum vídeo ainda.<br>Toque no ➕ acima pra enviar o primeiro.</p>`;
       return;
     }
     el.movieGrid.innerHTML = videos.map(v => `
@@ -1163,19 +1166,21 @@ const UI = (() => {
     });
   }
 
-  // ── FILTRO DE FILMES (gênero) ───────────────────
+  // ── FILTRO DE VÍDEOS (gênero) ───────────────────
   function renderMovieFilterOptions(genres, activeGenre = '') {
     _fillSelect(el.movieFilterGenre, genres, activeGenre, 'Gênero');
     el.btnMovieFilterClear.classList.toggle('hidden', !activeGenre);
   }
 
-  // ── MODAL: ADICIONAR FILME (link do YouTube) ───
+  // ── MODAL: ADICIONAR VÍDEO (link do YouTube) ───
   function showMovieAddModal(knownGenres = []) {
     el.movieAddUrl.value = '';
     el.movieAddGenre.value = '';
     el.movieAddGenreSuggestions.innerHTML = knownGenres.map(g => `<option value="${_escape(g)}"></option>`).join('');
+    el.movieSearchInput.value = '';
+    hideMovieSearchResults();
     el.modalUploadMovie.classList.remove('hidden');
-    el.movieAddUrl.focus();
+    el.movieSearchInput.focus();
   }
   function hideMovieAddModal() { el.modalUploadMovie.classList.add('hidden'); }
   function getMovieAddForm() {
@@ -1189,7 +1194,40 @@ const UI = (() => {
     el.btnMovieAddSave.textContent = saving ? 'Adicionando…' : 'Adicionar';
   }
 
-  // ── MODAL: EDITAR INFORMAÇÕES DO FILME ─────────
+  // ── BUSCA DE VÍDEOS NO YOUTUBE (dentro do modal) ─
+  function setMovieSearchLoading(loading) {
+    el.btnMovieSearch.disabled = loading;
+    el.btnMovieSearch.classList.toggle('is-loading', loading);
+  }
+  function hideMovieSearchResults() {
+    el.movieSearchResults.classList.add('hidden');
+    el.movieSearchResults.innerHTML = '';
+  }
+  function renderMovieSearchResults(results) {
+    if (!results || !results.length) {
+      el.movieSearchResults.innerHTML = `<p class="yt-search-empty">Nada encontrado. Tente outro termo.</p>`;
+      el.movieSearchResults.classList.remove('hidden');
+      return;
+    }
+    el.movieSearchResults.innerHTML = results.map(r => `
+      <button type="button" class="yt-search-result" data-video-id="${_escape(r.id)}" data-video-title="${_escape(r.title)}">
+        <div class="yt-search-result-thumb" style="background-image:url('${_escape(r.thumbnail)}')"></div>
+        <span class="yt-search-result-title">${_escape(r.title)}</span>
+      </button>
+    `).join('');
+    el.movieSearchResults.classList.remove('hidden');
+  }
+  function showMovieSearchError(message) {
+    el.movieSearchResults.innerHTML = `<p class="yt-search-empty">${_escape(message)}</p>`;
+    el.movieSearchResults.classList.remove('hidden');
+  }
+  function selectMovieSearchResult(videoId) {
+    el.movieAddUrl.value = `https://www.youtube.com/watch?v=${videoId}`;
+    hideMovieSearchResults();
+    el.movieAddGenre.focus();
+  }
+
+  // ── MODAL: EDITAR INFORMAÇÕES DO VÍDEO ─────────
   function showMovieEditModal(video, knownGenres = []) {
     el.editMovieTitle.value = video.title || '';
     el.editMovieGenre.value = video.genre || '';
@@ -1209,7 +1247,7 @@ const UI = (() => {
     };
   }
 
-  // ── PLAYER DE FILME (tela cheia) ────────────────
+  // ── PLAYER DE VÍDEO (tela cheia) ────────────────
   // O vídeo em si é carregado à parte (YTPlayer.load, chamado pelo
   // app.js) — aqui só cuidamos da tela: título, overlay e resetar os
   // controles customizados (mesmo visual neon da barra do player de
@@ -1597,7 +1635,7 @@ const UI = (() => {
     hideAddTracksPickerModal,
     renderAddTracksPicker,
 
-    // Filmes
+    // Vídeos
     renderMovieGrid,
     bindMovieGridEvents,
     setMovieMenuHandlers,
@@ -1606,6 +1644,11 @@ const UI = (() => {
     hideMovieAddModal,
     getMovieAddForm,
     setMovieAddSaving,
+    setMovieSearchLoading,
+    hideMovieSearchResults,
+    renderMovieSearchResults,
+    showMovieSearchError,
+    selectMovieSearchResult,
     showMovieEditModal,
     hideMovieEditModal,
     getMovieEditForm,

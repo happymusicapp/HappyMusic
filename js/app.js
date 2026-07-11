@@ -25,7 +25,7 @@ const App = (() => {
   let _uploadItems = [];
   let _uploadCounter = 0;
 
-  // Filmes (catálogo de links do YouTube)
+  // Vídeos (catálogo de links do YouTube)
   let _videos = [];
   let _movieFilterGenre = '';
 
@@ -1058,7 +1058,7 @@ const App = (() => {
     UI.el.btnAddToPlaylistClose.addEventListener('click', () => _closeAddToPlaylistModal());
   }
 
-  // ── FILMES ──────────────────────────────────────
+  // ── VÍDEOS ──────────────────────────────────────
   function _knownMovieGenres() {
     const known = Drive.getKnownMovieGenres();
     return [...new Set([...DEFAULT_MOVIE_GENRES, ...known])].sort((a, b) => a.localeCompare(b, 'pt-BR'));
@@ -1070,7 +1070,7 @@ const App = (() => {
       _refreshMovieFilterBar();
       _renderMovieGrid();
     } catch (err) {
-      console.error('[App] Erro ao carregar filmes:', err);
+      console.error('[App] Erro ao carregar vídeos:', err);
       if (err?.message === 'UNAUTHORIZED') { Drive.logout(); UI.showLogin(); }
     }
   }
@@ -1102,7 +1102,7 @@ const App = (() => {
     UI.el.btnMovieRefresh.addEventListener('click', () => _loadMovies());
   }
 
-  // ── ADICIONAR FILME (link do YouTube) ──────────
+  // ── ADICIONAR VÍDEO (link do YouTube) ──────────
   function _openMovieAddModal() {
     UI.showMovieAddModal(_knownMovieGenres());
   }
@@ -1120,7 +1120,7 @@ const App = (() => {
       UI.hideMovieAddModal();
       UI.showToast(`"${video.title}" adicionado`);
     } catch (err) {
-      console.error('[App] Erro ao adicionar filme:', err);
+      console.error('[App] Erro ao adicionar vídeo:', err);
       if (err?.message === 'UNAUTHORIZED') {
         Drive.logout();
         UI.showLogin();
@@ -1140,23 +1140,60 @@ const App = (() => {
     UI.el.modalUploadMovie.addEventListener('click', e => {
       if (e.target === UI.el.modalUploadMovie) UI.hideMovieAddModal();
     });
+
+    UI.el.btnMovieSearch.addEventListener('click', () => _runMovieSearch());
+    UI.el.movieSearchInput.addEventListener('keydown', e => {
+      if (e.key === 'Enter') { e.preventDefault(); _runMovieSearch(); }
+    });
+    UI.el.movieSearchResults.addEventListener('click', e => {
+      const item = e.target.closest('.yt-search-result');
+      if (!item) return;
+      UI.selectMovieSearchResult(item.dataset.videoId);
+    });
   }
 
-  // ── EXCLUIR FILME DO CATÁLOGO ───────────────────
+  // ── PESQUISAR VÍDEOS NO YOUTUBE ──────────────────
+  // Busca só dispara com Enter ou clique no botão (não a cada tecla) —
+  // cada busca consome cota da API do YouTube, então evita gastar cota
+  // à toa enquanto a pessoa ainda está digitando.
+  let _movieSearchInFlight = false;
+
+  async function _runMovieSearch() {
+    const q = UI.el.movieSearchInput.value.trim();
+    if (!q) { UI.hideMovieSearchResults(); return; }
+    if (_movieSearchInFlight) return;
+
+    _movieSearchInFlight = true;
+    UI.setMovieSearchLoading(true);
+    try {
+      const res = await fetch(`/api/youtube-search?q=${encodeURIComponent(q)}`);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error_description || 'Não foi possível pesquisar agora.');
+      UI.renderMovieSearchResults(data.results || []);
+    } catch (err) {
+      console.error('[App] Erro ao pesquisar no YouTube:', err);
+      UI.showMovieSearchError(err?.message || 'Não foi possível pesquisar agora.');
+    } finally {
+      _movieSearchInFlight = false;
+      UI.setMovieSearchLoading(false);
+    }
+  }
+
+  // ── EXCLUIR VÍDEO DO CATÁLOGO ───────────────────
   async function _deleteMovie(video) {
     try {
       await Drive.deleteVideo(video.id);
       _videos = _videos.filter(v => v.id !== video.id);
       _refreshMovieFilterBar();
       _renderMovieGrid();
-      UI.showToast('Filme removido da lista');
+      UI.showToast('Vídeo removido da lista');
     } catch (err) {
-      console.error('[App] Erro ao remover filme:', err);
+      console.error('[App] Erro ao remover vídeo:', err);
       UI.showToast('Não foi possível remover. Tente novamente.');
     }
   }
 
-  // ── EDITAR INFORMAÇÕES DE UM FILME ─────────────
+  // ── EDITAR INFORMAÇÕES DE UM VÍDEO ─────────────
   function _openMovieEditModal(video) {
     UI.showMovieEditModal(video, _knownMovieGenres());
   }
@@ -1176,7 +1213,7 @@ const App = (() => {
         _refreshMovieFilterBar();
         _renderMovieGrid();
       } catch (err) {
-        console.error('[App] Erro ao editar filme:', err);
+        console.error('[App] Erro ao editar vídeo:', err);
         if (err?.message === 'UNAUTHORIZED') {
           Drive.logout();
           UI.showLogin();
@@ -1201,7 +1238,7 @@ const App = (() => {
     });
   }
 
-  // ── PLAYER DE FILME (tela cheia) ────────────────
+  // ── PLAYER DE VÍDEO (tela cheia) ────────────────
   // O vídeo em si é tocado pelo player embutido do YouTube (YTPlayer) —
   // sem token de acesso pra renovar, sem stream próprio pra manter vivo.
   let _moviePlayerBound = false;
@@ -1224,9 +1261,10 @@ const App = (() => {
       UI.openMoviePlayer(video.title);
       _bindMovieCustomControls();
       await YTPlayer.load(video.id, 'movie-video-target');
+      YTPlayer.setMediaSessionMetadata(video);
     } catch (err) {
-      console.error('[App] Erro ao abrir filme:', err);
-      UI.showToast('Não foi possível abrir o filme. Tente novamente.');
+      console.error('[App] Erro ao abrir vídeo:', err);
+      UI.showToast('Não foi possível abrir o vídeo. Tente novamente.');
     }
   }
 
@@ -1382,7 +1420,7 @@ const App = (() => {
     _bindAddToPlaylistModalEvents();
     _bindAddTracksPickerEvents();
 
-    // Filmes
+    // Vídeos
     _bindMovieFilterEvents();
     _bindMovieAddEvents();
     _bindMovieEditModalEvents();

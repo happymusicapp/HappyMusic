@@ -342,8 +342,8 @@ const Drive = (() => {
     return _tracks;
   }
 
-  // ── FILMES (catálogo de vídeos do YouTube) ─────
-  // Filme não é mais um arquivo enviado pro Drive — é só um link do
+  // ── VÍDEOS (catálogo de vídeos do YouTube) ─────
+  // Vídeo não é mais um arquivo enviado pro Drive — é só um link do
   // YouTube. O YouTube cuida do streaming/armazenamento; a gente só
   // guarda a listinha (id, título, gênero, miniatura) num JSON no
   // appDataFolder do Drive, exatamente como já é feito com as playlists
@@ -394,7 +394,7 @@ const Drive = (() => {
       return _videos;
     } catch (err) {
       if (err?.message === 'UNAUTHORIZED') throw err;
-      console.warn('[Drive] Não deu pra carregar filmes do Drive, usando cópia local:', err);
+      console.warn('[Drive] Não deu pra carregar vídeos do Drive, usando cópia local:', err);
       _videos = _loadVideosCache();
       return _videos;
     }
@@ -416,7 +416,7 @@ const Drive = (() => {
       }
       return true;
     } catch (err) {
-      console.error('[Drive] Filme salvo só neste aparelho — falha ao sincronizar com o Drive:', err);
+      console.error('[Drive] Vídeo salvo só neste aparelho — falha ao sincronizar com o Drive:', err);
       return false;
     }
   }
@@ -442,7 +442,7 @@ const Drive = (() => {
     return res.json();
   }
 
-  // Adiciona um filme ao catálogo a partir de um link do YouTube.
+  // Adiciona um vídeo ao catálogo a partir de um link do YouTube.
   async function addVideo({ url, genre = '' } = {}) {
     const videoId = extractYouTubeId(url);
     if (!videoId) throw new Error('Link do YouTube inválido.');
@@ -468,7 +468,7 @@ const Drive = (() => {
   // miniatura continuam vindo do YouTube.
   async function updateVideoMetadata(videoId, metadata = {}) {
     const idx = _videos.findIndex(v => v.id === videoId);
-    if (idx === -1) throw new Error('Filme não encontrado.');
+    if (idx === -1) throw new Error('Vídeo não encontrado.');
 
     _videos[idx] = {
       ..._videos[idx],
@@ -480,7 +480,7 @@ const Drive = (() => {
     return _videos[idx];
   }
 
-  // Remove um filme só do catálogo (o vídeo continua no YouTube).
+  // Remove um vídeo só do catálogo (o vídeo continua no YouTube).
   async function deleteVideo(videoId) {
     _videos = _videos.filter(v => v.id !== videoId);
     await _saveVideosCatalog();
@@ -1213,7 +1213,7 @@ const Drive = (() => {
     loadPlaylists,
     savePlaylists,
 
-    // Filmes (catálogo de vídeos do YouTube)
+    // Vídeos (catálogo de vídeos do YouTube)
     loadVideos,
     getCachedVideos,
     addVideo,

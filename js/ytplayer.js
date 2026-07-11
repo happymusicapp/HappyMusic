@@ -1,6 +1,6 @@
 /* ═══════════════════════════════════════════════
    HAPPY MUSIC – ytplayer.js
-   Player de filmes: embute o YouTube IFrame Player
+   Player de vídeos: embute o YouTube IFrame Player
    escondendo os controles nativos, pra usar os
    botões neon do próprio app (play/pause, barra de
    progresso) — mesmo visual do player de música.
@@ -21,8 +21,8 @@ const YTPlayer = (() => {
     if (event in _listeners) _listeners[event] = fn;
   }
 
-  // Carrega o script da API do YouTube só na primeira vez que um filme
-  // é aberto — quem nunca usa a aba de filmes nunca baixa esse script.
+  // Carrega o script da API do YouTube só na primeira vez que um vídeo
+  // é aberto — quem nunca usa a aba de vídeos nunca baixa esse script.
   function _loadApiScript() {
     return new Promise(resolve => {
       if (window.YT && window.YT.Player) { resolve(); return; }
@@ -63,11 +63,72 @@ const YTPlayer = (() => {
     _listeners.onStateChange?.(playing);
     if (playing) _startProgressTimer();
     else _stopProgressTimer();
+
+    // Mantém a Media Session (notificação/tela de bloqueio) sincronizada
+    // com o estado real do player — mesmo mecanismo usado pro áudio em
+    // player.js. Isso não garante que o YouTube continue tocando com a
+    // tela bloqueada (ver nota em setMediaSessionMetadata), mas garante
+    // que, nos casos em que continua, os controles do bloqueio de tela
+    // apareçam certos.
+    if ('mediaSession' in navigator) {
+      navigator.mediaSession.playbackState = playing ? 'playing' : 'paused';
+    }
+  }
+
+  // ── MEDIA SESSION ────────────────────────────────
+  // NOTA IMPORTANTE sobre tela bloqueada: isso melhora a notificação/
+  // controles de mídia quando o vídeo está tocando, mas NÃO é garantia
+  // de que o YouTube vá continuar tocando com a tela bloqueada. Motivo:
+  // o player real (o <video> de verdade) vive dentro do iframe do
+  // youtube.com, que é uma origem diferente da nossa — o próprio script
+  // do YouTube decide pausar (ou não) quando a página fica oculta
+  // (document.hidden), e a gente não tem acesso pra ler ou alterar nada
+  // dentro desse iframe por causa da política de segurança same-origin
+  // dos navegadores. É esse script do YouTube (não o nosso app) que
+  // decide pausar o vídeo assim que a tela bloqueia — por isso "modo
+  // computador" no navegador se comporta diferente: o site do YouTube
+  // detecta um user-agent de desktop e serve o player web completo, que
+  // não tem essa restrição. Configurar a Media Session é o máximo que
+  // dá pra fazer do nosso lado; não existe um jeito confiável, via
+  // JavaScript, de forçar o embed a se comportar como o player desktop.
+  let _lastMetaVideoId = null;
+
+  function setMediaSessionMetadata(video) {
+    if (!('mediaSession' in navigator) || !video) return;
+    if (_lastMetaVideoId === video.id) return;
+    _lastMetaVideoId = video.id;
+
+    navigator.mediaSession.metadata = new MediaMetadata({
+      title: video.title || 'Vídeo',
+      artist: 'HappyMusic',
+      album: video.genre || '',
+      artwork: video.thumbnail
+        ? [
+            { src: video.thumbnail, sizes: '480x360', type: 'image/jpeg' },
+            { src: video.thumbnail, sizes: '320x180', type: 'image/jpeg' },
+          ]
+        : [],
+    });
+
+    navigator.mediaSession.setActionHandler('play',  () => play());
+    navigator.mediaSession.setActionHandler('pause', () => pause());
+    navigator.mediaSession.setActionHandler('seekto', (d) => {
+      if (typeof d.seekTime === 'number') seekTo(d.seekTime);
+    });
+  }
+
+  function _clearMediaSession() {
+    _lastMetaVideoId = null;
+    if (!('mediaSession' in navigator)) return;
+    navigator.mediaSession.playbackState = 'none';
+    navigator.mediaSession.setActionHandler('play', null);
+    navigator.mediaSession.setActionHandler('pause', null);
+    navigator.mediaSession.setActionHandler('seekto', null);
   }
 
   // Cria o player uma única vez dentro do elemento indicado. Chamadas
   // seguintes reaproveitam a mesma instância (recriar o iframe do
-  // zero a cada filme aberto seria mais lento e mais frágil).
+  // zero a cada vídeo aberto seria mais lento e mais frágil).
   function _init(containerId) {
     if (_player) return Promise.resolve();
     if (_initPromise) return _initPromise;
@@ -94,7 +155,7 @@ const YTPlayer = (() => {
   }
 
   // Carrega (ou troca para) um vídeo específico e tenta tocar — é
-  // chamado a partir de um toque do usuário no card do filme, então o
+  // chamado a partir de um toque do usuário no card do vídeo, então o
   // autoplay costuma ser permitido; se o navegador bloquear mesmo
   // assim, o botão de play neon resolve.
   async function load(videoId, containerId) {
@@ -128,11 +189,12 @@ const YTPlayer = (() => {
   function getDuration()    { return _player ? (_player.getDuration()    || 0) : 0; }
 
   // Pausa e reseta — chamado ao fechar o player, sem destruir o iframe
-  // (a próxima vez que um filme for aberto, reaproveita, sem esperar a
+  // (a próxima vez que um vídeo for aberto, reaproveita, sem esperar a
   // API carregar de novo).
   function stop() {
     _stopProgressTimer();
     if (_player && typeof _player.stopVideo === 'function') _player.stopVideo();
+    _clearMediaSession();
   }
 
   return {
@@ -147,6 +209,7 @@ const YTPlayer = (() => {
     getDuration,
     stop,
     on,
+    setMediaSessionMetadata,
   };
 
 })();
