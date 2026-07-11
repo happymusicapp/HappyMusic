@@ -405,140 +405,6 @@ img    { display: block; }
   gap: 6px;
 }
 
-/* ── ARGOLAS NEON ATRÁS DO PLAY (batida da música) ──
-   O botão de play fica parado — quem pulsa é isso aqui atrás dele. O anel
-   mais próximo (grave/batida) é um círculo liso de sempre. Os outros dois
-   agora são polígonos SVG cujos pontos tremem com o médio/agudo da
-   música — dá aquele efeito de onda sonora "tremida" em vez de um anel
-   perfeito (ver js/visualizer.js). Em repouso, tudo "respira" sozinho via
-   CSS, igual à animação de abertura do app. Só roxo e branco. */
-.play-btn-stage {
-  position: relative;
-  width: 52px;
-  height: 52px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.play-btn-stage .play-btn {
-  position: relative;
-  z-index: 1;
-}
-
-/* "Sol" neon atrás de tudo — só CSS (transform/opacity via variável),
-   nunca escrito pelo JS como `filter`, pra não voltar o problema de
-   música engasgando (filter animado por JS a cada frame é caro). O
-   brilho reage ao volume geral através de uma custom property que o
-   JS só atualiza (--viz-energy), o que é barato pro navegador. */
-.play-sun-glow {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  width: 150px;
-  height: 150px;
-  border-radius: 50%;
-  transform: translate(-50%, -50%) scale(1);
-  background: radial-gradient(circle,
-    rgba(255,255,255,0.6) 0%,
-    rgba(199,125,255,0.65) 24%,
-    rgba(124,58,255,0.4) 44%,
-    rgba(124,58,255,0.12) 64%,
-    transparent 78%);
-  filter: blur(14px);
-  z-index: -1;
-  pointer-events: none;
-  animation: play-sun-breathe 2.6s ease-in-out infinite;
-}
-
-@keyframes play-sun-breathe {
-  0%, 100% { transform: translate(-50%, -50%) scale(0.88); opacity: 0.5; }
-  50%      { transform: translate(-50%, -50%) scale(1.18); opacity: 0.85; }
-}
-
-.play-btn-stage.viz-active .play-sun-glow {
-  animation: none;
-  transform: translate(-50%, -50%) scale(calc(0.95 + var(--viz-energy, 0) * 0.5));
-  opacity: calc(0.55 + var(--viz-energy, 0) * 0.45);
-}
-
-.play-ring {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  width: 52px;
-  height: 52px;
-  border-radius: 50%;
-  border: 1.5px solid rgba(255,255,255,0.65);
-  transform: translate(-50%, -50%) scale(1);
-  opacity: 0.3;
-  z-index: 0;
-  pointer-events: none;
-  will-change: transform, opacity;
-  transition: transform 0.08s linear, opacity 0.08s linear;
-  /* brilho fixo (não é reescrito pelo JS) — barato de manter */
-  filter: drop-shadow(0 0 6px rgba(255,255,255,0.55));
-}
-
-/* Parado: o anel de grave "respira" sozinho, igual ao splash de abertura */
-.play-btn-stage:not(.viz-active) .play-ring {
-  animation: viz-idle-pulse 2.2s var(--ease) infinite;
-  transition: none;
-}
-
-@keyframes viz-idle-pulse {
-  0%   { transform: translate(-50%, -50%) scale(0.85); opacity: 0.5; }
-  100% { transform: translate(-50%, -50%) scale(2.2); opacity: 0; }
-}
-
-/* Ondas sonoras (médio/agudo) — polígonos com os pontos recalculados a
-   cada frame em js/visualizer.js, por isso não têm transition de forma
-   (só a opacidade suaviza; a "tremida" em si é o efeito desejado). O
-   brilho (drop-shadow) é fixo por CSS — o JS nunca escreve em `filter`. */
-.play-wave-svg {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  width: 190px;
-  height: 190px;
-  transform: translate(-50%, -50%);
-  overflow: visible;
-  pointer-events: none;
-  z-index: 0;
-}
-
-.play-wave {
-  fill: none;
-  stroke-width: 2;
-  vector-effect: non-scaling-stroke;
-  transform-box: fill-box;
-  transform-origin: center;
-  opacity: 0.35;
-  transition: opacity 0.08s linear;
-}
-
-.play-wave-2 {
-  stroke: rgba(199,125,255,0.9);
-  filter: drop-shadow(0 0 5px rgba(199,125,255,0.85));
-}
-.play-wave-3 {
-  stroke: rgba(255,255,255,0.7);
-  filter: drop-shadow(0 0 5px rgba(255,255,255,0.6));
-}
-
-/* Parado: as ondas "respiram" sozinhas também, com defasagem entre si */
-.play-btn-stage:not(.viz-active) .play-wave {
-  animation: viz-wave-idle-pulse 2.2s var(--ease) infinite;
-  transition: none;
-}
-.play-btn-stage:not(.viz-active) .play-wave-2 { animation-delay: 0.45s; }
-.play-btn-stage:not(.viz-active) .play-wave-3 { animation-delay: 0.9s; }
-
-@keyframes viz-wave-idle-pulse {
-  0%   { transform: scale(0.85); opacity: 0.45; }
-  100% { transform: scale(1.7); opacity: 0; }
-}
-
 /* ── TOCADAS RECENTEMENTE ─────────────────────
    Reaproveita o mesmo visual da lista de músicas
    (.track-item / .track-art / .track-info), só que
@@ -1139,10 +1005,9 @@ img    { display: block; }
   50%      { box-shadow: 0 8px 34px rgba(124,58,255,0.55), 0 0 40px rgba(199,125,255,0.25); }
 }
 
-/* play button com pulso neon — só enquanto está tocando de verdade
-   (a classe viz-active já é ligada/desligada pelo visualizer.js nos
-   eventos reais de play/pause do <audio>) */
-.play-btn-stage.viz-active .play-btn {
+/* play button com pulso neon discreto — só enquanto está tocando de
+   verdade (classe ligada/desligada em setPlayState, no ui.js) */
+.play-btn.is-playing {
   animation: play-pulse 2.6s ease-in-out infinite;
 }
 
