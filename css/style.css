@@ -501,6 +501,7 @@ img    { display: block; }
 .track-info { flex: 1; min-width: 0; }
 
 .track-title {
+  display: block;
   font-size: 0.9rem;
   font-weight: 500;
   white-space: nowrap;
@@ -511,6 +512,7 @@ img    { display: block; }
 .track-item.playing .track-title { color: var(--purple-soft); font-weight: 600; }
 
 .track-meta {
+  display: block;
   font-size: 0.76rem;
   color: var(--grey);
   white-space: nowrap;
@@ -1708,14 +1710,24 @@ img    { display: block; }
 .playlist-card:hover .playlist-card-art { box-shadow: 0 6px 24px rgba(124,58,255,0.4); }
 
 .playlist-card-name {
+  display: block;
+  width: 100%;
   font-size: 0.85rem;
   font-weight: 600;
   color: var(--white);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .playlist-card-count {
+  display: block;
+  width: 100%;
   font-size: 0.75rem;
   color: var(--grey);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .playlist-detail-header {
@@ -1724,7 +1736,13 @@ img    { display: block; }
   gap: var(--sp-2);
   margin-bottom: var(--sp-3);
 }
-.playlist-detail-header h2 { flex: 1; }
+.playlist-detail-header h2 {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 
 .playlist-detail-actions { display: flex; gap: var(--sp-2); flex-wrap: wrap; margin-bottom: var(--sp-3); }
 
