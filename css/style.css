@@ -620,6 +620,13 @@ img    { display: block; }
   font-variant-numeric: tabular-nums;
 }
 
+.seek-bar-wrap {
+  position: relative;
+  flex: 1;
+  display: flex;
+  align-items: center;
+}
+
 .seek-bar {
   flex: 1;
   -webkit-appearance: none;
@@ -633,15 +640,47 @@ img    { display: block; }
   transition: box-shadow var(--transition);
 }
 
-/* brilho neon — mesmo "respiro" da linha que existia no topo do player,
-   só ligado enquanto a música está tocando de verdade */
-.seek-bar.is-playing {
+/* brilho neon "respirando" — mesmo halo da linha que existia no topo do
+   player, só ligado enquanto a música está tocando de verdade */
+.seek-bar-wrap.is-playing .seek-bar {
   animation: seek-bar-glow 3.5s ease-in-out infinite;
 }
 
 @keyframes seek-bar-glow {
   0%, 100% { box-shadow: 0 0 8px rgba(124,58,255,0.45); }
   50%      { box-shadow: 0 0 18px rgba(124,58,255,0.8), 0 0 28px rgba(199,125,255,0.4); }
+}
+
+/* faixa de luz que corre sobre a barra sem parar — o "brilho correndo"
+   propriamente dito. Fica por cima do input (pointer-events:none pra
+   não atrapalhar o arraste), sempre do mesmo tamanho, repetindo o
+   percurso inteiro da barra continuamente. */
+.seek-bar-shimmer {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  width: 30%;
+  height: 4px;
+  transform: translateY(-50%) translateX(-120%);
+  background: linear-gradient(90deg,
+    transparent,
+    rgba(255,255,255,0.95),
+    rgba(199,125,255,0.9),
+    transparent);
+  border-radius: var(--radius-full);
+  filter: blur(1.5px);
+  pointer-events: none;
+  opacity: 0;
+}
+
+.seek-bar-wrap.is-playing .seek-bar-shimmer {
+  opacity: 1;
+  animation: seek-bar-shimmer-run 2s linear infinite;
+}
+
+@keyframes seek-bar-shimmer-run {
+  0%   { transform: translateY(-50%) translateX(-120%); }
+  100% { transform: translateY(-50%) translateX(430%); }
 }
 
 .seek-bar::-webkit-slider-thumb {
