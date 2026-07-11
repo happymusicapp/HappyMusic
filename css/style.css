@@ -673,9 +673,7 @@ img    { display: block; }
   position: fixed;
   bottom: 0; left: 0; right: 0;
   height: var(--nav-h);
-  background: rgba(11,11,13,0.92);
-  backdrop-filter: blur(20px) saturate(160%);
-  -webkit-backdrop-filter: blur(20px) saturate(160%);
+  background: #000;
   border-top: 1px solid var(--border);
   display: flex;
   z-index: 100;
@@ -1360,103 +1358,58 @@ img    { display: block; }
   color: var(--grey);
 }
 
-.filter-bar {
+.filter-bar,
+.filter-chip-row {
   display: flex;
   align-items: center;
   gap: var(--sp-2);
   flex-wrap: wrap;
 }
 
-.filter-select-wrap {
-  position: relative;
+/* Cada filtro agora é um chip que abre um modal com a lista completa —
+   nada de picker nativo do Android/iOS brigando com o visual do app. */
+.filter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   flex: 1;
   min-width: 88px;
-}
-
-/* Ícone à esquerda de cada campo, pra identificar gênero/artista/álbum
-   de relance sem precisar ler o placeholder */
-.filter-select-wrap::before {
-  content: '';
-  position: absolute;
-  top: 50%;
-  left: 11px;
-  width: 13px;
-  height: 13px;
-  transform: translateY(-50%);
-  background: var(--grey);
-  pointer-events: none;
-  transition: background var(--transition);
-  -webkit-mask-size: contain;
-  mask-size: contain;
-  -webkit-mask-repeat: no-repeat;
-  mask-repeat: no-repeat;
-  -webkit-mask-position: center;
-  mask-position: center;
-}
-
-.filter-select-genre::before {
-  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m20.59 13.41-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82Z'/%3E%3Ccircle cx='7' cy='7' r='1.4' fill='black' stroke='none'/%3E%3C/svg%3E");
-  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m20.59 13.41-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82Z'/%3E%3Ccircle cx='7' cy='7' r='1.4' fill='black' stroke='none'/%3E%3C/svg%3E");
-}
-
-.filter-select-artist::before {
-  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3Z'/%3E%3Cpath d='M19 10v2a7 7 0 0 1-14 0v-2M12 19v4M8 23h8'/%3E%3C/svg%3E");
-  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3Z'/%3E%3Cpath d='M19 10v2a7 7 0 0 1-14 0v-2M12 19v4M8 23h8'/%3E%3C/svg%3E");
-}
-
-.filter-select-album::before {
-  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='10'/%3E%3Ccircle cx='12' cy='12' r='3'/%3E%3C/svg%3E");
-  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='10'/%3E%3Ccircle cx='12' cy='12' r='3'/%3E%3C/svg%3E");
-}
-
-.filter-select-wrap:focus-within::before,
-.filter-select-wrap:has(.filter-select.active)::before {
-  background: var(--purple-soft);
-}
-
-.filter-select-wrap::after {
-  content: '';
-  position: absolute;
-  top: 50%;
-  right: 10px;
-  width: 8px;
-  height: 8px;
-  border-right: 1.6px solid var(--grey);
-  border-bottom: 1.6px solid var(--grey);
-  transform: translateY(-65%) rotate(45deg);
-  pointer-events: none;
-  transition: border-color var(--transition);
-}
-
-.filter-select-wrap:focus-within::after { border-color: var(--purple-soft); }
-
-.filter-select {
-  appearance: none;
-  -webkit-appearance: none;
-  width: 100%;
-  padding: 10px 26px 10px 32px;
+  justify-content: center;
+  padding: 10px 12px;
   border-radius: var(--radius-full);
   border: 1px solid var(--border);
   background: var(--surface2);
-  color: var(--white);
+  color: var(--grey-soft);
   font-size: 0.78rem;
   font-family: inherit;
-  transition: border-color var(--transition), box-shadow var(--transition), background var(--transition);
+  transition: border-color var(--transition), box-shadow var(--transition), background var(--transition), color var(--transition);
 }
 
-.filter-select:focus {
-  outline: none;
-  border-color: var(--purple);
-  box-shadow: 0 0 0 3px rgba(124,58,255,0.22);
+.filter-chip:active { transform: scale(0.97); }
+
+.filter-chip-icon { flex-shrink: 0; opacity: 0.85; }
+
+.filter-chip-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: left;
 }
 
-/* quando um filtro está ativo, o próprio campo brilha em neon */
-.filter-select.active {
+.filter-chip-caret { flex-shrink: 0; opacity: 0.6; transition: transform var(--transition); }
+
+/* quando um filtro está ativo, o chip inteiro vira uma "pill" neon cheia,
+   com um X pra limpar só aquele filtro em vez de precisar reabrir a lista */
+.filter-chip.active {
   border-color: var(--purple);
-  color: var(--purple-soft);
-  background: rgba(124,58,255,0.12);
+  color: var(--white);
+  background: rgba(124,58,255,0.22);
   box-shadow: 0 0 12px rgba(124,58,255,0.25);
 }
+.filter-chip.active .filter-chip-icon { opacity: 1; color: var(--purple-soft); }
+.filter-chip.active .filter-chip-caret { transform: rotate(180deg); opacity: 1; }
 
 .filter-clear {
   flex-shrink: 0;
@@ -1478,6 +1431,90 @@ img    { display: block; }
   font-size: 0.78rem;
   color: var(--grey);
   margin: 0 0 var(--sp-2);
+}
+
+/* ── MODAL: SELECIONAR FILTRO (lista + busca) ─── */
+.filter-picker-box {
+  text-align: left;
+  padding-top: var(--sp-5);
+}
+
+.filter-picker-box .modal-title { margin-bottom: var(--sp-3); }
+
+.filter-picker-search-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  margin-bottom: var(--sp-3);
+  color: var(--grey);
+}
+
+.filter-picker-search-wrap svg {
+  position: absolute;
+  left: 12px;
+  pointer-events: none;
+}
+
+.filter-picker-search {
+  width: 100%;
+  padding: 10px 12px 10px 34px;
+  border-radius: var(--radius-full);
+  border: 1px solid var(--border);
+  background: var(--surface2);
+  color: var(--white);
+  font-size: 0.85rem;
+  font-family: inherit;
+}
+.filter-picker-search:focus { outline: none; border-color: var(--purple); }
+
+.filter-picker-list {
+  max-height: 50vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0 calc(var(--sp-5) * -1) calc(var(--sp-5) * -1);
+  padding: 0 var(--sp-5) var(--sp-5);
+}
+
+.filter-picker-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  padding: 11px 10px;
+  border-radius: var(--radius-sm, 10px);
+  color: var(--grey-soft);
+  font-size: 0.88rem;
+  text-align: left;
+}
+
+.filter-picker-item span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.filter-picker-item:active { background: var(--surface2); }
+
+.filter-picker-item.active {
+  color: var(--white);
+  background: rgba(124,58,255,0.14);
+  font-weight: 600;
+}
+
+.filter-picker-item .picker-check {
+  flex-shrink: 0;
+  color: var(--purple-soft);
+  visibility: hidden;
+}
+.filter-picker-item.active .picker-check { visibility: visible; }
+
+.filter-picker-empty {
+  padding: var(--sp-4) 0;
+  text-align: center;
+  color: var(--grey-dark);
+  font-size: 0.85rem;
 }
 
 /* ═══════════════════════════════════════════════
