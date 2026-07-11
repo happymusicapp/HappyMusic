@@ -57,12 +57,31 @@ html {
 }
 
 body {
+  position: relative;
   font-family: var(--font-body);
   background: var(--bg);
   color: var(--white);
   min-height: 100dvh;
   overflow: hidden;
   user-select: none;
+}
+
+/* Mesmo fundo "aurora" roxa da tela de abertura (splash), só que fixo
+   atrás de tudo o tempo todo — não só nos 2 segundos da animação de
+   entrada. Fica sempre atrás das telas (.screen tem z-index 2 quando
+   ativa; o splash em si tem z-index 1000). */
+body::before {
+  content: '';
+  position: fixed;
+  inset: -20%;
+  z-index: 0;
+  background:
+    radial-gradient(circle at 25% 25%, rgba(124,58,255,0.45) 0%, transparent 38%),
+    radial-gradient(circle at 75% 30%, rgba(199,125,255,0.35) 0%, transparent 35%),
+    radial-gradient(circle at 50% 80%, rgba(91,31,214,0.4) 0%, transparent 40%);
+  filter: blur(50px);
+  animation: aurora-drift 9s ease-in-out infinite alternate;
+  pointer-events: none;
 }
 
 button { background: none; border: none; cursor: pointer; font-family: inherit; color: inherit; }
@@ -752,6 +771,8 @@ img    { display: block; }
 
 /* PROGRESS */
 .player-progress {
+  position: relative;
+  z-index: 3; /* fica acima do brilho/argolas do play, que vazam pra fora da caixinha dele */
   display: flex;
   align-items: center;
   gap: var(--sp-2);
@@ -1118,8 +1139,10 @@ img    { display: block; }
   50%      { box-shadow: 0 8px 34px rgba(124,58,255,0.55), 0 0 40px rgba(199,125,255,0.25); }
 }
 
-/* play button com pulso neon contínuo */
-.play-btn {
+/* play button com pulso neon — só enquanto está tocando de verdade
+   (a classe viz-active já é ligada/desligada pelo visualizer.js nos
+   eventos reais de play/pause do <audio>) */
+.play-btn-stage.viz-active .play-btn {
   animation: play-pulse 2.6s ease-in-out infinite;
 }
 
@@ -1478,18 +1501,85 @@ img    { display: block; }
 /* ═══════════════════════════════════════════════
    FILTROS (gênero / artista / álbum)
 ═══════════════════════════════════════════════ */
+/* Card que agrupa os 3 filtros — antes eram só 3 selects soltos na tela,
+   agora ficam visualmente separados da lista de músicas, com um rótulo
+   no topo e o botão de limpar junto dele (em vez de espremido na fileira
+   dos selects). */
+.filter-card {
+  padding: var(--sp-3) var(--sp-3) var(--sp-2);
+  margin-bottom: var(--sp-2);
+  border-radius: var(--radius-md, 16px);
+  background: var(--surface);
+  border: 1px solid var(--border);
+}
+
+.filter-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--sp-2);
+}
+
+.filter-card-title {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--grey);
+}
+
 .filter-bar {
   display: flex;
   align-items: center;
   gap: var(--sp-2);
   flex-wrap: wrap;
-  margin-bottom: var(--sp-2);
 }
 
 .filter-select-wrap {
   position: relative;
   flex: 1;
   min-width: 88px;
+}
+
+/* Ícone à esquerda de cada campo, pra identificar gênero/artista/álbum
+   de relance sem precisar ler o placeholder */
+.filter-select-wrap::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 11px;
+  width: 13px;
+  height: 13px;
+  transform: translateY(-50%);
+  background: var(--grey);
+  pointer-events: none;
+  transition: background var(--transition);
+  -webkit-mask-size: contain;
+  mask-size: contain;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  mask-position: center;
+}
+
+.filter-select-genre::before {
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m20.59 13.41-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82Z'/%3E%3Ccircle cx='7' cy='7' r='1.4' fill='black' stroke='none'/%3E%3C/svg%3E");
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m20.59 13.41-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82Z'/%3E%3Ccircle cx='7' cy='7' r='1.4' fill='black' stroke='none'/%3E%3C/svg%3E");
+}
+
+.filter-select-artist::before {
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3Z'/%3E%3Cpath d='M19 10v2a7 7 0 0 1-14 0v-2M12 19v4M8 23h8'/%3E%3C/svg%3E");
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3Z'/%3E%3Cpath d='M19 10v2a7 7 0 0 1-14 0v-2M12 19v4M8 23h8'/%3E%3C/svg%3E");
+}
+
+.filter-select-album::before {
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='10'/%3E%3Ccircle cx='12' cy='12' r='3'/%3E%3C/svg%3E");
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='10'/%3E%3Ccircle cx='12' cy='12' r='3'/%3E%3C/svg%3E");
+}
+
+.filter-select-wrap:focus-within::before,
+.filter-select-wrap:has(.filter-select.active)::before {
+  background: var(--purple-soft);
 }
 
 .filter-select-wrap::after {
@@ -1512,14 +1602,14 @@ img    { display: block; }
   appearance: none;
   -webkit-appearance: none;
   width: 100%;
-  padding: 9px 26px 9px 12px;
+  padding: 10px 26px 10px 32px;
   border-radius: var(--radius-full);
   border: 1px solid var(--border);
-  background: var(--surface);
+  background: var(--surface2);
   color: var(--white);
   font-size: 0.78rem;
   font-family: inherit;
-  transition: border-color var(--transition), box-shadow var(--transition);
+  transition: border-color var(--transition), box-shadow var(--transition), background var(--transition);
 }
 
 .filter-select:focus {
@@ -1532,14 +1622,25 @@ img    { display: block; }
 .filter-select.active {
   border-color: var(--purple);
   color: var(--purple-soft);
+  background: rgba(124,58,255,0.12);
   box-shadow: 0 0 12px rgba(124,58,255,0.25);
 }
 
 .filter-clear {
   flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 10px;
+  border-radius: var(--radius-full);
+  font-size: 0.72rem;
+  font-weight: 600;
   color: var(--purple-soft);
+  background: rgba(124,58,255,0.12);
+  border: 1px solid rgba(124,58,255,0.3);
+  transition: background var(--transition), color var(--transition);
 }
-.filter-clear:hover { color: var(--white); background: rgba(124,58,255,0.15); }
+.filter-clear:hover { color: var(--white); background: rgba(124,58,255,0.22); }
 
 .filter-summary {
   font-size: 0.78rem;
@@ -1806,8 +1907,8 @@ img    { display: block; }
   display: none;
   -webkit-appearance: none;
   appearance: none;
-  width: 20px;
-  height: 20px;
+  width: 22px;
+  height: 22px;
   flex-shrink: 0;
   margin-right: 2px;
   cursor: pointer;
@@ -1817,6 +1918,19 @@ img    { display: block; }
   background: var(--surface2);
   transition: background var(--transition), border-color var(--transition), box-shadow var(--transition);
 }
+
+/* Área de toque invisível maior que os 22px visuais — mais fácil de
+   acertar no celular sem mudar o tamanho visual do quadradinho. */
+.track-select-cb::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 40px;
+  height: 40px;
+  transform: translate(-50%, -50%);
+}
+
 .track-select-cb:checked {
   background: var(--purple);
   border-color: var(--purple);
@@ -1844,37 +1958,67 @@ img    { display: block; }
   box-shadow: inset 3px 0 0 var(--purple), 0 0 14px rgba(124,58,255,0.18);
 }
 
+/* Balão de seleção em lote — antes era uma fileira só, roxa, com scroll
+   horizontal escondido (fácil de não perceber que dava pra rolar). Agora
+   é um card com 2 linhas: "N selecionadas" + cancelar em cima, e os 3
+   botões de ação embaixo, em grade, sempre visíveis por inteiro. */
 .selection-bar {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-2);
-  padding: var(--sp-2) var(--sp-3);
+  padding: var(--sp-2) var(--sp-3) var(--sp-3);
   margin-bottom: var(--sp-2);
-  border-radius: var(--radius-full);
+  border-radius: var(--radius-md, 16px);
   background: var(--surface2);
   border: 1px solid rgba(124,58,255,0.35);
   box-shadow: 0 0 16px rgba(124,58,255,0.15);
-  font-size: 0.82rem;
   color: var(--white);
   animation: fade-in 0.2s var(--ease);
 }
 
-#selection-count { flex-shrink: 0; white-space: nowrap; }
-#btn-selection-cancel { flex-shrink: 0; }
-
 .selection-bar.hidden { display: none; }
 
-.selection-bar-actions {
+.selection-bar-top {
   display: flex;
-  gap: var(--sp-2);
   align-items: center;
-  flex: 1;
-  min-width: 0;
-  overflow-x: auto;
-  scrollbar-width: none;
+  justify-content: space-between;
+  margin-bottom: var(--sp-2);
 }
-.selection-bar-actions::-webkit-scrollbar { display: none; }
-.selection-bar-actions .btn-small { flex-shrink: 0; }
+
+#selection-count {
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.selection-bar-actions {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--sp-2);
+}
+
+.selection-action-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  padding: var(--sp-2) 4px;
+  border-radius: var(--radius-sm, 10px);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--grey-soft);
+  font-size: 0.7rem;
+  font-weight: 600;
+  transition: border-color var(--transition), color var(--transition), background var(--transition);
+}
+
+.selection-action-btn:not(:disabled):hover,
+.selection-action-btn:not(:disabled):active {
+  border-color: var(--purple);
+  color: var(--white);
+  background: rgba(124,58,255,0.15);
+}
+
+.selection-action-btn:disabled {
+  opacity: 0.4;
+  pointer-events: none;
+}
 
 .btn-icon-label {
   display: inline-flex;
