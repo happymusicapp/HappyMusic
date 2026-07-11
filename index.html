@@ -168,22 +168,22 @@
                 Limpar
               </button>
             </div>
-            <div id="filter-bar" class="filter-bar">
-              <div class="filter-select-wrap filter-select-genre">
-                <select id="filter-genre" class="filter-select">
-                  <option value="">Gênero</option>
-                </select>
-              </div>
-              <div class="filter-select-wrap filter-select-artist">
-                <select id="filter-artist" class="filter-select">
-                  <option value="">Artista</option>
-                </select>
-              </div>
-              <div class="filter-select-wrap filter-select-album">
-                <select id="filter-album" class="filter-select">
-                  <option value="">Álbum</option>
-                </select>
-              </div>
+            <div id="filter-bar" class="filter-chip-row">
+              <button type="button" id="filter-chip-genre" class="filter-chip" data-filter-type="genre">
+                <svg class="filter-chip-icon" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="m20.59 13.41-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82Z"/><circle cx="7" cy="7" r="1.4" fill="currentColor" stroke="none"/></svg>
+                <span class="filter-chip-label">Gênero</span>
+                <svg class="filter-chip-caret" width="9" height="9" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg>
+              </button>
+              <button type="button" id="filter-chip-artist" class="filter-chip" data-filter-type="artist">
+                <svg class="filter-chip-icon" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2M12 19v4M8 23h8"/></svg>
+                <span class="filter-chip-label">Artista</span>
+                <svg class="filter-chip-caret" width="9" height="9" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg>
+              </button>
+              <button type="button" id="filter-chip-album" class="filter-chip" data-filter-type="album">
+                <svg class="filter-chip-icon" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/></svg>
+                <span class="filter-chip-label">Álbum</span>
+                <svg class="filter-chip-caret" width="9" height="9" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg>
+              </button>
             </div>
           </div>
           <p id="filter-summary" class="filter-summary hidden"></p>
@@ -490,6 +490,19 @@
         <div class="dl-progress-bar"><div id="bulk-genre-progress-fill" class="dl-progress-fill" style="width:0%"></div></div>
       </div>
       <button id="btn-bulk-genre-save" class="btn-primary">Aplicar a todas</button>
+    </div>
+  </div>
+
+  <!-- MODAL: SELECIONAR FILTRO (gênero / artista / álbum) -->
+  <div id="modal-filter-picker" class="modal-overlay hidden">
+    <div class="modal-box modal-box-wide filter-picker-box">
+      <button id="btn-filter-picker-close" class="modal-close" aria-label="Fechar"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+      <h2 id="filter-picker-title" class="modal-title">Gênero</h2>
+      <div class="filter-picker-search-wrap">
+        <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+        <input type="text" id="filter-picker-search" class="filter-picker-search" placeholder="Buscar..." />
+      </div>
+      <div id="filter-picker-list" class="filter-picker-list"></div>
     </div>
   </div>
 
