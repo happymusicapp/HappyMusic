@@ -2123,3 +2123,41 @@ img    { display: block; }
   color: var(--white);
 }
 .movie-player-close:hover { background: var(--purple); }
+
+/* ── ÁREA DO VÍDEO (iframe do YouTube) ──────── */
+.movie-video-wrap {
+  position: relative;
+  width: 100%;
+  max-height: calc(100vh - 84px); /* deixa espaço pra barra de controles neon embaixo */
+  aspect-ratio: 16/9;
+  background: #000;
+}
+
+.movie-video-wrap iframe {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+}
+
+/* ── CONTROLES NEON DO PLAYER DE FILME ──────── */
+/* Reaproveita as mesmas classes do player de música (.seek-bar,
+   .play-btn etc.) — assim herda o visual neon automaticamente e sem
+   duplicar CSS. Só o layout do container é específico daqui. */
+.movie-player-controls {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  max-width: 480px;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-3) var(--sp-4);
+}
+
+.play-btn-sm {
+  width: 42px;
+  height: 42px;
+  flex-shrink: 0;
+}
