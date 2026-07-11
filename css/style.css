@@ -655,13 +655,29 @@ img    { display: block; }
    propriamente dito. Fica por cima do input (pointer-events:none pra
    não atrapalhar o arraste), sempre do mesmo tamanho, repetindo o
    percurso inteiro da barra continuamente. */
-.seek-bar-shimmer {
+/* faixa de luz que corre só sobre a parte já preenchida (roxa) da barra —
+   por isso fica dentro de um "clip" cuja largura o JS atualiza junto do
+   progresso (updateProgress, em ui.js). pointer-events:none em tudo pra
+   não atrapalhar o arraste do input por baixo. */
+.seek-bar-fill-clip {
   position: absolute;
   top: 50%;
   left: 0;
-  width: 30%;
+  width: 0%;
   height: 4px;
-  transform: translateY(-50%) translateX(-120%);
+  transform: translateY(-50%);
+  overflow: hidden;
+  border-radius: var(--radius-full);
+  pointer-events: none;
+}
+
+.seek-bar-shimmer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 40%;
+  height: 100%;
+  transform: translateX(-120%);
   background: linear-gradient(90deg,
     transparent,
     rgba(255,255,255,0.95),
@@ -669,7 +685,6 @@ img    { display: block; }
     transparent);
   border-radius: var(--radius-full);
   filter: blur(1.5px);
-  pointer-events: none;
   opacity: 0;
 }
 
@@ -679,8 +694,8 @@ img    { display: block; }
 }
 
 @keyframes seek-bar-shimmer-run {
-  0%   { transform: translateY(-50%) translateX(-120%); }
-  100% { transform: translateY(-50%) translateX(430%); }
+  0%   { transform: translateX(-120%); }
+  100% { transform: translateX(350%); }
 }
 
 .seek-bar::-webkit-slider-thumb {
