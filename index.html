@@ -137,46 +137,54 @@
 
           <!-- Barra de seleção em lote -->
           <div id="selection-bar" class="selection-bar hidden">
-            <span id="selection-count">0 selecionadas</span>
-            <div id="selection-bar-actions" class="selection-bar-actions">
-              <button id="btn-selection-favorite" class="btn-outline btn-small btn-icon-label" disabled>
-                <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
-                Favoritar
-              </button>
-              <button id="btn-selection-add-playlist" class="btn-outline btn-small btn-icon-label" disabled>
-                <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M3 6h13M3 12h9M3 18h9"/><path d="M18 14v6M15 17h6"/></svg>
-                Playlist
-              </button>
-              <button id="btn-selection-assign-genre" class="btn-outline btn-small btn-icon-label" disabled>
-                <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="m9 11 3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
-                Gênero
+            <div class="selection-bar-top">
+              <span id="selection-count">0 selecionadas</span>
+              <button id="btn-selection-cancel" class="icon-btn icon-btn-sm" aria-label="Cancelar seleção" title="Cancelar">
+                <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg>
               </button>
             </div>
-            <button id="btn-selection-cancel" class="icon-btn icon-btn-sm" aria-label="Cancelar seleção" title="Cancelar">
-              <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg>
-            </button>
+            <div id="selection-bar-actions" class="selection-bar-actions">
+              <button id="btn-selection-favorite" class="selection-action-btn" disabled>
+                <svg width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+                <span>Favoritar</span>
+              </button>
+              <button id="btn-selection-add-playlist" class="selection-action-btn" disabled>
+                <svg width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M3 6h13M3 12h9M3 18h9"/><path d="M18 14v6M15 17h6"/></svg>
+                <span>Playlist</span>
+              </button>
+              <button id="btn-selection-assign-genre" class="selection-action-btn" disabled>
+                <svg width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="m9 11 3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+                <span>Gênero</span>
+              </button>
+            </div>
           </div>
 
           <!-- Filtros -->
-          <div id="filter-bar" class="filter-bar">
-            <div class="filter-select-wrap">
-              <select id="filter-genre" class="filter-select">
-                <option value="">Gênero</option>
-              </select>
+          <div class="filter-card">
+            <div class="filter-card-header">
+              <span class="filter-card-title">Filtrar por</span>
+              <button id="btn-filter-clear" class="filter-clear hidden" aria-label="Limpar filtros" title="Limpar filtros">
+                <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg>
+                Limpar
+              </button>
             </div>
-            <div class="filter-select-wrap">
-              <select id="filter-artist" class="filter-select">
-                <option value="">Artista</option>
-              </select>
+            <div id="filter-bar" class="filter-bar">
+              <div class="filter-select-wrap filter-select-genre">
+                <select id="filter-genre" class="filter-select">
+                  <option value="">Gênero</option>
+                </select>
+              </div>
+              <div class="filter-select-wrap filter-select-artist">
+                <select id="filter-artist" class="filter-select">
+                  <option value="">Artista</option>
+                </select>
+              </div>
+              <div class="filter-select-wrap filter-select-album">
+                <select id="filter-album" class="filter-select">
+                  <option value="">Álbum</option>
+                </select>
+              </div>
             </div>
-            <div class="filter-select-wrap">
-              <select id="filter-album" class="filter-select">
-                <option value="">Álbum</option>
-              </select>
-            </div>
-            <button id="btn-filter-clear" class="icon-btn icon-btn-sm filter-clear hidden" aria-label="Limpar filtros" title="Limpar filtros">
-              <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg>
-            </button>
           </div>
           <p id="filter-summary" class="filter-summary hidden"></p>
 
