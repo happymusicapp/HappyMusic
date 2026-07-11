@@ -363,7 +363,10 @@
       <!-- Barra de progresso -->
       <div class="player-progress">
         <span id="time-current" class="time-label">0:00</span>
-        <input id="seek-bar" type="range" min="0" max="100" value="0" class="seek-bar" />
+        <div class="seek-bar-wrap" id="seek-bar-wrap">
+          <input id="seek-bar" type="range" min="0" max="100" value="0" class="seek-bar" />
+          <div class="seek-bar-shimmer" aria-hidden="true"></div>
+        </div>
         <span id="time-total" class="time-label">0:00</span>
       </div>
 
