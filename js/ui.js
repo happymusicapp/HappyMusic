@@ -1313,8 +1313,14 @@ const UI = (() => {
       if (container.classList.contains('select-mode')) {
         e.stopPropagation();
         const cb = item.querySelector('.track-select-cb');
-        if (cb) cb.checked = !cb.checked;
-        item.classList.toggle('selected', cb ? cb.checked : false);
+        if (cb) {
+          // Se o toque foi direto no quadradinho, o navegador já inverteu o
+          // estado dele sozinho (comportamento nativo do checkbox) — inverter
+          // de novo aqui cancelaria o toque. Só inverte manualmente quando o
+          // clique veio de outro lugar da linha (nome, foto, etc.).
+          if (e.target !== cb) cb.checked = !cb.checked;
+          item.classList.toggle('selected', cb.checked);
+        }
         document.dispatchEvent(new CustomEvent('hm-selection-change'));
         return;
       }
