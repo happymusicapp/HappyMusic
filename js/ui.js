@@ -91,11 +91,16 @@ const UI = (() => {
 
     // Filtros
     filterBar:      $('filter-bar'),
-    filterGenre:    $('filter-genre'),
-    filterArtist:   $('filter-artist'),
-    filterAlbum:    $('filter-album'),
+    filterChipGenre:  $('filter-chip-genre'),
+    filterChipArtist: $('filter-chip-artist'),
+    filterChipAlbum:  $('filter-chip-album'),
     btnFilterClear: $('btn-filter-clear'),
     filterSummary:  $('filter-summary'),
+    modalFilterPicker:   $('modal-filter-picker'),
+    btnFilterPickerClose: $('btn-filter-picker-close'),
+    filterPickerTitle:  $('filter-picker-title'),
+    filterPickerSearch: $('filter-picker-search'),
+    filterPickerList:   $('filter-picker-list'),
 
     // Seleção múltipla / atribuição de gênero em lote
     btnSelectMode:          $('btn-select-mode'),
@@ -757,6 +762,8 @@ const UI = (() => {
   }
 
   // ── BARRA DE FILTROS (gênero / artista / álbum) ────
+  // Ainda usado pelo filtro de gênero dos filmes (select nativo simples,
+  // só uma opção, sem necessidade do modal de busca das músicas).
   function _fillSelect(select, values, activeValue, placeholder) {
     const current = activeValue || '';
     select.innerHTML = `<option value="">${placeholder}</option>` +
@@ -764,14 +771,97 @@ const UI = (() => {
     select.classList.toggle('active', !!current);
   }
 
+  // Dados/estado do modal de seleção de filtro — populados por
+  // renderFilterOptions() e usados quando o usuário abre o seletor.
+  const _filterData = { genres: [], artists: [], albums: [] };
+  let _pickerOnSelect = null;
+  let _pickerAllOptions = [];
+
+  const FILTER_TITLES = { genre: 'Gênero', artist: 'Artista', album: 'Álbum' };
+
+  function _setChip(chip, label, activeValue, placeholder) {
+    chip.querySelector('.filter-chip-label').textContent = activeValue || placeholder;
+    chip.classList.toggle('active', !!activeValue);
+  }
+
   function renderFilterOptions({ genres, artists, albums }, active = {}) {
-    _fillSelect(el.filterGenre,  genres,  active.genre,  'Gênero');
-    _fillSelect(el.filterArtist, artists, active.artist, 'Artista');
-    _fillSelect(el.filterAlbum,  albums,  active.album,  'Álbum');
+    _filterData.genres  = genres;
+    _filterData.artists = artists;
+    _filterData.albums  = albums;
+
+    _setChip(el.filterChipGenre,  'Gênero',  active.genre,  'Gênero');
+    _setChip(el.filterChipArtist, 'Artista', active.artist, 'Artista');
+    _setChip(el.filterChipAlbum,  'Álbum',   active.album,  'Álbum');
 
     const hasFilter = !!(active.genre || active.artist || active.album);
     el.btnFilterClear.classList.toggle('hidden', !hasFilter);
   }
+
+  function _renderPickerList(options, activeValue, query) {
+    const q = (query || '').trim().toLowerCase();
+    const filtered = q ? options.filter(o => o.toLowerCase().includes(q)) : options;
+
+    if (!filtered.length) {
+      el.filterPickerList.innerHTML = `<p class="filter-picker-empty">Nada encontrado.</p>`;
+      return;
+    }
+
+    const allRow = !q ? `
+      <button type="button" class="filter-picker-item ${!activeValue ? 'active' : ''}" data-value="">
+        <span>Todos</span>
+        <svg class="picker-check" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg>
+      </button>` : '';
+
+    el.filterPickerList.innerHTML = allRow + filtered.map(value => `
+      <button type="button" class="filter-picker-item ${value === activeValue ? 'active' : ''}" data-value="${_escape(value)}">
+        <span>${_escape(value)}</span>
+        <svg class="picker-check" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg>
+      </button>`).join('');
+  }
+
+  // Abre o modal listando as opções de um filtro (gênero/artista/álbum),
+  // com busca. onSelect(value) é chamado com '' pra "Todos" ou o valor
+  // escolhido; quem chama (app.js) decide o que fazer com isso.
+  function showFilterPicker(type, activeValue, onSelect) {
+    const options = _filterData[type + 's'] || [];
+    _pickerAllOptions = options;
+    _pickerOnSelect = onSelect;
+
+    el.filterPickerTitle.textContent = FILTER_TITLES[type] || '';
+    el.filterPickerSearch.value = '';
+    _renderPickerList(options, activeValue, '');
+
+    el.modalFilterPicker.classList.remove('hidden');
+    el.modalFilterPicker.dataset.activeValue = activeValue || '';
+    // sem foco automático no campo de busca — evita abrir o teclado
+    // imediatamente numa lista que às vezes é curta o bastante pra não precisar
+  }
+
+  function hideFilterPicker() {
+    el.modalFilterPicker.classList.add('hidden');
+    _pickerOnSelect = null;
+  }
+
+  function _bindFilterPickerEvents() {
+    el.btnFilterPickerClose.addEventListener('click', hideFilterPicker);
+    el.modalFilterPicker.addEventListener('click', e => {
+      if (e.target === el.modalFilterPicker) hideFilterPicker();
+    });
+
+    el.filterPickerSearch.addEventListener('input', () => {
+      const active = el.modalFilterPicker.dataset.activeValue || '';
+      _renderPickerList(_pickerAllOptions, active, el.filterPickerSearch.value);
+    });
+
+    el.filterPickerList.addEventListener('click', e => {
+      const item = e.target.closest('.filter-picker-item');
+      if (!item) return;
+      const value = item.dataset.value || '';
+      hideFilterPicker();
+      _pickerOnSelect?.(value);
+    });
+  }
+  _bindFilterPickerEvents();
 
   function setFilterSummary(text) {
     if (!text) {
@@ -1419,6 +1509,8 @@ const UI = (() => {
 
     // Filtros
     renderFilterOptions,
+    showFilterPicker,
+    hideFilterPicker,
     setFilterSummary,
 
     // Menu da faixa

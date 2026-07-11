@@ -435,20 +435,26 @@ const App = (() => {
   }
 
   function _bindFilterEvents() {
-    UI.el.filterGenre.addEventListener('change', e => {
-      _filters.genre = e.target.value;
-      _refreshFilterBar();
-      _renderAllTracksList();
+    UI.el.filterChipGenre.addEventListener('click', () => {
+      UI.showFilterPicker('genre', _filters.genre, value => {
+        _filters.genre = value;
+        _refreshFilterBar();
+        _renderAllTracksList();
+      });
     });
-    UI.el.filterArtist.addEventListener('change', e => {
-      _filters.artist = e.target.value;
-      _refreshFilterBar();
-      _renderAllTracksList();
+    UI.el.filterChipArtist.addEventListener('click', () => {
+      UI.showFilterPicker('artist', _filters.artist, value => {
+        _filters.artist = value;
+        _refreshFilterBar();
+        _renderAllTracksList();
+      });
     });
-    UI.el.filterAlbum.addEventListener('change', e => {
-      _filters.album = e.target.value;
-      _refreshFilterBar();
-      _renderAllTracksList();
+    UI.el.filterChipAlbum.addEventListener('click', () => {
+      UI.showFilterPicker('album', _filters.album, value => {
+        _filters.album = value;
+        _refreshFilterBar();
+        _renderAllTracksList();
+      });
     });
     UI.el.btnFilterClear.addEventListener('click', () => {
       _filters = { genre: '', artist: '', album: '' };
