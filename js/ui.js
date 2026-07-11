@@ -670,6 +670,7 @@ const UI = (() => {
     el.iconPlay.classList.toggle('hidden', playing);
     el.iconPause.classList.toggle('hidden', !playing);
     el.btnPlayPause.classList.toggle('is-playing', playing);
+    el.seekBar.classList.toggle('is-playing', playing);
   }
 
   function updateProgress(current, duration) {
