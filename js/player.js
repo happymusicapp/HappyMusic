@@ -34,6 +34,7 @@ const Player = (() => {
     _queue         = _shuffle ? _shuffled(tracks, startIndex) : [...tracks];
     _index         = _shuffle ? 0 : startIndex;
     _preloadedTrackId = null;
+    _loadedTrackId = null;
     _play();
   }
 
@@ -46,6 +47,7 @@ const Player = (() => {
     _queue         = _shuffle ? _shuffled(tracks, startIndex) : [...tracks];
     _index         = _shuffle ? 0 : startIndex;
     _preloadedTrackId = null;
+    _loadedTrackId = null; // faixa ainda não carregada de fato — só apertar play que buscamos a URL
   }
 
   function getQueue()        { return _queue; }
@@ -112,6 +114,7 @@ const Player = (() => {
 
       audio.src = url;
       audio.load();
+      _loadedTrackId = track.id;
 
       await audio.play();
       _listeners.onPlay?.(track);
@@ -209,8 +212,28 @@ const Player = (() => {
   }
 
   let _userPaused = false; // distingue pause pedido pelo usuário de pause inesperado (ver listener 'pause' abaixo)
+  let _loadedTrackId = null; // id da faixa cujo áudio já foi buscado e setado em audio.src
 
-  function play()  { audio.play().then(() => _listeners.onPlay?.(getCurrentTrack())); }
+  // Retoma a faixa já carregada. Se a faixa atual (ex.: vinda de primeQueue,
+  // ao abrir o app com a última música tocada) ainda não teve o áudio
+  // buscado/carregado, cai no fluxo completo (_play), que busca a URL no
+  // Drive e só então toca — senão audio.play() não tem o que reproduzir.
+  function play() {
+    const track = getCurrentTrack();
+    if (!track) return;
+
+    if (_loadedTrackId !== track.id) {
+      _play();
+      return;
+    }
+
+    audio.play()
+      .then(() => _listeners.onPlay?.(track))
+      .catch(err => {
+        console.error('[Player] Erro ao retomar reprodução:', err);
+        _listeners.onError?.(err);
+      });
+  }
   function pause() {
     _userPaused = true;
     audio.pause();
