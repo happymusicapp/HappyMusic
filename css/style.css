@@ -630,6 +630,18 @@ img    { display: block; }
   outline: none;
   cursor: pointer;
   accent-color: var(--purple);
+  transition: box-shadow var(--transition);
+}
+
+/* brilho neon — mesmo "respiro" da linha que existia no topo do player,
+   só ligado enquanto a música está tocando de verdade */
+.seek-bar.is-playing {
+  animation: seek-bar-glow 3.5s ease-in-out infinite;
+}
+
+@keyframes seek-bar-glow {
+  0%, 100% { box-shadow: 0 0 8px rgba(124,58,255,0.45); }
+  50%      { box-shadow: 0 0 18px rgba(124,58,255,0.8), 0 0 28px rgba(199,125,255,0.4); }
 }
 
 .seek-bar::-webkit-slider-thumb {
