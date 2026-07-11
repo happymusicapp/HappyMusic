@@ -102,6 +102,14 @@ const App = (() => {
       UI.showOnboarding();
     }
 
+    // Mostra a última música tocada NA HORA, sem esperar a lista carregar
+    // do Drive (isso é uma chamada de rede — dependendo da conexão, o
+    // player só apareceria alguns segundos depois, parecendo que não
+    // tinha aparecido). Usa o que já está salvo localmente; quando
+    // _loadTracks() terminar, _primeLastPlayed() completa a fila de
+    // verdade (pra next/prev funcionarem).
+    _primeLastPlayedInstant();
+
     // Sincroniza com o que já está no cache de áudio do Service Worker
     // (fonte de verdade) e atualiza os indicadores visuais assim que
     // a resposta chegar — sem bloquear o carregamento das músicas.
@@ -158,6 +166,7 @@ const App = (() => {
       _renderRecent();
       _refreshFilterBar();
       _renderAllTracksList();
+      _primeLastPlayed();
 
     } catch (err) {
       console.error('[App] Erro ao carregar músicas:', err);
@@ -181,6 +190,48 @@ const App = (() => {
     // é mais exibido como lista aqui. Mantemos apenas a atualização das
     // "Coleções recentes".
     _renderRecentCollections();
+  }
+
+  // Mostra a última música tocada assim que o app abre, usando só o que
+  // já está salvo localmente (Player.getRecent()) — sem esperar a lista
+  // de músicas carregar do Drive. É só uma pré-visualização; a fila de
+  // verdade é montada depois por _primeLastPlayed(), quando _tracks
+  // estiver disponível.
+  function _primeLastPlayedInstant() {
+    try {
+      if (Player.getCurrentTrack()) return;
+      const recent = Player.getRecent();
+      if (!recent.length) return;
+      UI.updatePlayerTrack(recent[0]);
+      UI.setPlayState(false);
+    } catch (err) {
+      console.error('[App] Erro ao pré-carregar a última música (instantâneo):', err);
+    }
+  }
+
+  // Deixa o player pronto com a última música tocada, com a fila
+  // completa montada (pra next/prev funcionarem) — só falta apertar
+  // play, igual ao Spotify. Não toca sozinho (autoplay sem gesto do
+  // usuário é bloqueado pelo navegador mesmo).
+  function _primeLastPlayed() {
+    try {
+      const recent = Player.getRecent();
+      if (!recent.length) return;
+
+      const track = _tracks.find(t => t.id === recent[0].id);
+      if (!track) return; // pode ter sido apagada/movida no Drive
+
+      // Se a versão instantânea já não deixou nada tocando, isso só
+      // troca a fila internamente (sem UI piscar) — se por acaso já
+      // estiver tocando algo (usuário foi rápido), não mexe em nada.
+      if (Player.getCurrentTrack() && Player.isPlaying()) return;
+
+      Player.primeQueue(_tracks, _tracks.indexOf(track));
+      UI.updatePlayerTrack(track);
+      UI.setPlayState(false);
+    } catch (err) {
+      console.error('[App] Erro ao pré-carregar a última música:', err);
+    }
   }
 
   function _currentId() {
