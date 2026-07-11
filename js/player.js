@@ -37,6 +37,17 @@ const Player = (() => {
     _play();
   }
 
+  // Prepara a fila e a faixa atual SEM iniciar a reprodução — usado só
+  // pra deixar o player pronto com a última música tocada assim que o
+  // app abre (o usuário só aperta play), sem tentar tocar áudio sozinho
+  // (o navegador bloquearia mesmo, autoplay sem gesto do usuário).
+  function primeQueue(tracks, startIndex = 0) {
+    _originalQueue = [...tracks];
+    _queue         = _shuffle ? _shuffled(tracks, startIndex) : [...tracks];
+    _index         = _shuffle ? 0 : startIndex;
+    _preloadedTrackId = null;
+  }
+
   function getQueue()        { return _queue; }
   function getCurrentTrack() { return _queue[_index] || null; }
   function getCurrentIndex() { return _index; }
@@ -415,6 +426,7 @@ const Player = (() => {
   return {
     // Fila
     loadQueue,
+    primeQueue,
     getQueue,
     getCurrentTrack,
     getCurrentIndex,
