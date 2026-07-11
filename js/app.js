@@ -176,10 +176,10 @@ const App = (() => {
   }
 
   function _renderRecent() {
-    // A prateleira "Tocadas recentemente" foi substituída pelo
-    // visualizador (js/visualizer.js). O histórico em si (Player.getRecent)
-    // continua sendo gravado — só não é mais exibido como lista aqui.
-    // Mantemos apenas a atualização das "Coleções recentes".
+    // A prateleira "Tocadas recentemente" foi removida da Home. O
+    // histórico em si (Player.getRecent) continua sendo gravado — só não
+    // é mais exibido como lista aqui. Mantemos apenas a atualização das
+    // "Coleções recentes".
     _renderRecentCollections();
   }
 

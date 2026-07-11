@@ -80,7 +80,7 @@ const Player = (() => {
 
   function getRepeat() { return _repeat; }
 
-  // ── ELEMENTO DE ÁUDIO (usado pelo visualizer.js) ──
+  // ── ELEMENTO DE ÁUDIO (acesso bruto ao <audio>, se precisar) ──
   function getAudioElement() { return audio; }
 
   // ── PLAY / PAUSE ──────────────────────────────
@@ -454,7 +454,7 @@ const Player = (() => {
     // Histórico
     getRecent,
 
-    // Elemento de áudio bruto (visualizer)
+    // Elemento de áudio bruto
     getAudioElement,
 
     // Callbacks
