@@ -3,8 +3,8 @@
    Service Worker: cache offline + estratégia de rede
 ═══════════════════════════════════════════════ */
 
-const CACHE_NAME    = 'happymusic-v30';
-const CACHE_STATIC  = 'happymusic-static-v30';
+const CACHE_NAME    = 'happymusic-v31';
+const CACHE_STATIC  = 'happymusic-static-v31';
 const CACHE_AUDIO   = 'happymusic-audio-v2';
 
 // Arquivos do app shell — cacheados no install
@@ -16,7 +16,6 @@ const STATIC_ASSETS = [
   '/js/drive.js',
   '/js/downloads.js',
   '/js/player.js',
-  '/js/visualizer.js',
   '/js/ui.js',
   '/js/app.js',
   '/assets/icons/icon-192.png',
