@@ -42,6 +42,7 @@ const UI = (() => {
     btnDownloadCurrent: $('btn-download-current'),
     seekBar:        $('seek-bar'),
     seekBarWrap:    $('seek-bar-wrap'),
+    seekBarFillClip: $('seek-bar-fill-clip'),
     timeCurrent:    $('time-current'),
     timeTotal:      $('time-total'),
     btnPlayPause:   $('btn-play-pause'),
@@ -684,6 +685,9 @@ const UI = (() => {
     // Gradiente da barra de progresso
     el.seekBar.style.background =
       `linear-gradient(to right, var(--purple) ${pct}%, var(--border) ${pct}%)`;
+
+    // O brilho corredor só pode aparecer dentro da parte já preenchida
+    el.seekBarFillClip.style.width = `${pct}%`;
   }
 
   function setShuffleState(active) {
