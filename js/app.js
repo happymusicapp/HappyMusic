@@ -1251,6 +1251,7 @@ const App = (() => {
 
     YTPlayer.on('onStateChange', playing => UI.setMoviePlayState(playing));
     YTPlayer.on('onProgress', (current, duration) => UI.updateMovieProgress(current, duration));
+    YTPlayer.on('onEnded', () => _playNextMovie());
 
     UI.el.btnMoviePlayPause.addEventListener('click', () => YTPlayer.togglePlay());
     UI.el.movieSeekBar.addEventListener('input', () => {
@@ -1258,16 +1259,37 @@ const App = (() => {
     });
   }
 
+  let _currentMovieId = null;
+
   async function _openMoviePlayerFor(video) {
+    _currentMovieId = video.id;
+    UI.openMoviePlayer(video.title);
+    _bindMovieCustomControls();
+
+    // Só o carregamento em si conta como falha de verdade — passos
+    // depois disso (Media Session) são cosméticos e não devem acionar
+    // essa mensagem mesmo se falharem (é isso que causava o aviso de
+    // erro aparecer com o vídeo já tocando normalmente).
     try {
-      UI.openMoviePlayer(video.title);
-      _bindMovieCustomControls();
       await YTPlayer.load(video.id, 'movie-video-target');
-      YTPlayer.setMediaSessionMetadata(video);
     } catch (err) {
       console.error('[App] Erro ao abrir vídeo:', err);
       UI.showToast('Não foi possível abrir o vídeo. Tente novamente.');
+      return;
     }
+
+    YTPlayer.setMediaSessionMetadata(video);
+  }
+
+  // Ao terminar um vídeo, toca o próximo da lista visível (respeitando
+  // o filtro de gênero ativo) e, ao chegar no último, volta pro
+  // primeiro — a lista de vídeos nunca para sozinha.
+  function _playNextMovie() {
+    const list = _visibleMovies();
+    if (!list.length) return;
+    const idx = list.findIndex(v => v.id === _currentMovieId);
+    const next = list[(idx + 1) % list.length];
+    if (next) _openMoviePlayerFor(next);
   }
 
   function _closeMoviePlayer() {
