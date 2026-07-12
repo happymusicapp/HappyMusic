@@ -3,8 +3,8 @@
    Service Worker: cache offline + estratégia de rede
 ═══════════════════════════════════════════════ */
 
-const CACHE_NAME    = 'happymusic-v40';
-const CACHE_STATIC  = 'happymusic-static-v40';
+const CACHE_NAME    = 'happymusic-v41';
+const CACHE_STATIC  = 'happymusic-static-v41';
 const CACHE_AUDIO   = 'happymusic-audio-v2';
 
 // Arquivos do app shell — cacheados no install
@@ -66,6 +66,18 @@ self.addEventListener('fetch', event => {
   // Ignora requisições não-GET e extensões de browser
   if (request.method !== 'GET') return;
   if (url.protocol === 'chrome-extension:') return;
+
+  // ── 0. Rotas da nossa própria API (Cloudflare Functions) → Network Only
+  //       Nunca cacheia e NUNCA cai no fallback de index.html do
+  //       _cacheFirst — sem essa regra, um erro de rede ou um 404 na
+  //       function vira silenciosamente uma resposta 200 com o HTML do
+  //       app, e o código que espera JSON quebra com "Unexpected token
+  //       '<'". Rotas de API sempre precisam da resposta real (ou o
+  //       erro real), nunca de um substituto do cache.
+  if (url.origin === self.location.origin && url.pathname.startsWith('/api/')) {
+    event.respondWith(fetch(request));
+    return;
+  }
 
   // ── 1. Áudio do Google Drive → Cache then Network
   //       Salva localmente para ouvir offline
