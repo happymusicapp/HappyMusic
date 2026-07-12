@@ -1498,6 +1498,10 @@ const App = (() => {
   }
 
   async function _openMoviePlayerFor(video, { rebuildQueue = true } = {}) {
+    // Pausa o player de música antes de abrir o vídeo — sem isso, o áudio
+    // da música e o áudio do vídeo do YouTube tocam ao mesmo tempo.
+    Player.pause();
+
     if (rebuildQueue) _buildMovieQueue(video);
     _currentMovieId = video.id;
 
