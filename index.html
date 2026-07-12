@@ -290,22 +290,49 @@
 
         <!-- Controles neon próprios — os nativos do YouTube ficam escondidos -->
         <div class="movie-player-controls">
-          <span id="movie-time-current" class="time-label">0:00</span>
-          <div class="seek-bar-wrap" id="movie-seek-bar-wrap">
-            <input id="movie-seek-bar" type="range" min="0" max="100" value="0" class="seek-bar" />
-            <div class="seek-bar-fill-clip" id="movie-seek-bar-fill-clip">
-              <div class="seek-bar-shimmer" aria-hidden="true"></div>
+          <div class="player-progress">
+            <span id="movie-time-current" class="time-label">0:00</span>
+            <div class="seek-bar-wrap" id="movie-seek-bar-wrap">
+              <input id="movie-seek-bar" type="range" min="0" max="100" value="0" class="seek-bar" />
+              <div class="seek-bar-fill-clip" id="movie-seek-bar-fill-clip">
+                <div class="seek-bar-shimmer" aria-hidden="true"></div>
+              </div>
             </div>
+            <span id="movie-time-total" class="time-label">0:00</span>
           </div>
-          <span id="movie-time-total" class="time-label">0:00</span>
-          <button id="btn-movie-play-pause" class="play-btn play-btn-sm" aria-label="Play/Pause">
-            <svg id="movie-icon-play" width="20" height="20" fill="currentColor" viewBox="0 0 24 24">
-              <polygon points="5 3 19 12 5 21 5 3"/>
-            </svg>
-            <svg id="movie-icon-pause" width="20" height="20" fill="currentColor" viewBox="0 0 24 24" class="hidden">
-              <rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/>
-            </svg>
-          </button>
+
+          <div class="player-controls">
+            <button id="btn-movie-shuffle" class="icon-btn ctrl-btn" aria-label="Aleatório">
+              <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <polyline points="16 3 21 3 21 8"/><line x1="4" y1="20" x2="21" y2="3"/>
+                <polyline points="21 16 21 21 16 21"/><line x1="15" y1="15" x2="21" y2="21"/>
+              </svg>
+            </button>
+            <button id="btn-movie-prev" class="icon-btn ctrl-btn" aria-label="Anterior">
+              <svg width="22" height="22" fill="currentColor" viewBox="0 0 24 24">
+                <polygon points="19 20 9 12 19 4 19 20"/><line x1="5" y1="19" x2="5" y2="5" stroke="currentColor" stroke-width="2"/>
+              </svg>
+            </button>
+            <button id="btn-movie-play-pause" class="play-btn play-btn-sm" aria-label="Play/Pause">
+              <svg id="movie-icon-play" width="20" height="20" fill="currentColor" viewBox="0 0 24 24">
+                <polygon points="5 3 19 12 5 21 5 3"/>
+              </svg>
+              <svg id="movie-icon-pause" width="20" height="20" fill="currentColor" viewBox="0 0 24 24" class="hidden">
+                <rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/>
+              </svg>
+            </button>
+            <button id="btn-movie-next" class="icon-btn ctrl-btn" aria-label="Próximo">
+              <svg width="22" height="22" fill="currentColor" viewBox="0 0 24 24">
+                <polygon points="5 4 15 12 5 20 5 4"/><line x1="19" y1="5" x2="19" y2="19" stroke="currentColor" stroke-width="2"/>
+              </svg>
+            </button>
+            <button id="btn-movie-repeat" class="icon-btn ctrl-btn" aria-label="Repetir">
+              <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/>
+                <polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/>
+              </svg>
+            </button>
+          </div>
         </div>
       </div>
 
