@@ -382,6 +382,9 @@ const Player = (() => {
   audio.addEventListener('play', () => {
     const track = getCurrentTrack();
     if (track) _addToRecent(track);
+    // Voltou a tocar de verdade — zera o contador de tentativas de
+    // retomada automática (ver listener 'pause' abaixo).
+    _autoResumeAttempts = 0;
   });
 
   audio.addEventListener('error', (e) => {
@@ -396,18 +399,50 @@ const Player = (() => {
   // (uma notificação, o GPS falando) e devolve em seguida, mas o Chrome
   // deixa o <audio> pausado em vez de retomar sozinho. Sem isso, a
   // música "para" e só volta se o usuário abrir o app e apertar play.
+  // Limita a "briga" com o foco de áudio do sistema: retomar na mesma
+  // hora, sem parar, é o que pode deixar o Bluetooth do carro instável
+  // (algumas centrais multimídia derrubam a conexão quando o áudio
+  // oscila play/pause rápido demais). Por isso: espera um pouco antes
+  // de retomar (dá tempo do próprio SO terminar a transferência de
+  // foco) e desiste depois de algumas tentativas seguidas.
+  let _autoResumeAttempts    = 0;
+  let _autoResumeWindowStart = 0;
+  let _lastAutoResumeAt      = 0;
+  const AUTO_RESUME_MAX_ATTEMPTS = 3;
+  const AUTO_RESUME_WINDOW_MS    = 8000; // janela em que as tentativas contam
+  const AUTO_RESUME_MIN_GAP_MS   = 1200; // intervalo mínimo entre tentativas
+  const AUTO_RESUME_DELAY_MS     = 400;  // espera antes de cada tentativa
+
   audio.addEventListener('pause', () => {
     if (_userPaused) { _userPaused = false; return; }
     if (!getCurrentTrack()) return;
     // Áudio terminou naturalmente (ended cuida disso) ou já está no fim
     if (audio.ended || (audio.duration && audio.currentTime >= audio.duration - 0.5)) return;
 
-    // Pausa inesperada: tenta retomar. Se o navegador recusar (ex.: ainda
-    // sem permissão de autoplay depois de perder o foco de vez), não fica
-    // insistindo — só loga.
-    audio.play().catch(err => {
-      console.warn('[Player] Pausa inesperada, não foi possível retomar sozinho:', err);
-    });
+    const now = Date.now();
+    if (now - _autoResumeWindowStart > AUTO_RESUME_WINDOW_MS) {
+      _autoResumeWindowStart = now;
+      _autoResumeAttempts = 0;
+    }
+    if (_autoResumeAttempts >= AUTO_RESUME_MAX_ATTEMPTS) {
+      console.warn('[Player] Pausa inesperada repetida — desistindo de retomar sozinho pra não instabilizar o Bluetooth/áudio do carro.');
+      return;
+    }
+    if (now - _lastAutoResumeAt < AUTO_RESUME_MIN_GAP_MS) return;
+
+    _lastAutoResumeAt = now;
+    _autoResumeAttempts++;
+
+    // Pausa inesperada: tenta retomar depois de um pequeno atraso, pra
+    // não colidir com o próprio processo de transferência de foco do
+    // sistema. Se o navegador recusar (ex.: ainda sem permissão de
+    // autoplay depois de perder o foco de vez), não fica insistindo.
+    setTimeout(() => {
+      if (!audio.paused || _userPaused) return; // já retomou sozinho, ou o usuário pausou nesse meio tempo
+      audio.play().catch(err => {
+        console.warn('[Player] Pausa inesperada, não foi possível retomar sozinho:', err);
+      });
+    }, AUTO_RESUME_DELAY_MS);
   });
 
   // Media Session API (controles na tela de bloqueio / Bluetooth)
