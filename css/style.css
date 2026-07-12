@@ -2112,7 +2112,7 @@ img    { display: block; }
 .movie-player-title {
   position: absolute;
   top: 16px;
-  left: 16px;
+  left: 60px;
   right: 60px;
   color: var(--white);
   font-size: 0.9rem;
@@ -2133,6 +2133,19 @@ img    { display: block; }
   color: var(--white);
 }
 .movie-player-close:hover { background: var(--purple); }
+
+/* Favoritar, no canto oposto ao fechar — mesmo tratamento visual */
+.movie-player-favorite {
+  position: fixed;
+  top: 14px;
+  left: 14px;
+  z-index: 2;
+  background: rgba(0,0,0,0.5);
+  color: var(--white);
+}
+.movie-player-favorite:hover { background: var(--purple); }
+.movie-player-favorite.active { color: var(--purple-soft); }
+.movie-player-favorite.active svg { fill: var(--purple-soft); stroke: var(--purple-soft); }
 
 /* ── ÁREA DO VÍDEO (iframe do YouTube) ──────── */
 .movie-video-wrap {
