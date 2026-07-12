@@ -260,6 +260,25 @@
           </div>
         </div>
 
+        <!-- Coleções de vídeo: todos / favoritos / playlists -->
+        <div id="movie-collections-bar" class="filter-bar">
+          <div class="filter-select-wrap">
+            <select id="movie-collection-filter" class="filter-select">
+              <option value="__all__">Todos os vídeos</option>
+              <option value="__movie_favorites__">❤ Favoritos (0)</option>
+            </select>
+          </div>
+          <button id="btn-movie-new-playlist" class="icon-btn icon-btn-sm icon-btn-accent" aria-label="Nova playlist de vídeo" title="Nova playlist de vídeo">
+            <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+          </button>
+          <button id="btn-movie-collection-delete" class="icon-btn icon-btn-sm filter-clear hidden" aria-label="Excluir playlist" title="Excluir playlist">
+            <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
+              <path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+              <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+            </svg>
+          </button>
+        </div>
+
         <!-- Filtro por gênero -->
         <div id="movie-filter-bar" class="filter-bar">
           <div class="filter-select-wrap">
@@ -281,6 +300,11 @@
       <div id="movie-player-overlay" class="movie-player-overlay hidden">
         <button id="btn-movie-close" class="modal-close movie-player-close" aria-label="Fechar">
           <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg>
+        </button>
+        <button id="btn-movie-favorite" class="icon-btn fav-btn movie-player-favorite" aria-label="Favoritar">
+          <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
+          </svg>
         </button>
         <p id="movie-player-title" class="movie-player-title"></p>
 
@@ -716,6 +740,36 @@
       </div>
       <button id="btn-movie-edit-save" class="btn-primary">Salvar</button>
       <button id="btn-movie-edit-delete" class="text-btn upload-item-remove" style="margin-top:10px;width:100%;text-align:center;">Remover dos vídeos</button>
+    </div>
+  </div>
+
+  <!-- MODAL: NOVA PLAYLIST DE VÍDEO -->
+  <div id="modal-new-movie-playlist" class="modal-overlay hidden">
+    <div class="modal-box">
+      <button id="btn-new-movie-playlist-cancel" class="modal-close" aria-label="Cancelar"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+      <h2 class="modal-title">Nova playlist de vídeo</h2>
+      <div class="upload-field">
+        <label>Nome</label>
+        <input id="new-movie-playlist-name" type="text" class="text-input" placeholder="Ex: Filmes do fim de semana" />
+      </div>
+      <button id="btn-new-movie-playlist-create" class="btn-primary">Criar playlist</button>
+    </div>
+  </div>
+
+  <!-- MODAL: ADICIONAR VÍDEO À PLAYLIST -->
+  <div id="modal-add-video-to-playlist" class="modal-overlay hidden">
+    <div class="modal-box">
+      <button id="btn-add-video-to-playlist-close" class="modal-close" aria-label="Fechar"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+      <h2 class="modal-title">Adicionar à playlist</h2>
+      <p id="add-video-to-playlist-subtitle" class="profile-section-hint hidden" style="margin:0 0 var(--sp-2);"></p>
+      <div id="add-video-to-playlist-list" class="folder-list"></div>
+      <div class="upload-field" style="margin-top:var(--sp-3);">
+        <label>Ou crie uma nova</label>
+        <div style="display:flex; gap:8px;">
+          <input id="add-video-to-playlist-new-name" type="text" class="text-input" placeholder="Nome da playlist" />
+          <button id="btn-add-video-to-playlist-create" class="btn-outline btn-small">Criar</button>
+        </div>
+      </div>
     </div>
   </div>
 
