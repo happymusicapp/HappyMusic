@@ -16,7 +16,6 @@ const STATIC_ASSETS = [
   '/js/drive.js',
   '/js/downloads.js',
   '/js/player.js',
-  '/js/ytplayer.js',
   '/js/ui.js',
   '/js/app.js',
   '/assets/icons/icon-192.png',
