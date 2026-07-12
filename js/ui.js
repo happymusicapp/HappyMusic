@@ -210,7 +210,11 @@ const UI = (() => {
     movieVideoTarget:    $('movie-video-target'),
     moviePlayerTitle:    $('movie-player-title'),
     btnMovieClose:       $('btn-movie-close'),
+    btnMovieShuffle:     $('btn-movie-shuffle'),
+    btnMoviePrev:        $('btn-movie-prev'),
     btnMoviePlayPause:   $('btn-movie-play-pause'),
+    btnMovieNext:        $('btn-movie-next'),
+    btnMovieRepeat:      $('btn-movie-repeat'),
     movieIconPlay:       $('movie-icon-play'),
     movieIconPause:      $('movie-icon-pause'),
     movieSeekBar:        $('movie-seek-bar'),
@@ -1321,6 +1325,35 @@ const UI = (() => {
     el.movieSeekBarFillClip.style.width = `${pct}%`;
   }
 
+  function setMovieShuffleState(active) {
+    el.btnMovieShuffle.classList.toggle('active', active);
+    el.btnMovieShuffle.title = active ? 'Aleatório ativado' : 'Aleatório';
+  }
+
+  function setMovieRepeatState(mode) {
+    el.btnMovieRepeat.classList.toggle('active', mode !== 'none');
+    el.btnMovieRepeat.title = { none: 'Repetir', all: 'Repetir tudo', one: 'Repetir um' }[mode];
+
+    if (mode === 'one') {
+      el.btnMovieRepeat.innerHTML = `
+        <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <polyline points="17 1 21 5 17 9"/>
+          <path d="M3 11V9a4 4 0 0 1 4-4h14"/>
+          <polyline points="7 23 3 19 7 15"/>
+          <path d="M21 13v2a4 4 0 0 1-4 4H3"/>
+          <text x="10" y="14" font-size="7" fill="currentColor" stroke="none" font-weight="bold">1</text>
+        </svg>`;
+    } else {
+      el.btnMovieRepeat.innerHTML = `
+        <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <polyline points="17 1 21 5 17 9"/>
+          <path d="M3 11V9a4 4 0 0 1 4-4h14"/>
+          <polyline points="7 23 3 19 7 15"/>
+          <path d="M21 13v2a4 4 0 0 1-4 4H3"/>
+        </svg>`;
+    }
+  }
+
   // ── SELEÇÃO MÚLTIPLA (atribuir gênero em lote) ─
   function isSelectMode(container) {
     return container.classList.contains('select-mode');
@@ -1701,6 +1734,8 @@ const UI = (() => {
     closeMoviePlayer,
     setMoviePlayState,
     updateMovieProgress,
+    setMovieShuffleState,
+    setMovieRepeatState,
   };
 
 })();

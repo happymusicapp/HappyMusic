@@ -1244,6 +1244,11 @@ const App = (() => {
   // O vídeo em si é tocado pelo player embutido do YouTube (YTPlayer) —
   // sem token de acesso pra renovar, sem stream próprio pra manter vivo.
   let _moviePlayerBound = false;
+  let _currentMovieId   = null;
+  let _movieQueue       = [];    // ordem de reprodução atual (com ou sem shuffle)
+  let _movieQueueIndex  = -1;
+  let _movieShuffle     = false;
+  let _movieRepeat      = 'none'; // 'none' | 'all' | 'one' — mesmo ciclo do player de música
 
   function _bindMovieCustomControls() {
     if (_moviePlayerBound) return;
@@ -1251,17 +1256,82 @@ const App = (() => {
 
     YTPlayer.on('onStateChange', playing => UI.setMoviePlayState(playing));
     YTPlayer.on('onProgress', (current, duration) => UI.updateMovieProgress(current, duration));
-    YTPlayer.on('onEnded', () => _playNextMovie());
+    YTPlayer.on('onEnded', () => _movieNext());
 
     UI.el.btnMoviePlayPause.addEventListener('click', () => YTPlayer.togglePlay());
     UI.el.movieSeekBar.addEventListener('input', () => {
       YTPlayer.seekPercent(parseFloat(UI.el.movieSeekBar.value));
     });
+
+    UI.el.btnMovieNext.addEventListener('click', () => _movieNext());
+    UI.el.btnMoviePrev.addEventListener('click', () => _moviePrev());
+
+    UI.el.btnMovieShuffle.addEventListener('click', () => {
+      const active = _toggleMovieShuffle();
+      UI.setMovieShuffleState(active);
+      UI.showToast(active ? 'Aleatório ativado' : 'Aleatório desativado');
+    });
+
+    UI.el.btnMovieRepeat.addEventListener('click', () => {
+      const mode = _cycleMovieRepeat();
+      UI.setMovieRepeatState(mode);
+      const labels = { none: 'Repetir desativado', all: 'Repetir tudo', one: 'Repetir um vídeo' };
+      UI.showToast(labels[mode]);
+    });
   }
 
-  let _currentMovieId = null;
+  // Fisher-Yates, igual ao usado no player de música — fixa o vídeo de
+  // início na 1ª posição e embaralha o resto.
+  function _shuffledMovies(list, pinIndex) {
+    const pin  = list[pinIndex];
+    const rest = list.filter((_, i) => i !== pinIndex);
+    for (let i = rest.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [rest[i], rest[j]] = [rest[j], rest[i]];
+    }
+    return pin ? [pin, ...rest] : rest;
+  }
 
-  async function _openMoviePlayerFor(video) {
+  // Monta a fila de reprodução a partir da lista visível (respeitando
+  // o filtro de gênero ativo), começando pelo vídeo escolhido.
+  function _buildMovieQueue(startVideo) {
+    const base = _visibleMovies();
+    if (_movieShuffle) {
+      const pinIdx = base.findIndex(v => v.id === startVideo.id);
+      _movieQueue = _shuffledMovies(base, pinIdx === -1 ? 0 : pinIdx);
+      _movieQueueIndex = 0;
+    } else {
+      _movieQueue = [...base];
+      _movieQueueIndex = _movieQueue.findIndex(v => v.id === startVideo.id);
+      if (_movieQueueIndex === -1) _movieQueueIndex = 0;
+    }
+  }
+
+  function _toggleMovieShuffle() {
+    _movieShuffle = !_movieShuffle;
+    const current = _movieQueue[_movieQueueIndex];
+
+    if (_movieShuffle) {
+      const base = _visibleMovies();
+      const pinIdx = current ? base.findIndex(v => v.id === current.id) : 0;
+      _movieQueue = _shuffledMovies(base, pinIdx === -1 ? 0 : pinIdx);
+      _movieQueueIndex = 0;
+    } else {
+      _movieQueue = _visibleMovies();
+      _movieQueueIndex = current ? _movieQueue.findIndex(v => v.id === current.id) : 0;
+      if (_movieQueueIndex === -1) _movieQueueIndex = 0;
+    }
+    return _movieShuffle;
+  }
+
+  function _cycleMovieRepeat() {
+    const cycle = { none: 'all', all: 'one', one: 'none' };
+    _movieRepeat = cycle[_movieRepeat];
+    return _movieRepeat;
+  }
+
+  async function _openMoviePlayerFor(video, { rebuildQueue = true } = {}) {
+    if (rebuildQueue) _buildMovieQueue(video);
     _currentMovieId = video.id;
     UI.openMoviePlayer(video.title);
     _bindMovieCustomControls();
@@ -1281,15 +1351,36 @@ const App = (() => {
     YTPlayer.setMediaSessionMetadata(video);
   }
 
-  // Ao terminar um vídeo, toca o próximo da lista visível (respeitando
-  // o filtro de gênero ativo) e, ao chegar no último, volta pro
-  // primeiro — a lista de vídeos nunca para sozinha.
-  function _playNextMovie() {
-    const list = _visibleMovies();
-    if (!list.length) return;
-    const idx = list.findIndex(v => v.id === _currentMovieId);
-    const next = list[(idx + 1) % list.length];
-    if (next) _openMoviePlayerFor(next);
+  function _playCurrentQueueMovie() {
+    const video = _movieQueue[_movieQueueIndex];
+    if (video) _openMoviePlayerFor(video, { rebuildQueue: false });
+  }
+
+  // A fila de vídeos nunca "acaba" de verdade — mesmo com repetir
+  // desligado, ao chegar no fim ela volta pro começo. "Repetir um"
+  // é a única opção que muda o comportamento de verdade (fica no
+  // mesmo vídeo em vez de avançar).
+  function _movieNext() {
+    if (!_movieQueue.length) return;
+    if (_movieRepeat === 'one') {
+      YTPlayer.seekTo(0);
+      YTPlayer.play();
+      return;
+    }
+    _movieQueueIndex = (_movieQueueIndex + 1) % _movieQueue.length;
+    _playCurrentQueueMovie();
+  }
+
+  function _moviePrev() {
+    if (!_movieQueue.length) return;
+    // Como no player de música: se já passou de alguns segundos,
+    // reinicia o vídeo atual em vez de voltar pro anterior.
+    if (YTPlayer.getCurrentTime() > 3) {
+      YTPlayer.seekTo(0);
+      return;
+    }
+    _movieQueueIndex = (_movieQueueIndex - 1 + _movieQueue.length) % _movieQueue.length;
+    _playCurrentQueueMovie();
   }
 
   function _closeMoviePlayer() {
