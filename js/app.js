@@ -29,6 +29,17 @@ const App = (() => {
   let _videos = [];
   let _movieFilterGenre = '';
 
+  // Coleção ativa na aba de vídeos: '__all__' | MOVIE_FAVORITES_ID | id de playlist
+  let _movieCollection = '__all__';
+  const MOVIE_FAVORITES_ID = '__movie_favorites__';
+
+  // Favoritos de vídeo (localStorage — mesmo padrão dos favoritos de música)
+  const KEY_VIDEO_FAVORITES = 'hm_video_favorites';
+  let _videoFavorites = new Set(JSON.parse(localStorage.getItem(KEY_VIDEO_FAVORITES) || '[]'));
+
+  // Playlists de vídeo (cache em memória; fonte de verdade é o Drive.loadMoviePlaylists/saveMoviePlaylists)
+  let _moviePlaylists = [];
+
   // Sugestões de gênero pra facilitar o cadastro (além dos gêneros já usados)
   const DEFAULT_GENRES = [
     'MPB', 'Sertanejo', 'Pagode', 'Samba', 'Forró', 'Axé', 'Gospel',
@@ -129,6 +140,7 @@ const App = (() => {
     _updateOfflineSummary();
     _loadPlaylists();
     _loadMovies();
+    _loadMoviePlaylists();
   }
 
   function _updateFolderLabel() {
@@ -1068,6 +1080,7 @@ const App = (() => {
     try {
       _videos = await Drive.loadVideos();
       _refreshMovieFilterBar();
+      _refreshMovieCollectionOptions();
       _renderMovieGrid();
     } catch (err) {
       console.error('[App] Erro ao carregar vídeos:', err);
@@ -1075,8 +1088,19 @@ const App = (() => {
     }
   }
 
+  // Combina a coleção ativa (todos / favoritos / uma playlist) com o
+  // filtro de gênero — os dois se aplicam juntos.
   function _visibleMovies() {
-    return Drive.filterVideos({ genre: _movieFilterGenre });
+    let list;
+    if (_movieCollection === MOVIE_FAVORITES_ID) {
+      list = _getFavoriteVideos();
+    } else if (_movieCollection && _movieCollection !== '__all__') {
+      const playlist = _moviePlaylists.find(p => p.id === _movieCollection);
+      list = playlist ? _moviePlaylistVideos(playlist) : _videos;
+    } else {
+      list = _videos;
+    }
+    return _movieFilterGenre ? list.filter(v => v.genre === _movieFilterGenre) : list;
   }
 
   function _renderMovieGrid() {
@@ -1100,6 +1124,144 @@ const App = (() => {
       _renderMovieGrid();
     });
     UI.el.btnMovieRefresh.addEventListener('click', () => _loadMovies());
+  }
+
+  // ── FAVORITOS DE VÍDEO ──────────────────────────
+  function _saveVideoFavorites() {
+    localStorage.setItem(KEY_VIDEO_FAVORITES, JSON.stringify([..._videoFavorites]));
+  }
+  function _isVideoFavorite(id) { return _videoFavorites.has(id); }
+  function _toggleVideoFavorite(id) {
+    if (_videoFavorites.has(id)) _videoFavorites.delete(id);
+    else _videoFavorites.add(id);
+    _saveVideoFavorites();
+    return _videoFavorites.has(id);
+  }
+  function _getFavoriteVideos() {
+    return _videos.filter(v => _videoFavorites.has(v.id));
+  }
+
+  function _toggleMovieFavoriteFromMenu(video) {
+    const fav = _toggleVideoFavorite(video.id);
+    UI.showToast(fav ? 'Adicionado aos favoritos' : 'Removido dos favoritos');
+    if (_currentMovieId === video.id) UI.setMovieFavoriteState(fav);
+    document.dispatchEvent(new CustomEvent('hm-video-favorite-change'));
+  }
+
+  // ── PLAYLISTS DE VÍDEO (Coleções) ───────────────
+  function _moviePlaylistVideos(playlist) {
+    return playlist.videoIds.map(id => _videos.find(v => v.id === id)).filter(Boolean);
+  }
+
+  async function _loadMoviePlaylists() {
+    _moviePlaylists = await Drive.loadMoviePlaylists();
+    _refreshMovieCollectionOptions();
+  }
+
+  async function _persistMoviePlaylists() {
+    const ok = await Drive.saveMoviePlaylists(_moviePlaylists);
+    if (!ok) UI.showToast('Playlist de vídeo salva neste aparelho — sincronização com o Drive falhou.');
+    return ok;
+  }
+
+  function _refreshMovieCollectionOptions() {
+    UI.renderMovieCollectionOptions(_moviePlaylists, _movieCollection, _getFavoriteVideos().length);
+  }
+
+  function _openAddVideoToPlaylistModal(video) {
+    UI.showAddVideoToPlaylistModal(_moviePlaylists, [video.id]);
+  }
+
+  function _bindMovieCollectionEvents() {
+    UI.el.movieCollectionFilter.addEventListener('change', e => {
+      _movieCollection = e.target.value;
+      _refreshMovieCollectionOptions();
+      _renderMovieGrid();
+    });
+
+    UI.el.btnMovieNewPlaylist.addEventListener('click', () => UI.showNewMoviePlaylistModal());
+
+    UI.el.btnNewMoviePlaylistCreate.addEventListener('click', async () => {
+      const name = UI.el.newMoviePlaylistName.value.trim();
+      if (!name) { UI.showToast('Dê um nome pra playlist.'); return; }
+
+      const playlist = { id: _uuid(), name, videoIds: [], createdAt: Date.now() };
+      _moviePlaylists = [..._moviePlaylists, playlist];
+      _movieCollection = playlist.id;
+      UI.hideNewMoviePlaylistModal();
+      UI.showToast(`Playlist "${name}" criada`);
+      _refreshMovieCollectionOptions();
+      _renderMovieGrid();
+      await _persistMoviePlaylists();
+    });
+    UI.el.btnNewMoviePlaylistCancel.addEventListener('click', () => UI.hideNewMoviePlaylistModal());
+    UI.el.modalNewMoviePlaylist.addEventListener('click', e => {
+      if (e.target === UI.el.modalNewMoviePlaylist) UI.hideNewMoviePlaylistModal();
+    });
+
+    UI.el.btnMovieCollectionDelete.addEventListener('click', async () => {
+      const playlist = _moviePlaylists.find(p => p.id === _movieCollection);
+      if (!playlist) return;
+      if (!window.confirm(`Excluir a playlist "${playlist.name}"? Isso não apaga os vídeos, só a playlist.`)) return;
+
+      _moviePlaylists = _moviePlaylists.filter(p => p.id !== playlist.id);
+      _movieCollection = '__all__';
+      _refreshMovieCollectionOptions();
+      _renderMovieGrid();
+      UI.showToast('Playlist excluída');
+      await _persistMoviePlaylists();
+    });
+
+    // Mantém a contagem de favoritos e a lista (se aberta) sincronizadas
+    // sempre que um vídeo é favoritado/desfavoritado de qualquer lugar.
+    document.addEventListener('hm-video-favorite-change', () => {
+      _refreshMovieCollectionOptions();
+      if (_movieCollection === MOVIE_FAVORITES_ID) _renderMovieGrid();
+    });
+  }
+
+  function _bindAddVideoToPlaylistModalEvents() {
+    UI.el.addVideoToPlaylistList.addEventListener('click', async e => {
+      const item = e.target.closest('.playlist-pick-item');
+      if (!item) return;
+      const videoIds = JSON.parse(UI.el.modalAddVideoToPlaylist.dataset.videoIds || '[]');
+      const playlist = _moviePlaylists.find(p => p.id === item.dataset.id);
+      if (!playlist || !videoIds.length) return;
+
+      const allIn = videoIds.every(id => playlist.videoIds.includes(id));
+      if (allIn) {
+        playlist.videoIds = playlist.videoIds.filter(id => !videoIds.includes(id));
+      } else {
+        const set = new Set(playlist.videoIds);
+        videoIds.forEach(id => set.add(id));
+        playlist.videoIds = [...set];
+      }
+
+      UI.showAddVideoToPlaylistModal(_moviePlaylists, videoIds); // re-renderiza com o novo estado
+      _refreshMovieCollectionOptions();
+      if (_movieCollection === playlist.id) _renderMovieGrid();
+      await _persistMoviePlaylists();
+    });
+
+    UI.el.btnAddVideoToPlaylistCreate.addEventListener('click', async () => {
+      const name = UI.el.addVideoToPlaylistNewName.value.trim();
+      const videoIds = JSON.parse(UI.el.modalAddVideoToPlaylist.dataset.videoIds || '[]');
+      if (!name || !videoIds.length) { UI.showToast('Dê um nome pra playlist.'); return; }
+
+      const playlist = { id: _uuid(), name, videoIds: [...videoIds], createdAt: Date.now() };
+      _moviePlaylists = [..._moviePlaylists, playlist];
+      UI.showAddVideoToPlaylistModal(_moviePlaylists, videoIds);
+      _refreshMovieCollectionOptions();
+      UI.showToast(videoIds.length > 1
+        ? `Playlist "${name}" criada com ${videoIds.length} vídeos`
+        : `Playlist "${name}" criada e vídeo adicionado`);
+      await _persistMoviePlaylists();
+    });
+
+    UI.el.btnAddVideoToPlaylistClose.addEventListener('click', () => UI.hideAddVideoToPlaylistModal());
+    UI.el.modalAddVideoToPlaylist.addEventListener('click', e => {
+      if (e.target === UI.el.modalAddVideoToPlaylist) UI.hideAddVideoToPlaylistModal();
+    });
   }
 
   // ── ADICIONAR VÍDEO (link do YouTube) ──────────
@@ -1250,6 +1412,11 @@ const App = (() => {
   let _movieShuffle     = false;
   let _movieRepeat      = 'none'; // 'none' | 'all' | 'one' — mesmo ciclo do player de música
 
+  // Controla se empilhamos uma entrada no histórico do navegador ao abrir
+  // o player — usado pra fazer o botão físico "voltar" do Android fechar
+  // o vídeo em vez de sair do app (ver _openMoviePlayerFor/_closeMoviePlayer).
+  let _movieHistoryPushed = false;
+
   function _bindMovieCustomControls() {
     if (_moviePlayerBound) return;
     _moviePlayerBound = true;
@@ -1333,7 +1500,19 @@ const App = (() => {
   async function _openMoviePlayerFor(video, { rebuildQueue = true } = {}) {
     if (rebuildQueue) _buildMovieQueue(video);
     _currentMovieId = video.id;
+
+    // Empilha uma entrada de histórico só na primeira abertura (não a
+    // cada troca de vídeo dentro do player) — é o que faz o botão físico
+    // "voltar" do Android fechar o player em vez de sair pra tela de
+    // login/permissões do Google (ver _closeMoviePlayer e o listener de
+    // 'popstate' em _bindMoviePlayerEvents).
+    if (UI.el.moviePlayerOverlay.classList.contains('hidden')) {
+      history.pushState({ hmOverlay: 'movie-player' }, '');
+      _movieHistoryPushed = true;
+    }
+
     UI.openMoviePlayer(video.title);
+    UI.setMovieFavoriteState(_isVideoFavorite(video.id));
     _bindMovieCustomControls();
 
     // Só o carregamento em si conta como falha de verdade — passos
@@ -1383,9 +1562,20 @@ const App = (() => {
     _playCurrentQueueMovie();
   }
 
-  function _closeMoviePlayer() {
+  // `fromPopState`: true quando chamado em reação ao botão físico/gesto
+  // de voltar do Android (o histórico já foi consumido pelo navegador,
+  // então aqui só cuidamos de fechar a tela — nada de mexer no histórico
+  // de novo, ou entraríamos num loop).
+  function _closeMoviePlayer({ fromPopState = false } = {}) {
     YTPlayer.stop();
     UI.closeMoviePlayer();
+    if (_movieHistoryPushed) {
+      _movieHistoryPushed = false;
+      // Fechado pelo X ou Esc: "consome" a entrada de histórico que
+      // empilhamos ao abrir, senão o botão voltar precisaria de dois
+      // toques (um pra "nada", depois o de verdade).
+      if (!fromPopState) history.back();
+    }
   }
 
   function _bindMoviePlayerEvents() {
@@ -1394,10 +1584,31 @@ const App = (() => {
       if (e.key === 'Escape' && !UI.el.moviePlayerOverlay.classList.contains('hidden')) _closeMoviePlayer();
     });
 
+    // Botão físico "voltar" / gesto de voltar do Android: se o player de
+    // vídeo estiver aberto, fecha ele em vez de deixar o navegador voltar
+    // no histórico (o que levava de volta pra tela de permissões do login
+    // do Google).
+    window.addEventListener('popstate', () => {
+      if (!UI.el.moviePlayerOverlay.classList.contains('hidden')) {
+        _closeMoviePlayer({ fromPopState: true });
+      }
+    });
+
+    UI.el.btnMovieFavorite.addEventListener('click', () => {
+      if (!_currentMovieId) return;
+      const fav = _toggleVideoFavorite(_currentMovieId);
+      UI.setMovieFavoriteState(fav);
+      UI.showToast(fav ? 'Adicionado aos favoritos' : 'Removido dos favoritos');
+      document.dispatchEvent(new CustomEvent('hm-video-favorite-change'));
+    });
+
     UI.setMovieMenuHandlers({
       onEdit: video => _openMovieEditModal(video),
       onPlay: video => _openMoviePlayerFor(video),
+      onFavorite: video => _toggleMovieFavoriteFromMenu(video),
+      onAddToPlaylist: video => _openAddVideoToPlaylistModal(video),
     });
+    UI.setIsVideoFavoriteFn(id => _isVideoFavorite(id));
   }
 
   // ── BUSCA ─────────────────────────────────────
@@ -1537,6 +1748,8 @@ const App = (() => {
 
     // Vídeos
     _bindMovieFilterEvents();
+    _bindMovieCollectionEvents();
+    _bindAddVideoToPlaylistModalEvents();
     _bindMovieAddEvents();
     _bindMovieEditModalEvents();
     _bindMoviePlayerEvents();
@@ -1560,6 +1773,8 @@ const App = (() => {
         else if (modal === UI.el.modalAddTracksToPlaylist) UI.hideAddTracksPickerModal();
       });
     });
+    // (modais de playlist de vídeo fecham ao clicar fora dentro dos
+    // próprios _bindMovieCollectionEvents/_bindAddVideoToPlaylistModalEvents)
 
     // Voltar pra tela raiz de playlists sempre que a aba é reaberta
     document.querySelectorAll('.nav-btn').forEach(btn => {

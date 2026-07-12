@@ -183,6 +183,22 @@ const UI = (() => {
     movieFilterGenre:     $('movie-filter-genre'),
     btnMovieFilterClear:  $('btn-movie-filter-clear'),
 
+    movieCollectionFilter:   $('movie-collection-filter'),
+    btnMovieNewPlaylist:     $('btn-movie-new-playlist'),
+    btnMovieCollectionDelete: $('btn-movie-collection-delete'),
+
+    modalNewMoviePlaylist:      $('modal-new-movie-playlist'),
+    newMoviePlaylistName:       $('new-movie-playlist-name'),
+    btnNewMoviePlaylistCreate:  $('btn-new-movie-playlist-create'),
+    btnNewMoviePlaylistCancel:  $('btn-new-movie-playlist-cancel'),
+
+    modalAddVideoToPlaylist:     $('modal-add-video-to-playlist'),
+    addVideoToPlaylistSubtitle:  $('add-video-to-playlist-subtitle'),
+    addVideoToPlaylistList:      $('add-video-to-playlist-list'),
+    addVideoToPlaylistNewName:   $('add-video-to-playlist-new-name'),
+    btnAddVideoToPlaylistCreate: $('btn-add-video-to-playlist-create'),
+    btnAddVideoToPlaylistClose:  $('btn-add-video-to-playlist-close'),
+
     modalUploadMovie:       $('modal-upload-movie'),
     movieSearchInput:       $('movie-search-input'),
     btnMovieSearch:         $('btn-movie-search'),
@@ -210,6 +226,7 @@ const UI = (() => {
     movieVideoTarget:    $('movie-video-target'),
     moviePlayerTitle:    $('movie-player-title'),
     btnMovieClose:       $('btn-movie-close'),
+    btnMovieFavorite:    $('btn-movie-favorite'),
     btnMovieShuffle:     $('btn-movie-shuffle'),
     btnMoviePrev:        $('btn-movie-prev'),
     btnMoviePlayPause:   $('btn-movie-play-pause'),
@@ -1145,13 +1162,13 @@ const UI = (() => {
           <span class="track-title">${_escape(v.title)}</span>
           <span class="track-meta">${_escape(_formatChannelGenre(v))}</span>
         </div>
-        <button class="track-menu-btn" data-edit="${v.id}" aria-label="Editar informações">${_editIcon()}</button>
+        <button class="track-menu-btn" data-menu="${v.id}" aria-label="Mais opções">${_menuIcon()}</button>
       </div>
     `).join('');
   }
 
   const _movieGridData = new WeakMap();
-  let _movieMenuHandlers = { onEdit: null, onPlay: null };
+  let _movieMenuHandlers = { onEdit: null, onPlay: null, onFavorite: null, onAddToPlaylist: null };
 
   function setMovieMenuHandlers(handlers) {
     _movieMenuHandlers = { ..._movieMenuHandlers, ...handlers };
@@ -1165,11 +1182,10 @@ const UI = (() => {
     container.addEventListener('click', e => {
       const currentVideos = _movieGridData.get(container) || [];
 
-      const editBtn = e.target.closest('[data-edit]');
-      if (editBtn) {
+      const menuBtn = e.target.closest('[data-menu]');
+      if (menuBtn) {
         e.stopPropagation();
-        const video = currentVideos.find(v => v.id === editBtn.dataset.edit);
-        if (video) _movieMenuHandlers.onEdit?.(video);
+        _openMovieMenu(menuBtn.dataset.menu, menuBtn, currentVideos);
         return;
       }
 
@@ -1180,10 +1196,128 @@ const UI = (() => {
     });
   }
 
+  // ── MENU DE AÇÕES DO VÍDEO (favoritar / editar / playlist) ─────
+  // Mesmo popover usado nas faixas (_openTrackMenu), só que ligado aos
+  // handlers de vídeo.
+  function _closeMovieMenu() {
+    document.querySelector('.track-menu-popover')?.remove();
+  }
+
+  function _outsideMovieMenuHandler(e) {
+    if (!e.target.closest('.track-menu-popover') && !e.target.closest('[data-menu]')) _closeMovieMenu();
+  }
+
+  function _openMovieMenu(videoId, anchorEl, videos) {
+    _closeMovieMenu();
+    const video = videos.find(v => v.id === videoId);
+    if (!video) return;
+
+    const isFav = Player_isVideoFavorite(videoId);
+
+    const pop = document.createElement('div');
+    pop.className = 'track-menu-popover';
+    pop.innerHTML = `
+      <button data-action="favorite">${_favIcon(isFav)}<span>${isFav ? 'Remover dos favoritos' : 'Adicionar aos favoritos'}</span></button>
+      <button data-action="edit">${_editIcon()}<span>Editar informações</span></button>
+      <button data-action="playlist">${_addToPlaylistIcon()}<span>Adicionar à playlist</span></button>
+    `;
+    document.body.appendChild(pop);
+
+    const rect = anchorEl.getBoundingClientRect();
+    const popRect = pop.getBoundingClientRect();
+    let top = rect.bottom + 4;
+    if (top + popRect.height > window.innerHeight) top = rect.top - popRect.height - 4;
+    let left = rect.right - popRect.width;
+    if (left < 8) left = 8;
+    pop.style.top  = `${top}px`;
+    pop.style.left = `${left}px`;
+
+    pop.addEventListener('click', e => {
+      const btn = e.target.closest('button');
+      if (!btn) return;
+      const action = btn.dataset.action;
+      _closeMovieMenu();
+      if (action === 'edit') _movieMenuHandlers.onEdit?.(video);
+      if (action === 'playlist') _movieMenuHandlers.onAddToPlaylist?.(video);
+      if (action === 'favorite') _movieMenuHandlers.onFavorite?.(video);
+    });
+
+    setTimeout(() => document.addEventListener('click', _outsideMovieMenuHandler, { once: true }), 0);
+  }
+
+  // O popover precisa saber se o vídeo já é favorito pra escolher o
+  // ícone certo — como o estado mora em app.js (não em ui.js), o
+  // próprio app.js registra essa função assim que inicializa.
+  let Player_isVideoFavorite = () => false;
+  function setIsVideoFavoriteFn(fn) { Player_isVideoFavorite = fn; }
+
   // ── FILTRO DE VÍDEOS (gênero) ───────────────────
   function renderMovieFilterOptions(genres, activeGenre = '') {
     _fillSelect(el.movieFilterGenre, genres, activeGenre, 'Gênero');
     el.btnMovieFilterClear.classList.toggle('hidden', !activeGenre);
+  }
+
+  // ── COLEÇÕES DE VÍDEO (favoritos + playlists) ───
+  const MOVIE_FAVORITES_ID = '__movie_favorites__';
+
+  function renderMovieCollectionOptions(playlists, activeId, favCount = 0) {
+    const sel = el.movieCollectionFilter;
+    const prevValue = activeId || '__all__';
+    sel.innerHTML =
+      `<option value="__all__">Todos os vídeos</option>` +
+      `<option value="${MOVIE_FAVORITES_ID}">❤ Favoritos (${favCount})</option>` +
+      playlists.map(p => `<option value="${p.id}">${_escape(p.name)} (${p.videoIds.length})</option>`).join('');
+    sel.value = prevValue;
+    el.btnMovieCollectionDelete.classList.toggle('hidden', !playlists.some(p => p.id === prevValue));
+  }
+
+  // ── MODAL: NOVA PLAYLIST DE VÍDEO ───────────────
+  function showNewMoviePlaylistModal() {
+    el.newMoviePlaylistName.value = '';
+    el.modalNewMoviePlaylist.classList.remove('hidden');
+    el.newMoviePlaylistName.focus();
+  }
+  function hideNewMoviePlaylistModal() { el.modalNewMoviePlaylist.classList.add('hidden'); }
+
+  // ── MODAL: ADICIONAR VÍDEO À PLAYLIST ───────────
+  function showAddVideoToPlaylistModal(playlists, videoIdOrIds) {
+    const ids = Array.isArray(videoIdOrIds) ? videoIdOrIds : [videoIdOrIds];
+    el.addVideoToPlaylistNewName.value = '';
+    el.modalAddVideoToPlaylist.dataset.videoIds = JSON.stringify(ids);
+
+    if (ids.length > 1) {
+      el.addVideoToPlaylistSubtitle.textContent = `${ids.length} vídeos selecionados`;
+      el.addVideoToPlaylistSubtitle.classList.remove('hidden');
+    } else {
+      el.addVideoToPlaylistSubtitle.classList.add('hidden');
+    }
+
+    if (!playlists.length) {
+      el.addVideoToPlaylistList.innerHTML = `<p class="empty-hint">Você ainda não tem playlists de vídeo.</p>`;
+    } else {
+      el.addVideoToPlaylistList.innerHTML = playlists.map(p => {
+        const allIn  = ids.every(id => p.videoIds.includes(id));
+        const someIn = !allIn && ids.some(id => p.videoIds.includes(id));
+        const hint = allIn ? (_checkIcon(13) + ' na playlist') : someIn ? 'alguns na playlist' : 'adicionar';
+        return `
+          <div class="folder-item playlist-pick-item ${allIn ? 'selected' : ''}" data-id="${p.id}">
+            ${_playlistIcon()}
+            <span style="flex:1;">${_escape(p.name)}</span>
+            <span class="profile-section-hint" style="margin:0; display:flex; align-items:center; gap:4px;">${hint}</span>
+          </div>
+        `;
+      }).join('');
+    }
+    el.modalAddVideoToPlaylist.classList.remove('hidden');
+  }
+  function hideAddVideoToPlaylistModal() {
+    el.modalAddVideoToPlaylist.classList.add('hidden');
+    delete el.modalAddVideoToPlaylist.dataset.videoIds;
+  }
+
+  // ── FAVORITO NO PLAYER DE VÍDEO ─────────────────
+  function setMovieFavoriteState(active) {
+    el.btnMovieFavorite.classList.toggle('active', active);
   }
 
   // ── MODAL: ADICIONAR VÍDEO (link do YouTube) ───
@@ -1736,6 +1870,13 @@ const UI = (() => {
     updateMovieProgress,
     setMovieShuffleState,
     setMovieRepeatState,
+    setMovieFavoriteState,
+    setIsVideoFavoriteFn,
+    renderMovieCollectionOptions,
+    showNewMoviePlaylistModal,
+    hideNewMoviePlaylistModal,
+    showAddVideoToPlaylistModal,
+    hideAddVideoToPlaylistModal,
   };
 
 })();

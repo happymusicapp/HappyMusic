@@ -1184,6 +1184,75 @@ const Drive = (() => {
     }
   }
 
+  // ── PLAYLISTS DE VÍDEO (mesmo mecanismo das playlists de música,
+  // só que num arquivo separado no appDataFolder) ──
+  const MOVIE_PLAYLISTS_FILENAME = 'happymusic-movie-playlists.json';
+  const KEY_MOVIE_PLAYLISTS_CACHE = 'hm_movie_playlists_cache';
+  let _moviePlaylistsFileId = null;
+
+  function _loadMoviePlaylistsCache() {
+    try { return JSON.parse(localStorage.getItem(KEY_MOVIE_PLAYLISTS_CACHE) || '[]'); }
+    catch { return []; }
+  }
+  function _saveMoviePlaylistsCache(list) {
+    try { localStorage.setItem(KEY_MOVIE_PLAYLISTS_CACHE, JSON.stringify(list)); } catch {}
+  }
+
+  async function _findMoviePlaylistsFile() {
+    const data = await _get('https://www.googleapis.com/drive/v3/files', {
+      q: `name='${MOVIE_PLAYLISTS_FILENAME}' and trashed=false`,
+      spaces: 'appDataFolder',
+      fields: 'files(id,name)',
+      pageSize: 1,
+    });
+    return (data.files && data.files[0]) || null;
+  }
+
+  async function loadMoviePlaylists() {
+    try {
+      const file = await _findMoviePlaylistsFile();
+      if (!file) {
+        _moviePlaylistsFileId = null;
+        return _loadMoviePlaylistsCache();
+      }
+      _moviePlaylistsFileId = file.id;
+
+      await _ensureValidToken();
+
+      const res = await fetch(`https://www.googleapis.com/drive/v3/files/${file.id}?alt=media`, {
+        headers: { Authorization: `Bearer ${_token}` },
+      });
+      if (res.status === 401) { _clearSession(); throw new Error('UNAUTHORIZED'); }
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+      const list = await res.json();
+      const playlists = Array.isArray(list) ? list : [];
+      _saveMoviePlaylistsCache(playlists);
+      return playlists;
+    } catch (err) {
+      console.warn('[Drive] Não deu pra carregar playlists de vídeo do Drive, usando cópia local:', err);
+      return _loadMoviePlaylistsCache();
+    }
+  }
+
+  async function saveMoviePlaylists(playlists) {
+    _saveMoviePlaylistsCache(playlists);
+    const content = JSON.stringify(playlists);
+
+    try {
+      if (_moviePlaylistsFileId) {
+        await _mediaUpdateJson(_moviePlaylistsFileId, content);
+      } else {
+        const created = await _multipartCreateJson(MOVIE_PLAYLISTS_FILENAME, content);
+        _moviePlaylistsFileId = created.id;
+      }
+      return true;
+    } catch (err) {
+      console.error('[Drive] Playlist de vídeo salva só neste aparelho — falha ao sincronizar com o Drive:', err);
+      return false;
+    }
+  }
+
   return {
     login,
     handleCallback,
@@ -1222,6 +1291,10 @@ const Drive = (() => {
     extractYouTubeId,
     getKnownMovieGenres,
     filterVideos,
+
+    // Playlists de vídeo
+    loadMoviePlaylists,
+    saveMoviePlaylists,
   };
 
 })();
