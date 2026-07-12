@@ -1128,15 +1128,20 @@ const UI = (() => {
       el.movieGrid.innerHTML = `<p class="empty-hint">Nenhum vídeo ainda.<br>Toque no ➕ acima pra enviar o primeiro.</p>`;
       return;
     }
-    el.movieGrid.innerHTML = videos.map(v => `
-      <div class="movie-card" data-id="${v.id}" role="button" tabindex="0">
-        <div class="movie-card-art" ${v.thumbnail ? `style="background-image:url('${v.thumbnail}')"` : ''}>
-          ${v.thumbnail ? '' : _filmIcon(30)}
-          <span class="movie-card-play">${_playCircleIcon()}</span>
+    el.movieGrid.innerHTML = videos.map((v, i) => `
+      <div class="track-item movie-row" data-id="${v.id}" role="button" tabindex="0"
+           aria-label="${_escape(v.title)}">
+        <span class="track-num">${i + 1}</span>
+        <div class="track-art">
+          ${v.thumbnail
+            ? `<img src="${v.thumbnail}" alt="" loading="lazy" />`
+            : _filmIcon(20)}
         </div>
-        <button class="movie-card-edit" data-edit="${v.id}" aria-label="Editar informações">${_editIcon()}</button>
-        <span class="movie-card-name">${_escape(v.title)}</span>
-        <span class="movie-card-meta">${_escape(_formatChannelGenre(v))}</span>
+        <div class="track-info">
+          <span class="track-title">${_escape(v.title)}</span>
+          <span class="track-meta">${_escape(_formatChannelGenre(v))}</span>
+        </div>
+        <button class="track-menu-btn" data-edit="${v.id}" aria-label="Editar informações">${_editIcon()}</button>
       </div>
     `).join('');
   }
@@ -1164,9 +1169,9 @@ const UI = (() => {
         return;
       }
 
-      const card = e.target.closest('.movie-card');
-      if (!card) return;
-      const video = currentVideos.find(v => v.id === card.dataset.id);
+      const row = e.target.closest('.movie-row');
+      if (!row) return;
+      const video = currentVideos.find(v => v.id === row.dataset.id);
       if (video) _movieMenuHandlers.onPlay?.(video);
     });
   }
