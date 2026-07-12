@@ -187,6 +187,11 @@ const UI = (() => {
     movieSearchInput:       $('movie-search-input'),
     btnMovieSearch:         $('btn-movie-search'),
     movieSearchResults:     $('movie-search-results'),
+    movieSearchPreview:     $('movie-search-preview'),
+    moviePreviewFrame:      $('movie-preview-frame'),
+    moviePreviewTitle:      $('movie-preview-title'),
+    btnMoviePreviewBack:    $('btn-movie-preview-back'),
+    btnMoviePreviewUse:     $('btn-movie-preview-use'),
     movieAddUrl:            $('movie-add-url'),
     movieAddGenre:          $('movie-add-genre'),
     movieAddGenreSuggestions: $('movie-add-genre-suggestions'),
@@ -1179,10 +1184,14 @@ const UI = (() => {
     el.movieAddGenreSuggestions.innerHTML = knownGenres.map(g => `<option value="${_escape(g)}"></option>`).join('');
     el.movieSearchInput.value = '';
     hideMovieSearchResults();
+    hideMoviePreview();
     el.modalUploadMovie.classList.remove('hidden');
     el.movieSearchInput.focus();
   }
-  function hideMovieAddModal() { el.modalUploadMovie.classList.add('hidden'); }
+  function hideMovieAddModal() {
+    el.modalUploadMovie.classList.add('hidden');
+    hideMoviePreview(); // remove o iframe pra garantir que o vídeo pare de tocar
+  }
   function getMovieAddForm() {
     return {
       url:   el.movieAddUrl.value.trim(),
@@ -1204,6 +1213,7 @@ const UI = (() => {
     el.movieSearchResults.innerHTML = '';
   }
   function renderMovieSearchResults(results) {
+    hideMoviePreview();
     if (!results || !results.length) {
       el.movieSearchResults.innerHTML = `<p class="yt-search-empty">Nada encontrado. Tente outro termo.</p>`;
       el.movieSearchResults.classList.remove('hidden');
@@ -1221,8 +1231,35 @@ const UI = (() => {
     el.movieSearchResults.innerHTML = `<p class="yt-search-empty">${_escape(message)}</p>`;
     el.movieSearchResults.classList.remove('hidden');
   }
-  function selectMovieSearchResult(videoId) {
+
+  // ── PRÉVIA DE UM VÍDEO PESQUISADO (áudio + vídeo) ─
+  // Toca o vídeo de verdade dentro do modal antes de confirmar a
+  // adição, pra pessoa decidir se é o vídeo certo antes de salvar.
+  function showMoviePreview(videoId, title) {
+    el.movieSearchResults.classList.add('hidden');
+    el.movieSearchPreview.dataset.videoId = videoId;
+    el.moviePreviewFrame.innerHTML =
+      `<iframe src="https://www.youtube.com/embed/${encodeURIComponent(videoId)}?autoplay=1&playsinline=1" ` +
+      `allow="autoplay; encrypted-media" allowfullscreen title="${_escape(title || '')}"></iframe>`;
+    el.moviePreviewTitle.textContent = title || '';
+    el.movieSearchPreview.classList.remove('hidden');
+  }
+  function hideMoviePreview() {
+    // Trocar o innerHTML (em vez de só esconder) garante que o iframe
+    // seja destruído e o áudio/vídeo pare de tocar de verdade.
+    el.moviePreviewFrame.innerHTML = '';
+    delete el.movieSearchPreview.dataset.videoId;
+    el.movieSearchPreview.classList.add('hidden');
+  }
+  function backFromMoviePreview() {
+    hideMoviePreview();
+    el.movieSearchResults.classList.remove('hidden');
+  }
+  function confirmMoviePreview() {
+    const videoId = el.movieSearchPreview.dataset.videoId;
+    if (!videoId) return;
     el.movieAddUrl.value = `https://www.youtube.com/watch?v=${videoId}`;
+    hideMoviePreview();
     hideMovieSearchResults();
     el.movieAddGenre.focus();
   }
@@ -1648,7 +1685,10 @@ const UI = (() => {
     hideMovieSearchResults,
     renderMovieSearchResults,
     showMovieSearchError,
-    selectMovieSearchResult,
+    showMoviePreview,
+    hideMoviePreview,
+    backFromMoviePreview,
+    confirmMoviePreview,
     showMovieEditModal,
     hideMovieEditModal,
     getMovieEditForm,

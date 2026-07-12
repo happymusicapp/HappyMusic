@@ -1148,8 +1148,10 @@ const App = (() => {
     UI.el.movieSearchResults.addEventListener('click', e => {
       const item = e.target.closest('.yt-search-result');
       if (!item) return;
-      UI.selectMovieSearchResult(item.dataset.videoId);
+      UI.showMoviePreview(item.dataset.videoId, item.dataset.videoTitle);
     });
+    UI.el.btnMoviePreviewBack.addEventListener('click', () => UI.backFromMoviePreview());
+    UI.el.btnMoviePreviewUse.addEventListener('click', () => UI.confirmMoviePreview());
   }
 
   // ── PESQUISAR VÍDEOS NO YOUTUBE ──────────────────
