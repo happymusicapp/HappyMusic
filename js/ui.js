@@ -180,10 +180,10 @@ const UI = (() => {
     movieGrid:            $('movie-grid'),
     btnMovieRefresh:      $('btn-movie-refresh'),
     btnMovieUploadOpen:   $('btn-movie-upload-open'),
-    movieFilterGenre:     $('movie-filter-genre'),
+    filterChipMovieGenre: $('filter-chip-movie-genre'),
     btnMovieFilterClear:  $('btn-movie-filter-clear'),
 
-    movieCollectionFilter:   $('movie-collection-filter'),
+    filterChipMovieCollection: $('filter-chip-movie-collection'),
     btnMovieNewPlaylist:     $('btn-movie-new-playlist'),
     btnMovieCollectionDelete: $('btn-movie-collection-delete'),
 
@@ -803,23 +803,15 @@ const UI = (() => {
       : 'Buscando em todo o Drive';
   }
 
-  // ── BARRA DE FILTROS (gênero / artista / álbum) ────
-  // Ainda usado pelo filtro de gênero dos vídeos (select nativo simples,
-  // só uma opção, sem necessidade do modal de busca das músicas).
-  function _fillSelect(select, values, activeValue, placeholder) {
-    const current = activeValue || '';
-    select.innerHTML = `<option value="">${placeholder}</option>` +
-      values.map(v => `<option value="${_escape(v)}" ${v === current ? 'selected' : ''}>${_escape(v)}</option>`).join('');
-    select.classList.toggle('active', !!current);
-  }
-
+  // ── BARRA DE FILTROS (gênero / artista / álbum / vídeo) ────
   // Dados/estado do modal de seleção de filtro — populados por
   // renderFilterOptions() e usados quando o usuário abre o seletor.
-  const _filterData = { genres: [], artists: [], albums: [] };
+  const _filterData = { genres: [], artists: [], albums: [], moviegenres: [], moviecollections: [] };
   let _pickerOnSelect = null;
   let _pickerAllOptions = [];
+  let _pickerShowAllRow = true;
 
-  const FILTER_TITLES = { genre: 'Gênero', artist: 'Artista', album: 'Álbum' };
+  const FILTER_TITLES = { genre: 'Gênero', artist: 'Artista', album: 'Álbum', moviegenre: 'Gênero', moviecollection: 'Coleção' };
 
   function _setChip(chip, label, activeValue, placeholder) {
     chip.querySelector('.filter-chip-label').textContent = activeValue || placeholder;
@@ -839,39 +831,53 @@ const UI = (() => {
     el.btnFilterClear.classList.toggle('hidden', !hasFilter);
   }
 
-  function _renderPickerList(options, activeValue, query) {
+  // Aceita tanto uma lista de strings (gênero/artista/álbum de música —
+  // valor e rótulo são a mesma coisa) quanto uma lista de objetos
+  // {value, label} (coleções de vídeo, onde o rótulo mostra contagem
+  // e o valor é o id da playlist/favoritos).
+  function _normalizePickerItems(items) {
+    return items.map(o => (typeof o === 'string' ? { value: o, label: o } : o));
+  }
+
+  // Alguns pickers (coleções de vídeo) já trazem a opção "Todos" como um
+  // item normal da lista — nesse caso não precisamos da linha extra.
+  function _renderPickerList(items, activeValue, query, showAllRow = true) {
+    const norm = _normalizePickerItems(items);
     const q = (query || '').trim().toLowerCase();
-    const filtered = q ? options.filter(o => o.toLowerCase().includes(q)) : options;
+    const filtered = q ? norm.filter(o => o.label.toLowerCase().includes(q)) : norm;
 
     if (!filtered.length) {
       el.filterPickerList.innerHTML = `<p class="filter-picker-empty">Nada encontrado.</p>`;
       return;
     }
 
-    const allRow = !q ? `
+    const allRow = (showAllRow && !q) ? `
       <button type="button" class="filter-picker-item ${!activeValue ? 'active' : ''}" data-value="">
         <span>Todos</span>
         <svg class="picker-check" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg>
       </button>` : '';
 
-    el.filterPickerList.innerHTML = allRow + filtered.map(value => `
-      <button type="button" class="filter-picker-item ${value === activeValue ? 'active' : ''}" data-value="${_escape(value)}">
-        <span>${_escape(value)}</span>
+    el.filterPickerList.innerHTML = allRow + filtered.map(item => `
+      <button type="button" class="filter-picker-item ${item.value === activeValue ? 'active' : ''}" data-value="${_escape(item.value)}">
+        <span>${_escape(item.label)}</span>
         <svg class="picker-check" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg>
       </button>`).join('');
   }
 
-  // Abre o modal listando as opções de um filtro (gênero/artista/álbum),
-  // com busca. onSelect(value) é chamado com '' pra "Todos" ou o valor
-  // escolhido; quem chama (app.js) decide o que fazer com isso.
+  // Abre o modal listando as opções de um filtro (gênero/artista/álbum
+  // de música, gênero de vídeo ou coleção de vídeo), com busca.
+  // onSelect(value) é chamado com '' pra "Todos" ou o valor escolhido;
+  // quem chama (app.js) decide o que fazer com isso.
   function showFilterPicker(type, activeValue, onSelect) {
     const options = _filterData[type + 's'] || [];
+    const showAllRow = type !== 'moviecollection'; // coleções já tem "Todos os vídeos" na própria lista
     _pickerAllOptions = options;
     _pickerOnSelect = onSelect;
+    _pickerShowAllRow = showAllRow;
 
     el.filterPickerTitle.textContent = FILTER_TITLES[type] || '';
     el.filterPickerSearch.value = '';
-    _renderPickerList(options, activeValue, '');
+    _renderPickerList(options, activeValue, '', showAllRow);
 
     el.modalFilterPicker.classList.remove('hidden');
     el.modalFilterPicker.dataset.activeValue = activeValue || '';
@@ -892,7 +898,7 @@ const UI = (() => {
 
     el.filterPickerSearch.addEventListener('input', () => {
       const active = el.modalFilterPicker.dataset.activeValue || '';
-      _renderPickerList(_pickerAllOptions, active, el.filterPickerSearch.value);
+      _renderPickerList(_pickerAllOptions, active, el.filterPickerSearch.value, _pickerShowAllRow);
     });
 
     el.filterPickerList.addEventListener('click', e => {
@@ -1253,7 +1259,8 @@ const UI = (() => {
 
   // ── FILTRO DE VÍDEOS (gênero) ───────────────────
   function renderMovieFilterOptions(genres, activeGenre = '') {
-    _fillSelect(el.movieFilterGenre, genres, activeGenre, 'Gênero');
+    _filterData.moviegenres = genres;
+    _setChip(el.filterChipMovieGenre, 'Gênero', activeGenre, 'Gênero');
     el.btnMovieFilterClear.classList.toggle('hidden', !activeGenre);
   }
 
@@ -1261,13 +1268,17 @@ const UI = (() => {
   const MOVIE_FAVORITES_ID = '__movie_favorites__';
 
   function renderMovieCollectionOptions(playlists, activeId, favCount = 0) {
-    const sel = el.movieCollectionFilter;
     const prevValue = activeId || '__all__';
-    sel.innerHTML =
-      `<option value="__all__">Todos os vídeos</option>` +
-      `<option value="${MOVIE_FAVORITES_ID}">❤ Favoritos (${favCount})</option>` +
-      playlists.map(p => `<option value="${p.id}">${_escape(p.name)} (${p.videoIds.length})</option>`).join('');
-    sel.value = prevValue;
+    const items = [
+      { value: '__all__', label: 'Todos os vídeos' },
+      { value: MOVIE_FAVORITES_ID, label: `❤ Favoritos (${favCount})` },
+      ...playlists.map(p => ({ value: p.id, label: `${p.name} (${p.videoIds.length})` })),
+    ];
+    _filterData.moviecollections = items;
+
+    const active = items.find(i => i.value === prevValue);
+    el.filterChipMovieCollection.querySelector('.filter-chip-label').textContent = active ? active.label : 'Todos os vídeos';
+    el.filterChipMovieCollection.classList.toggle('active', prevValue !== '__all__');
     el.btnMovieCollectionDelete.classList.toggle('hidden', !playlists.some(p => p.id === prevValue));
   }
 

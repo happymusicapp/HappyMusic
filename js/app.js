@@ -1113,10 +1113,12 @@ const App = (() => {
   }
 
   function _bindMovieFilterEvents() {
-    UI.el.movieFilterGenre.addEventListener('change', e => {
-      _movieFilterGenre = e.target.value;
-      _refreshMovieFilterBar();
-      _renderMovieGrid();
+    UI.el.filterChipMovieGenre.addEventListener('click', () => {
+      UI.showFilterPicker('moviegenre', _movieFilterGenre, value => {
+        _movieFilterGenre = value;
+        _refreshMovieFilterBar();
+        _renderMovieGrid();
+      });
     });
     UI.el.btnMovieFilterClear.addEventListener('click', () => {
       _movieFilterGenre = '';
@@ -1173,10 +1175,12 @@ const App = (() => {
   }
 
   function _bindMovieCollectionEvents() {
-    UI.el.movieCollectionFilter.addEventListener('change', e => {
-      _movieCollection = e.target.value;
-      _refreshMovieCollectionOptions();
-      _renderMovieGrid();
+    UI.el.filterChipMovieCollection.addEventListener('click', () => {
+      UI.showFilterPicker('moviecollection', _movieCollection, value => {
+        _movieCollection = value || '__all__';
+        _refreshMovieCollectionOptions();
+        _renderMovieGrid();
+      });
     });
 
     UI.el.btnMovieNewPlaylist.addEventListener('click', () => UI.showNewMoviePlaylistModal());
