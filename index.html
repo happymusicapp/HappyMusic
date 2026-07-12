@@ -261,34 +261,46 @@
         </div>
 
         <!-- Coleções de vídeo: todos / favoritos / playlists -->
-        <div id="movie-collections-bar" class="filter-bar">
-          <div class="filter-select-wrap">
-            <select id="movie-collection-filter" class="filter-select">
-              <option value="__all__">Todos os vídeos</option>
-              <option value="__movie_favorites__">❤ Favoritos (0)</option>
-            </select>
+        <div class="filter-card">
+          <div class="filter-card-header">
+            <span class="filter-card-title">Coleção</span>
+            <div class="shelf-actions">
+              <button id="btn-movie-new-playlist" class="icon-btn icon-btn-sm icon-btn-accent" aria-label="Nova playlist de vídeo" title="Nova playlist de vídeo">
+                <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+              </button>
+              <button id="btn-movie-collection-delete" class="icon-btn icon-btn-sm hidden" aria-label="Excluir playlist" title="Excluir playlist">
+                <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
+                  <path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                  <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+                </svg>
+              </button>
+            </div>
           </div>
-          <button id="btn-movie-new-playlist" class="icon-btn icon-btn-sm icon-btn-accent" aria-label="Nova playlist de vídeo" title="Nova playlist de vídeo">
-            <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
-          </button>
-          <button id="btn-movie-collection-delete" class="icon-btn icon-btn-sm filter-clear hidden" aria-label="Excluir playlist" title="Excluir playlist">
-            <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
-              <path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
-              <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
-            </svg>
-          </button>
+          <div id="movie-collections-bar" class="filter-chip-row">
+            <button type="button" id="filter-chip-movie-collection" class="filter-chip" data-filter-type="moviecollection">
+              <svg class="filter-chip-icon" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+              <span class="filter-chip-label">Todos os vídeos</span>
+              <svg class="filter-chip-caret" width="9" height="9" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg>
+            </button>
+          </div>
         </div>
 
         <!-- Filtro por gênero -->
-        <div id="movie-filter-bar" class="filter-bar">
-          <div class="filter-select-wrap">
-            <select id="movie-filter-genre" class="filter-select">
-              <option value="">Gênero</option>
-            </select>
+        <div class="filter-card">
+          <div class="filter-card-header">
+            <span class="filter-card-title">Filtrar por</span>
+            <button id="btn-movie-filter-clear" class="filter-clear hidden" aria-label="Limpar filtro" title="Limpar filtro">
+              <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg>
+              Limpar
+            </button>
           </div>
-          <button id="btn-movie-filter-clear" class="icon-btn icon-btn-sm filter-clear hidden" aria-label="Limpar filtro" title="Limpar filtro">
-            <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg>
-          </button>
+          <div id="movie-filter-bar" class="filter-chip-row">
+            <button type="button" id="filter-chip-movie-genre" class="filter-chip" data-filter-type="moviegenre">
+              <svg class="filter-chip-icon" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="m20.59 13.41-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82Z"/><circle cx="7" cy="7" r="1.4" fill="currentColor" stroke="none"/></svg>
+              <span class="filter-chip-label">Gênero</span>
+              <svg class="filter-chip-caret" width="9" height="9" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg>
+            </button>
+          </div>
         </div>
 
         <div id="movie-grid" class="track-list movie-list">
