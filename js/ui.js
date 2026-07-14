@@ -1668,6 +1668,12 @@ const UI = (() => {
       showToast('Sem internet e nenhuma música da fila está baixada.', 3000);
       setPlayState(false);
     });
+
+    // A fila acabou e o player completou sozinho com mais músicas
+    // parecidas (mesmo estilo) — avisa o usuário do que está rolando.
+    Player.on('onAutoContinue', () => {
+      showToast('Continuando com músicas parecidas…', 2000);
+    });
   }
 
   // ── BIND EVENTOS DE LISTA ──────────────────────

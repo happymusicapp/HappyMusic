@@ -26,6 +26,7 @@ const Player = (() => {
     onLoading:     null,  // (track) => {} — disparado ao iniciar busca do áudio
     onOfflineSkip: null,  // (track) => {} — disparado ao pular pra próxima faixa baixada, sem internet
     onAllOffline:  null,  // () => {} — disparado quando, offline, nenhuma faixa da fila está baixada
+    onAutoContinue: null, // (tracks) => {} — disparado ao completar a fila sozinho (modo rádio)
   };
 
   // ── FILA ──────────────────────────────────────
@@ -248,6 +249,40 @@ const Player = (() => {
 
   function isPlaying() { return !audio.paused; }
 
+  // ── CONTINUAR SOZINHO (MODO RÁDIO) ─────────────
+  // Quando o usuário clica numa música avulsa (favoritos, playlist
+  // pequena, resultado de busca, "recentes"...) a fila carregada pode
+  // ter só aquela faixa (ou poucas). Sem isso, ao terminar a única
+  // música o player simplesmente parava. Em vez disso, ao chegar no
+  // fim da fila (sem repeat ativo) buscamos mais faixas do mesmo
+  // gênero da última música tocada, direto da biblioteca completa do
+  // Drive, e continuamos tocando — como uma rádio baseada no estilo.
+  function _pickAutoContinueTracks(referenceTrack, excludeIds, count = 15) {
+    if (typeof Drive === 'undefined' || typeof Drive.getCachedTracks !== 'function') return [];
+
+    const all = Drive.getCachedTracks() || [];
+    if (!all.length) return [];
+
+    const exclude = new Set(excludeIds);
+    const genre = referenceTrack?.genre || null;
+
+    let pool = all.filter(t => !exclude.has(t.id) && (genre ? t.genre === genre : true));
+
+    // Nenhuma outra faixa do mesmo estilo sobrando — melhor continuar
+    // tocando algo (qualquer faixa ainda não tocada) do que simplesmente
+    // parar a reprodução.
+    if (!pool.length) pool = all.filter(t => !exclude.has(t.id));
+    if (!pool.length) return [];
+
+    // Fisher-Yates
+    for (let i = pool.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [pool[i], pool[j]] = [pool[j], pool[i]];
+    }
+
+    return pool.slice(0, count);
+  }
+
   // ── NAVEGAÇÃO ─────────────────────────────────
   function next() {
     if (!_queue.length) return;
@@ -263,9 +298,18 @@ const Player = (() => {
     } else if (_repeat === 'all') {
       _index = 0;
     } else {
-      // fim da fila sem repeat
-      _listeners.onEnd?.();
-      return;
+      // Fim da fila sem repeat: em vez de parar, tenta continuar
+      // sozinho com faixas do mesmo estilo (ver _pickAutoContinueTracks).
+      const extra = _pickAutoContinueTracks(getCurrentTrack(), _queue.map(t => t.id));
+      if (extra.length) {
+        _queue         = [..._queue, ...extra];
+        _originalQueue = [..._originalQueue, ...extra];
+        _index++;
+        _listeners.onAutoContinue?.(extra);
+      } else {
+        _listeners.onEnd?.();
+        return;
+      }
     }
 
     _play();
