@@ -9,5 +9,7 @@
 import { Capacitor } from '@capacitor/core';
 import '@jofr/capacitor-media-session';
 import '@capacitor/filesystem';
+import '@capacitor/app';
+import '@capacitor/browser';
 
 window.Capacitor = Capacitor;
