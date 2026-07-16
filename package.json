@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "description": "HappyMusic - app Android nativo (Capacitor)",
+  "author": "Pedro Maia",
   "scripts": {
     "build:native": "esbuild src/capacitor-entry.js --bundle --format=iife --outfile=www/js/capacitor-bundle.js --minify",
     "sync": "npm run build:native && npx cap sync android"

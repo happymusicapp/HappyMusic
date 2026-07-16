@@ -21,7 +21,7 @@ jobs:
         shell: bash
     steps:
       - name: Checkout do codigo
-        uses: actions/checkout@v5
+        uses: actions/checkout@v4
 
       - name: Instalar dependencias (npm)
         run: |
@@ -84,7 +84,7 @@ jobs:
           ls -la ../output
 
       - name: Disponibilizar APK e AAB para download
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v4
         with:
           name: happymusic-android-v${{ env.APP_VERSION_NAME }}
           path: output/

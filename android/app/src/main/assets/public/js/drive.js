@@ -7,7 +7,16 @@ const Drive = (() => {
 
   // ── CONFIGURAÇÃO ──────────────────────────────
   const CLIENT_ID   = '1097906554235-06h3ll6bn26opgqsddohls1d2a0mct5p.apps.googleusercontent.com';
-  const REDIRECT_URI = window.location.origin + '/';
+  // Dentro do app nativo (Capacitor), window.location.origin é um
+  // endereço local interno (ex.: https://localhost), não o domínio real
+  // — e é o domínio real que está cadastrado no Google Cloud Console e
+  // no assetlinks.json. O redirect nunca chega a carregar dentro da
+  // WebView do app mesmo (ver login()/NativeBrowser), então é seguro
+  // fixar esse valor aqui. Mesma lógica pras chamadas a /api/* abaixo.
+  const API_BASE = window.NativeApiBase || '';
+  const REDIRECT_URI = (window.NativeBrowser && window.NativeBrowser.isNative)
+    ? API_BASE + '/'
+    : window.location.origin + '/';
   // 'drive' (não só 'drive.readonly') porque agora o app também precisa
   // enviar arquivos novos e editar metadados (gênero/artista/álbum/título)
   // de faixas que já existiam no Drive antes do app existir.
@@ -108,12 +117,20 @@ const Drive = (() => {
       prompt:                'consent select_account',
     });
 
-    window.location.href = `https://accounts.google.com/o/oauth2/v2/auth?${params}`;
+    const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?${params}`;
+
+    // Dentro do app nativo, o Google bloqueia login feito na própria
+    // WebView — precisa abrir numa aba de navegador de verdade.
+    if (window.NativeBrowser && window.NativeBrowser.isNative) {
+      window.NativeBrowser.open(authUrl);
+    } else {
+      window.location.href = authUrl;
+    }
   }
 
   // ── OAUTH: TROCAR CÓDIGO POR TOKEN ────────────
-  async function handleCallback() {
-    const params   = new URLSearchParams(window.location.search);
+  async function handleCallback(url = window.location.href) {
+    const params   = new URL(url, window.location.origin).searchParams;
     const code     = params.get('code');
     const error    = params.get('error');
 
@@ -123,7 +140,7 @@ const Drive = (() => {
     if (!verifier) return false;
 
     try {
-      const res = await fetch('/api/token', {
+      const res = await fetch(`${API_BASE}/api/token`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -249,7 +266,7 @@ const Drive = (() => {
     const refreshToken = localStorage.getItem(KEY_REFRESH);
     if (!refreshToken) return Promise.resolve(false);
 
-    _refreshPromise = fetch('/api/refresh', {
+    _refreshPromise = fetch(`${API_BASE}/api/refresh`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ refresh_token: refreshToken }),
@@ -662,6 +679,13 @@ const Drive = (() => {
   async function fetchAudioUrl(fileId) {
     if (_blobCache.has(fileId)) return _blobCache.get(fileId);
 
+    // Já baixada e o app roda nativo: toca direto do arquivo no disco,
+    // sem gastar rede nem memória RAM com blob.
+    if (window.NativeFS && window.NativeFS.isNative) {
+      const localSrc = await window.NativeFS.getAudioSrc(fileId);
+      if (localSrc) return localSrc;
+    }
+
     await _ensureValidToken();
 
     const requestUrl = `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`;
@@ -683,6 +707,17 @@ const Drive = (() => {
     const objectUrl = URL.createObjectURL(blob);
     _cacheBlob(fileId, objectUrl);
     return objectUrl;
+  }
+
+  // Dados pra baixar o áudio direto pro disco nativo (Filesystem.downloadFile),
+  // sem passar pelo fetch()/blob do JS. Garante que o token está válido
+  // antes (o download nativo não sabe renovar token sozinho).
+  async function getAudioDownloadInfo(fileId) {
+    await _ensureValidToken();
+    return {
+      url: `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`,
+      headers: { Authorization: `Bearer ${_token}` },
+    };
   }
 
   // Libera memória de um blob específico (chamado ao remover um download)
@@ -1324,6 +1359,7 @@ const Drive = (() => {
     getOfflineTracks,
     fetchAudioUrl,
     revokeAudioUrl,
+    getAudioDownloadInfo,
     searchTracks,
     fetchEmbeddedCover,
     setCustomCover,
