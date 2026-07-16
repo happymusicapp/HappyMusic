@@ -76,6 +76,24 @@ const App = (() => {
     UI.bindPlayerEvents();
     _bindAppEvents();
 
+    // 1.5. App nativo: escuta o retorno do login do Google (que acontece
+    // numa aba de navegador externa, não dentro do app — ver drive.js).
+    if (window.NativeApp && window.NativeApp.isNative) {
+      window.NativeApp.onUrlOpen(async (url) => {
+        if (!url.includes('code=') && !url.includes('error=')) return;
+
+        window.NativeBrowser.close();
+
+        const ok = await Drive.handleCallback(url);
+        if (!ok) {
+          UI.showLogin();
+          UI.showToast('Erro ao autenticar. Tente novamente.');
+          return;
+        }
+        await _startApp();
+      });
+    }
+
     // 2. Verifica se voltou do OAuth (código na URL)
     const params = new URLSearchParams(window.location.search);
     if (params.get('code')) {

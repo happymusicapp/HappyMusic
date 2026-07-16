@@ -7,7 +7,16 @@ const Drive = (() => {
 
   // ── CONFIGURAÇÃO ──────────────────────────────
   const CLIENT_ID   = '1097906554235-06h3ll6bn26opgqsddohls1d2a0mct5p.apps.googleusercontent.com';
-  const REDIRECT_URI = window.location.origin + '/';
+  // Dentro do app nativo (Capacitor), window.location.origin é um
+  // endereço local interno (ex.: https://localhost), não o domínio real
+  // — e é o domínio real que está cadastrado no Google Cloud Console e
+  // no assetlinks.json. O redirect nunca chega a carregar dentro da
+  // WebView do app mesmo (ver login()/NativeBrowser), então é seguro
+  // fixar esse valor aqui.
+  const NATIVE_ORIGIN = 'https://happymusic-crn.pages.dev';
+  const REDIRECT_URI = (window.NativeBrowser && window.NativeBrowser.isNative)
+    ? NATIVE_ORIGIN + '/'
+    : window.location.origin + '/';
   // 'drive' (não só 'drive.readonly') porque agora o app também precisa
   // enviar arquivos novos e editar metadados (gênero/artista/álbum/título)
   // de faixas que já existiam no Drive antes do app existir.
@@ -108,12 +117,20 @@ const Drive = (() => {
       prompt:                'consent select_account',
     });
 
-    window.location.href = `https://accounts.google.com/o/oauth2/v2/auth?${params}`;
+    const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?${params}`;
+
+    // Dentro do app nativo, o Google bloqueia login feito na própria
+    // WebView — precisa abrir numa aba de navegador de verdade.
+    if (window.NativeBrowser && window.NativeBrowser.isNative) {
+      window.NativeBrowser.open(authUrl);
+    } else {
+      window.location.href = authUrl;
+    }
   }
 
   // ── OAUTH: TROCAR CÓDIGO POR TOKEN ────────────
-  async function handleCallback() {
-    const params   = new URLSearchParams(window.location.search);
+  async function handleCallback(url = window.location.href) {
+    const params   = new URL(url, window.location.origin).searchParams;
     const code     = params.get('code');
     const error    = params.get('error');
 

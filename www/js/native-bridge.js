@@ -72,4 +72,52 @@
   };
 
   global.NativeMedia = NativeMedia;
+
+  // ── Navegador externo (login do Google) ────────
+  // O Google bloqueia login OAuth feito dentro de uma WebView embutida
+  // (é assim que o app roda no Capacitor) — por política de segurança
+  // deles, não dá pra contornar. A solução é abrir o login numa aba
+  // do Chrome de verdade (Custom Tab) e, quando o Google redirecionar
+  // de volta pro domínio do app, o Android entrega essa URL de volta
+  // pro app através do App Links (ver AndroidManifest.xml).
+  const browserPlugin = isNative && global.Capacitor.Plugins
+    ? global.Capacitor.Plugins.Browser
+    : null;
+  const appPlugin = isNative && global.Capacitor.Plugins
+    ? global.Capacitor.Plugins.App
+    : null;
+
+  const NativeBrowser = {
+    isNative: !!browserPlugin,
+
+    async open(url) {
+      if (browserPlugin) {
+        try { await browserPlugin.open({ url }); return; }
+        catch (err) { console.warn('[NativeBrowser] open falhou:', err); }
+      }
+      window.location.href = url;
+    },
+
+    async close() {
+      if (!browserPlugin) return;
+      try { await browserPlugin.close(); }
+      catch { /* já pode ter sido fechado pelo usuário, ignora */ }
+    },
+  };
+
+  const NativeApp = {
+    isNative: !!appPlugin,
+
+    // handler(url: string) é chamado toda vez que o app é reaberto por
+    // um link (ex.: voltando do login do Google).
+    onUrlOpen(handler) {
+      if (!appPlugin) return;
+      appPlugin.addListener('appUrlOpen', (data) => {
+        if (data && data.url) handler(data.url);
+      });
+    },
+  };
+
+  global.NativeBrowser = NativeBrowser;
+  global.NativeApp = NativeApp;
 })(window);
