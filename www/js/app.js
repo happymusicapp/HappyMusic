@@ -1357,7 +1357,8 @@ const App = (() => {
     _movieSearchInFlight = true;
     UI.setMovieSearchLoading(true);
     try {
-      const res = await fetch(`/api/youtube-search?q=${encodeURIComponent(q)}`);
+      const apiBase = window.NativeApiBase || '';
+      const res = await fetch(`${apiBase}/api/youtube-search?q=${encodeURIComponent(q)}`);
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error_description || 'Não foi possível pesquisar agora.');
       UI.renderMovieSearchResults(data.results || []);

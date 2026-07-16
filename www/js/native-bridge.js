@@ -16,6 +16,15 @@
     global.Capacitor.isNativePlatform()
   );
 
+  // Dentro do app nativo, window.location.origin é um endereço local
+  // interno do Capacitor (ex.: https://localhost), não o domínio real —
+  // e é o domínio real que hospeda as Cloudflare Pages Functions
+  // (/api/token, /api/refresh, /api/youtube-search) e que está
+  // cadastrado no Google Cloud Console / assetlinks.json. Qualquer
+  // chamada relativa a /api/... ou de redirect do OAuth precisa usar
+  // isso em vez de window.location.origin quando isNative for true.
+  global.NativeApiBase = isNative ? 'https://happymusic-crn.pages.dev' : '';
+
   const plugin = isNative && global.Capacitor.Plugins
     ? global.Capacitor.Plugins.MediaSession
     : null;

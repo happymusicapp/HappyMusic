@@ -12,10 +12,10 @@ const Drive = (() => {
   // — e é o domínio real que está cadastrado no Google Cloud Console e
   // no assetlinks.json. O redirect nunca chega a carregar dentro da
   // WebView do app mesmo (ver login()/NativeBrowser), então é seguro
-  // fixar esse valor aqui.
-  const NATIVE_ORIGIN = 'https://happymusic-crn.pages.dev';
+  // fixar esse valor aqui. Mesma lógica pras chamadas a /api/* abaixo.
+  const API_BASE = window.NativeApiBase || '';
   const REDIRECT_URI = (window.NativeBrowser && window.NativeBrowser.isNative)
-    ? NATIVE_ORIGIN + '/'
+    ? API_BASE + '/'
     : window.location.origin + '/';
   // 'drive' (não só 'drive.readonly') porque agora o app também precisa
   // enviar arquivos novos e editar metadados (gênero/artista/álbum/título)
@@ -140,7 +140,7 @@ const Drive = (() => {
     if (!verifier) return false;
 
     try {
-      const res = await fetch('/api/token', {
+      const res = await fetch(`${API_BASE}/api/token`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -266,7 +266,7 @@ const Drive = (() => {
     const refreshToken = localStorage.getItem(KEY_REFRESH);
     if (!refreshToken) return Promise.resolve(false);
 
-    _refreshPromise = fetch('/api/refresh', {
+    _refreshPromise = fetch(`${API_BASE}/api/refresh`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ refresh_token: refreshToken }),
