@@ -129,4 +129,87 @@
 
   global.NativeBrowser = NativeBrowser;
   global.NativeApp = NativeApp;
+
+  // ── Downloads em disco (armazenamento nativo) ──
+  // Guarda os arquivos baixados no armazenamento privado do app
+  // (Directory.Data), em vez do Cache Storage do WebView. Isso deixa o
+  // HappyMusic no mesmo nível de proteção contra o Android apagar
+  // arquivos sozinho por falta de espaço que apps nativos como o
+  // Spotify usam — mas, assim como eles, continua sendo apagado se o
+  // usuário mandar "Limpar dados" do app manualmente (isso é uma ação
+  // do próprio Android que zera TODO o armazenamento privado do app,
+  // não tem como nenhum app escapar disso).
+  const fsPlugin = isNative && global.Capacitor.Plugins
+    ? global.Capacitor.Plugins.Filesystem
+    : null;
+
+  const AUDIO_DIR = 'audio';
+  const _audioPath = (id) => `${AUDIO_DIR}/${id}.bin`;
+
+  const NativeFS = {
+    isNative: !!fsPlugin,
+
+    // Baixa direto pro disco (sem passar pela RAM do WebView).
+    // { url, headers } vem de Drive.getAudioDownloadInfo(fileId).
+    async downloadAudio(id, { url, headers }) {
+      await fsPlugin.downloadFile({
+        url,
+        headers,
+        path: _audioPath(id),
+        directory: 'DATA',
+        recursive: true,
+      });
+    },
+
+    // URL que o <audio> consegue tocar direto do arquivo no disco.
+    async getAudioSrc(id) {
+      try {
+        const { uri } = await fsPlugin.getUri({ path: _audioPath(id), directory: 'DATA' });
+        return global.Capacitor.convertFileSrc(uri);
+      } catch {
+        return null; // não baixada
+      }
+    },
+
+    async hasAudio(id) {
+      try { await fsPlugin.stat({ path: _audioPath(id), directory: 'DATA' }); return true; }
+      catch { return false; }
+    },
+
+    async deleteAudio(id) {
+      try { await fsPlugin.deleteFile({ path: _audioPath(id), directory: 'DATA' }); }
+      catch { /* já não existia, ignora */ }
+    },
+
+    // Lista os ids já baixados (lido do disco — fonte de verdade real).
+    async listDownloadedIds() {
+      try {
+        const { files } = await fsPlugin.readdir({ path: AUDIO_DIR, directory: 'DATA' });
+        return files
+          .filter(f => f.type === 'file' && f.name.endsWith('.bin'))
+          .map(f => f.name.replace(/\.bin$/, ''));
+      } catch {
+        return []; // pasta ainda não existe (nenhum download feito)
+      }
+    },
+
+    async clearAll() {
+      try { await fsPlugin.rmdir({ path: AUDIO_DIR, directory: 'DATA', recursive: true }); }
+      catch { /* pasta já não existia, ignora */ }
+    },
+
+    // Soma o tamanho de tudo que já foi baixado (bytes).
+    async totalBytes() {
+      try {
+        const { files } = await fsPlugin.readdir({ path: AUDIO_DIR, directory: 'DATA' });
+        let total = 0;
+        for (const f of files) total += f.size || 0;
+        return total;
+      } catch {
+        return 0;
+      }
+    },
+  };
+
+  global.NativeFS = NativeFS;
 })(window);
