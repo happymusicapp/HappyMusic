@@ -26,9 +26,10 @@ jobs:
       - name: Instalar dependencias (npm)
         run: |
           set -euxo pipefail
+          unset NODE_ENV
           node --version
           npm --version
-          npm ci
+          npm ci --include=dev
 
       - name: Gerar bundle do Capacitor e sincronizar com o projeto Android
         run: |
