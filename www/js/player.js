@@ -427,16 +427,25 @@ const Player = (() => {
   audio.addEventListener('play', () => {
     const track = getCurrentTrack();
     if (track) _addToRecent(track);
-    // Voltou a tocar de verdade — zera o contador de tentativas de
-    // retomada automática (ver listener 'pause' abaixo).
+    // Voltou a tocar de verdade — zera os contadores de retomada
+    // automática e de falhas seguidas (ver listeners 'pause'/'error').
     _autoResumeAttempts = 0;
+    _errorSkipStreak = 0;
   });
+
+  // Conta falhas seguidas do elemento <audio> (evento 'error', disparado
+  // de forma assíncrona pelo próprio navegador — separado do try/catch
+  // de _play()). Sem isso, cada falha reiniciaria a contagem em 0 e o
+  // player poderia ficar pulando de faixa em faixa pra sempre, nunca
+  // acionando a rede de segurança de _handlePlaybackFailure.
+  let _errorSkipStreak = 0;
 
   audio.addEventListener('error', (e) => {
     console.error('[Player] Erro de áudio:', e);
+    _errorSkipStreak++;
     // Falha no meio da reprodução (ex.: conexão caiu durante o stream)
     // também deve acionar o auto-skip, e não travar o player.
-    _handlePlaybackFailure(e, 0);
+    _handlePlaybackFailure(e, _errorSkipStreak);
   });
 
   // Detecta pause NÃO solicitado pelo usuário — ex.: o sistema de som do

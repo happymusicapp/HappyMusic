@@ -162,8 +162,12 @@
     },
 
     // URL que o <audio> consegue tocar direto do arquivo no disco.
+    // Importante: getUri() do plugin NÃO confere se o arquivo existe de
+    // verdade (só monta o caminho teórico) — por isso confirma primeiro
+    // com stat(), que falha de verdade quando o arquivo não existe.
     async getAudioSrc(id) {
       try {
+        await fsPlugin.stat({ path: _audioPath(id), directory: 'DATA' });
         const { uri } = await fsPlugin.getUri({ path: _audioPath(id), directory: 'DATA' });
         return global.Capacitor.convertFileSrc(uri);
       } catch {
