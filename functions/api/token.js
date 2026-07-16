@@ -7,6 +7,20 @@
    Rota: POST /api/token
 ═══════════════════════════════════════════════ */
 
+// O app Android (Capacitor) chama essa rota de dentro da WebView, cuja
+// origem é local (ex.: https://localhost) — diferente do domínio real
+// do site. Sem CORS liberado aqui, o navegador bloqueia a resposta
+// mesmo a chamada chegando certinho no servidor.
+const CORS_HEADERS = {
+  'Access-Control-Allow-Origin':  '*',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type',
+};
+
+export async function onRequestOptions() {
+  return new Response(null, { status: 204, headers: CORS_HEADERS });
+}
+
 export async function onRequestPost(context) {
   const { request, env } = context;
 
@@ -17,7 +31,7 @@ export async function onRequestPost(context) {
     if (!code || !code_verifier || !redirect_uri) {
       return new Response(
         JSON.stringify({ error: 'missing_params' }),
-        { status: 400, headers: { 'Content-Type': 'application/json' } }
+        { status: 400, headers: { 'Content-Type': 'application/json', ...CORS_HEADERS } }
       );
     }
 
@@ -42,13 +56,13 @@ export async function onRequestPost(context) {
 
     return new Response(JSON.stringify(data), {
       status: googleRes.status,
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...CORS_HEADERS },
     });
 
   } catch (err) {
     return new Response(
       JSON.stringify({ error: 'server_error', error_description: err.message }),
-      { status: 500, headers: { 'Content-Type': 'application/json' } }
+      { status: 500, headers: { 'Content-Type': 'application/json', ...CORS_HEADERS } }
     );
   }
 }

@@ -8,6 +8,9 @@
    Rota: GET /api/youtube-search?q=termo+de+busca
 ═══════════════════════════════════════════════ */
 
+// Ver token.js — mesma necessidade de liberar CORS pro app nativo.
+const CORS_HEADERS = { 'Access-Control-Allow-Origin': '*' };
+
 export async function onRequestGet(context) {
   const { request, env } = context;
 
@@ -18,14 +21,14 @@ export async function onRequestGet(context) {
     if (!q) {
       return new Response(
         JSON.stringify({ error: 'missing_query' }),
-        { status: 400, headers: { 'Content-Type': 'application/json' } }
+        { status: 400, headers: { 'Content-Type': 'application/json', ...CORS_HEADERS } }
       );
     }
 
     if (!env.YOUTUBE_API_KEY) {
       return new Response(
         JSON.stringify({ error: 'server_misconfigured', error_description: 'YOUTUBE_API_KEY não configurada.' }),
-        { status: 500, headers: { 'Content-Type': 'application/json' } }
+        { status: 500, headers: { 'Content-Type': 'application/json', ...CORS_HEADERS } }
       );
     }
 
@@ -44,7 +47,7 @@ export async function onRequestGet(context) {
     if (!ytRes.ok) {
       return new Response(
         JSON.stringify({ error: 'youtube_api_error', error_description: data?.error?.message || 'Falha na busca.' }),
-        { status: ytRes.status, headers: { 'Content-Type': 'application/json' } }
+        { status: ytRes.status, headers: { 'Content-Type': 'application/json', ...CORS_HEADERS } }
       );
     }
 
@@ -63,13 +66,13 @@ export async function onRequestGet(context) {
 
     return new Response(JSON.stringify({ results }), {
       status: 200,
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...CORS_HEADERS },
     });
 
   } catch (err) {
     return new Response(
       JSON.stringify({ error: 'server_error', error_description: err.message }),
-      { status: 500, headers: { 'Content-Type': 'application/json' } }
+      { status: 500, headers: { 'Content-Type': 'application/json', ...CORS_HEADERS } }
     );
   }
 }
