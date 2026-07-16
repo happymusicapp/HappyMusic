@@ -679,6 +679,13 @@ const Drive = (() => {
   async function fetchAudioUrl(fileId) {
     if (_blobCache.has(fileId)) return _blobCache.get(fileId);
 
+    // Já baixada e o app roda nativo: toca direto do arquivo no disco,
+    // sem gastar rede nem memória RAM com blob.
+    if (window.NativeFS && window.NativeFS.isNative) {
+      const localSrc = await window.NativeFS.getAudioSrc(fileId);
+      if (localSrc) return localSrc;
+    }
+
     await _ensureValidToken();
 
     const requestUrl = `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`;
@@ -700,6 +707,17 @@ const Drive = (() => {
     const objectUrl = URL.createObjectURL(blob);
     _cacheBlob(fileId, objectUrl);
     return objectUrl;
+  }
+
+  // Dados pra baixar o áudio direto pro disco nativo (Filesystem.downloadFile),
+  // sem passar pelo fetch()/blob do JS. Garante que o token está válido
+  // antes (o download nativo não sabe renovar token sozinho).
+  async function getAudioDownloadInfo(fileId) {
+    await _ensureValidToken();
+    return {
+      url: `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`,
+      headers: { Authorization: `Bearer ${_token}` },
+    };
   }
 
   // Libera memória de um blob específico (chamado ao remover um download)
@@ -1341,6 +1359,7 @@ const Drive = (() => {
     getOfflineTracks,
     fetchAudioUrl,
     revokeAudioUrl,
+    getAudioDownloadInfo,
     searchTracks,
     fetchEmbeddedCover,
     setCustomCover,
