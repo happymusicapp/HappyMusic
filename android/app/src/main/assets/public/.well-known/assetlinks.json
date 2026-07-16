@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.happymusic.app",
+      "sha256_cert_fingerprints": [
+        "03:D1:A7:70:DF:04:17:7E:F9:BF:90:50:C4:4F:EF:A7:00:D4:B6:B3:E3:2A:A0:30:3F:2B:12:B6:80:52:20:85"
+      ]
+    }
+  }
+]

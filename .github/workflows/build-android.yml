@@ -5,9 +5,10 @@ on:
   push:
     branches:
       - main
+
 env:
-  APP_VERSION_NAME: "1.0.0"
-  APP_VERSION_CODE: "1"
+  APP_VERSION_NAME: "2.0.0"
+  APP_VERSION_CODE: "3"
 
 jobs:
   build-android:
@@ -22,30 +23,25 @@ jobs:
       - name: Checkout do codigo
         uses: actions/checkout@v4
 
-      - name: Preparar ambiente (JDK, SDK, Bubblewrap)
+      - name: Instalar dependencias (npm)
         run: |
           set -euxo pipefail
           node --version
-          java -version
-          npm install -g @bubblewrap/cli
-          bubblewrap --version || true
-          mkdir -p "$HOME/.bubblewrap"
-          JAVA_HOME_DETECTED="$(java -XshowSettings:properties -version 2>&1 | awk -F'= ' '/java\.home/ {print $2; exit}')"
-          ANDROID_SDK_DETECTED="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/opt/android-sdk}}"
-          for p in "$ANDROID_SDK_DETECTED" /opt/android-sdk /opt/android-sdk-linux /usr/lib/android-sdk "$HOME/Android/Sdk"; do
-            if [ -n "$p" ] && [ -d "$p" ]; then ANDROID_SDK_DETECTED="$p"; break; fi
-          done
-          echo "Android SDK detectado = $ANDROID_SDK_DETECTED"
-          test -d "$ANDROID_SDK_DETECTED" || { echo "ERRO: Android SDK nao encontrado"; exit 1; }
-          echo "JDK detectado = $JAVA_HOME_DETECTED"
-          test -d "$JAVA_HOME_DETECTED" || { echo "ERRO: JDK nao encontrado"; exit 1; }
-          CMDLINE_BIN="$ANDROID_SDK_DETECTED/cmdline-tools/latest/bin"
-          if [ -d "$CMDLINE_BIN" ] && [ ! -d "$ANDROID_SDK_DETECTED/bin" ]; then
-            ln -s "$CMDLINE_BIN" "$ANDROID_SDK_DETECTED/bin"
-          fi
-          printf '{"jdkPath":"%s","androidSdkPath":"%s"}\n' "$JAVA_HOME_DETECTED" "$ANDROID_SDK_DETECTED" > "$HOME/.bubblewrap/config.json"
-          cat "$HOME/.bubblewrap/config.json"
-          echo "ANDROID_SDK_DETECTED=$ANDROID_SDK_DETECTED" >> "$GITHUB_ENV"
+          npm --version
+          npm ci
+
+      - name: Gerar bundle do Capacitor e sincronizar com o projeto Android
+        run: |
+          set -euxo pipefail
+          npm run build:native
+          npx cap sync android
+
+      - name: Ajustar versionCode / versionName do build
+        run: |
+          set -euxo pipefail
+          sed -i "s/versionCode [0-9]\+/versionCode ${APP_VERSION_CODE}/" android/app/build.gradle
+          sed -i "s/versionName \"[^\"]*\"/versionName \"${APP_VERSION_NAME}\"/" android/app/build.gradle
+          grep -E "versionCode|versionName" android/app/build.gradle
 
       - name: Decodificar keystore
         env:
@@ -59,84 +55,32 @@ jobs:
           : "${KEY_ALIAS:?Missing KEY_ALIAS}"
           : "${KEY_PASSWORD:?Missing KEY_PASSWORD}"
           : "${KEYSTORE_PASSWORD:?Missing KEYSTORE_PASSWORD}"
-          printf '%s' "$KEYSTORE_BASE64" | tr -d '\r\n\t ' | base64 -d > happymusic.keystore
-          test -s happymusic.keystore
-          ls -l happymusic.keystore
-          test -f twa-manifest.json
+          printf '%s' "$KEYSTORE_BASE64" | tr -d '\r\n\t ' | base64 -d > "$GITHUB_WORKSPACE/happymusic.keystore"
+          test -s "$GITHUB_WORKSPACE/happymusic.keystore"
+          keytool -list -v -keystore "$GITHUB_WORKSPACE/happymusic.keystore" -alias "$KEY_ALIAS" -storepass "$KEYSTORE_PASSWORD" | grep "SHA256:"
 
-      - name: Mostrar fingerprint SHA-256 da keystore
-        env:
-          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
-          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
-        run: |
-          set -euxo pipefail
-          keytool -list -v -keystore happymusic.keystore -alias "$KEY_ALIAS" -storepass "$KEYSTORE_PASSWORD" | grep "SHA256:"
-
-      - name: Build do TWA (APK + AAB)
+      - name: Build do app Android (APK + AAB assinados via Gradle)
         env:
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
         run: |
           set -euxo pipefail
-          cat > /tmp/static-server.js << 'NODEEOF'
-          const http = require('http');
-          const fs = require('fs');
-          const path = require('path');
-          const root = process.argv[2];
-          const port = parseInt(process.argv[3] || '8080', 10);
-          const mime = {'.json': 'application/json', '.png': 'image/png', '.svg': 'image/svg+xml', '.html': 'text/html'};
-          http.createServer((req, res) => {
-            const filePath = path.join(root, decodeURIComponent(req.url.split('?')[0]));
-            fs.readFile(filePath, (err, data) => {
-              if (err) { res.writeHead(404); res.end('Not found'); return; }
-              res.writeHead(200, {'Content-Type': mime[path.extname(filePath)] || 'application/octet-stream'});
-              res.end(data);
-            });
-          }).listen(port, '127.0.0.1', () => console.log('static server on ' + port));
-          NODEEOF
-          node /tmp/static-server.js "$PWD" 8080 > /tmp/static-server.log 2>&1 &
-          echo $! > /tmp/static-server.pid
-          sleep 1
-          curl -fsS http://127.0.0.1:8080/manifest.json > /dev/null
+          export HM_KEYSTORE_PATH="$GITHUB_WORKSPACE/happymusic.keystore"
+          export HM_KEYSTORE_PASSWORD="$KEYSTORE_PASSWORD"
+          export HM_KEY_ALIAS="$KEY_ALIAS"
+          export HM_KEY_PASSWORD="$KEY_PASSWORD"
 
-          cat > /tmp/rewrite-manifest.js << 'NODEEOF'
-          const fs = require('fs');
-          const m = JSON.parse(fs.readFileSync('twa-manifest.json', 'utf8'));
-          const local = (u) => u.replace(/^https?:\/\/[^/]+/, 'http://127.0.0.1:8080');
-          if (m.iconUrl) m.iconUrl = local(m.iconUrl);
-          if (m.maskableIconUrl) m.maskableIconUrl = local(m.maskableIconUrl);
-          if (m.monochromeIconUrl) m.monochromeIconUrl = local(m.monochromeIconUrl);
-          if (m.webManifestUrl) m.webManifestUrl = local(m.webManifestUrl);
-          fs.mkdirSync('twa-project', {recursive: true});
-          fs.writeFileSync('twa-project/twa-manifest.json', JSON.stringify(m, null, 2));
-          NODEEOF
-          node /tmp/rewrite-manifest.js
+          cd android
+          chmod +x ./gradlew
+          ./gradlew bundleRelease assembleRelease --no-daemon
 
-          cd twa-project
-          export BUBBLEWRAP_KEYSTORE_PASSWORD="$KEYSTORE_PASSWORD"
-          export BUBBLEWRAP_KEY_PASSWORD="$KEY_PASSWORD"
-          bubblewrap update --manifest twa-manifest.json --skipVersionUpgrade
-          echo "=== app/build.gradle gerado ===" && cat app/build.gradle || true
-          bubblewrap build --skipPwaValidation --signingKeyPath ../happymusic.keystore --signingKeyAlias "$KEY_ALIAS"
-
-          kill "$(cat /tmp/static-server.pid)" 2>/dev/null || true
           mkdir -p ../output
-          APK="$(ls -1 app-release-signed.apk 2>/dev/null | head -n 1 || true)"
-          AAB="$(ls -1 app/build/outputs/bundle/release/*.aab 2>/dev/null | head -n 1 || true)"
-
-          if [ -n "$AAB" ]; then
-            echo "=== Assinando o AAB com jarsigner (bubblewrap so assina o APK) ==="
-            jarsigner -verbose -sigalg SHA256withRSA -digestalg SHA-256 \
-              -keystore ../happymusic.keystore -storepass "$KEYSTORE_PASSWORD" -keypass "$KEY_PASSWORD" \
-              "$AAB" "$KEY_ALIAS"
-            jarsigner -verify -verbose -certs "$AAB"
-          fi
-          APK_NAME="HappyMusic.apk"
-          AAB_NAME="HappyMusic.aab"
-          if [ -n "$APK" ]; then cp "$APK" "../output/$APK_NAME"; fi
-          if [ -n "$AAB" ]; then cp "$AAB" "../output/$AAB_NAME"; fi
-          ls -la ../output || true
+          AAB="$(find app/build/outputs/bundle/release -name '*.aab' | head -n 1)"
+          APK="$(find app/build/outputs/apk/release -name '*.apk' | head -n 1)"
+          test -n "$AAB" && cp "$AAB" ../output/HappyMusic.aab
+          test -n "$APK" && cp "$APK" ../output/HappyMusic.apk
+          ls -la ../output
 
       - name: Disponibilizar APK e AAB para download
         uses: actions/upload-artifact@v4

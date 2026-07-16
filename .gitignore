@@ -1,0 +1,4 @@
+node_modules/
+output/
+*.keystore
+.DS_Store

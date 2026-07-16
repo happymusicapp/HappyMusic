@@ -1,0 +1,2196 @@
+/* ═══════════════════════════════════════════════
+   HAPPY MUSIC – style.css
+   Paleta: #0A0A0A | #1A1A1A | #2A2A2A | #7B00FF | #FFFFFF | #AAAAAA
+═══════════════════════════════════════════════ */
+
+/* ── TOKENS ────────────────────────────────── */
+:root {
+  --bg:          #0B0B0D;
+  --bg-elevated: #111113;
+  --surface:     #18181B;
+  --surface2:    #222226;
+  --border:      rgba(255,255,255,0.07);
+  --border-soft: rgba(255,255,255,0.04);
+
+  --purple:       #7C3AFF;
+  --purple-soft:  #A06CFF;
+  --purple-deep:  #5B1FD6;
+  --purple-glow:  rgba(124, 58, 255, 0.28);
+  --gradient-brand: linear-gradient(135deg, #6D2BFF 0%, #9D4DFF 55%, #C77DFF 100%);
+
+  --white:       #FAFAFA;
+  --grey:        #9C9CA3;
+  --grey-soft:   #C4C4C9;
+  --grey-dark:   #5C5C63;
+
+  --font-display: 'Roboto', sans-serif;
+  --font-body:    'Roboto', sans-serif;
+
+  /* escala de espaçamento (8px base) */
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 24px;
+  --sp-6: 32px;
+  --sp-7: 48px;
+
+  --radius-sm:   10px;
+  --radius-md:   16px;
+  --radius-lg:   24px;
+  --radius-full: 999px;
+
+  --header-h:    60px;
+  --player-h:    148px;
+  --nav-h:       68px;
+
+  --ease:        cubic-bezier(0.22, 1, 0.36, 1);
+  --transition:  0.2s var(--ease);
+}
+
+/* ── RESET ─────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html {
+  font-size: 16px;
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  position: relative;
+  font-family: var(--font-body);
+  background: var(--bg);
+  color: var(--white);
+  min-height: 100dvh;
+  overflow: hidden;
+  user-select: none;
+}
+
+/* Mesmo fundo "aurora" roxa da tela de abertura (splash), só que fixo
+   atrás de tudo o tempo todo — não só nos 2 segundos da animação de
+   entrada. Fica sempre atrás das telas (.screen tem z-index 2 quando
+   ativa; o splash em si tem z-index 1000). */
+body::before {
+  content: '';
+  position: fixed;
+  inset: -20%;
+  z-index: 0;
+  background:
+    radial-gradient(circle at 25% 25%, rgba(124,58,255,0.45) 0%, transparent 38%),
+    radial-gradient(circle at 75% 30%, rgba(199,125,255,0.35) 0%, transparent 35%),
+    radial-gradient(circle at 50% 80%, rgba(91,31,214,0.4) 0%, transparent 40%);
+  filter: blur(50px);
+  animation: aurora-drift 9s ease-in-out infinite alternate;
+  pointer-events: none;
+}
+
+button { background: none; border: none; cursor: pointer; font-family: inherit; color: inherit; }
+input  { font-family: inherit; }
+img    { display: block; }
+
+/* ── SCREENS ───────────────────────────────── */
+/* Antes a troca de tela era um display:none/flex instantâneo (sem
+   transição nenhuma), o que fazia o app "pular" pra tela seguinte sem
+   nenhum aviso visual. Agora as duas telas ficam empilhadas (fixed,
+   ocupando a viewport inteira) e a troca é um crossfade suave: a que
+   sai esmaece enquanto a que entra aparece, ao mesmo tempo. */
+.screen {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100dvh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transform: translateY(14px) scale(0.985);
+  transition: opacity 0.45s var(--ease), transform 0.45s var(--ease), visibility 0.45s var(--ease);
+}
+.screen.active {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  transform: translateY(0) scale(1);
+  z-index: 2;
+}
+
+/* ── TELA DE LOGIN ─────────────────────────── */
+#screen-login {
+  align-items: center;
+  justify-content: center;
+  background:
+    radial-gradient(ellipse 80% 50% at 50% 0%, rgba(124,58,255,0.22) 0%, transparent 60%),
+    radial-gradient(ellipse 60% 40% at 85% 90%, rgba(157,77,255,0.10) 0%, transparent 60%),
+    var(--bg);
+}
+
+.login-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-4);
+  padding: var(--sp-7) var(--sp-6);
+  text-align: center;
+}
+
+.login-logo {
+  width: 100px;
+  height: 100px;
+  border-radius: 28px;
+  box-shadow: 0 0 50px var(--purple-glow);
+  animation: pulse-glow 3.5s ease-in-out infinite;
+}
+
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 0 50px var(--purple-glow); }
+  50%       { box-shadow: 0 0 72px rgba(124,58,255,0.42); }
+}
+
+.login-title {
+  font-family: var(--font-display);
+  font-size: 2.25rem;
+  font-weight: 900;
+  letter-spacing: -0.03em;
+  margin-top: var(--sp-2);
+}
+
+.login-sub {
+  color: var(--grey);
+  font-size: 0.95rem;
+  line-height: 1.6;
+  max-width: 260px;
+}
+
+.btn-google {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  margin-top: var(--sp-4);
+  padding: 15px 30px;
+  background: var(--gradient-brand);
+  color: var(--white);
+  font-size: 0.95rem;
+  font-weight: 600;
+  border-radius: var(--radius-full);
+  box-shadow: 0 8px 24px rgba(124,58,255,0.3);
+  transition: box-shadow var(--transition), transform var(--transition);
+}
+
+.btn-google:hover  { box-shadow: 0 10px 32px rgba(124,58,255,0.45); transform: translateY(-1px); }
+.btn-google:active { transform: scale(0.97); }
+
+/* ── APP HEADER ────────────────────────────── */
+.app-header {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  height: var(--header-h);
+  background: #000;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 var(--sp-4);
+  z-index: 100;
+  border-bottom: 1px solid var(--border);
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.header-logo {
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+}
+
+.header-title {
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  font-weight: 900;
+  letter-spacing: -0.02em;
+}
+
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
+}
+
+.icon-btn {
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  color: var(--grey);
+  transition: color var(--transition), background var(--transition), box-shadow var(--transition);
+}
+
+.icon-btn:hover  { color: var(--white); background: var(--surface); }
+.icon-btn:active { background: var(--surface2); }
+
+.icon-btn-sm { width: 32px; height: 32px; }
+
+.icon-btn.active {
+  color: var(--purple-soft);
+  background: rgba(124,58,255,0.14);
+  box-shadow: 0 0 10px rgba(124,58,255,0.3);
+}
+
+.icon-btn-accent {
+  color: var(--purple-soft);
+  background: rgba(124,58,255,0.1);
+}
+.icon-btn-accent:hover {
+  color: var(--white);
+  background: var(--gradient-brand);
+  box-shadow: 0 0 14px rgba(124,58,255,0.45);
+}
+
+.shelf-actions { display: flex; align-items: center; gap: var(--sp-1); }
+
+.avatar {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid var(--purple);
+}
+
+/* ── SEARCH BAR ────────────────────────────── */
+.search-bar {
+  position: fixed;
+  top: var(--header-h);
+  left: 0; right: 0;
+  background: var(--bg-elevated);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-3) var(--sp-4);
+  z-index: 99;
+  color: var(--grey);
+}
+
+.search-bar input {
+  flex: 1;
+  background: none;
+  border: none;
+  outline: none;
+  color: var(--white);
+  font-size: 0.95rem;
+}
+
+.search-bar input::placeholder { color: var(--grey-dark); }
+
+/* ── MAIN CONTENT ──────────────────────────── */
+.main-content {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-top: calc(var(--header-h) + var(--sp-2));
+  padding-bottom: calc(var(--player-h) + var(--nav-h) + var(--sp-2));
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+}
+
+.main-content::-webkit-scrollbar { display: none; }
+
+/* ── VIEWS ─────────────────────────────────── */
+.view { display: none; padding: var(--sp-4); animation: fade-in 0.25s var(--ease); }
+.view.active { display: block; }
+
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ── SECTION TITLE ─────────────────────────── */
+.section-title {
+  font-family: var(--font-display);
+  font-size: 1.6rem;
+  font-weight: 700;
+  margin-bottom: var(--sp-5);
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+}
+
+/* ── SHELF ─────────────────────────────────── */
+.shelf { margin-bottom: var(--sp-6); }
+
+.shelf-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--sp-3);
+}
+
+.shelf-label {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--grey-soft);
+  letter-spacing: -0.01em;
+  margin-bottom: var(--sp-3);
+}
+
+.shelf-header .shelf-label { margin-bottom: 0; }
+
+.text-btn {
+  font-size: 0.78rem;
+  color: var(--purple-soft);
+  font-weight: 600;
+  transition: color var(--transition);
+}
+
+.text-btn:hover { color: var(--white); }
+
+/* ── SELETOR DE CAPA (modal de editar informações) ────
+   Miniatura quadrada tocável (abre o seletor de imagem do celular) +
+   botão de texto pra trocar, e "Remover capa" só aparece quando há capa. */
+.edit-cover-row {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3, 12px);
+}
+
+.edit-cover-preview {
+  flex-shrink: 0;
+  width: 64px;
+  height: 64px;
+  border-radius: var(--radius-md, 16px);
+  overflow: hidden;
+  background: var(--surface2, rgba(255,255,255,0.06));
+  border: 1px solid rgba(124,58,255,0.28);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  cursor: pointer;
+  transition: border-color var(--transition), box-shadow var(--transition);
+}
+
+.edit-cover-preview:active { box-shadow: 0 0 0 3px var(--purple-glow); }
+
+.edit-cover-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.edit-cover-preview img.hidden { display: none; }
+
+.edit-cover-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  color: var(--grey-soft);
+  font-size: 0.62rem;
+  font-weight: 600;
+}
+
+.edit-cover-placeholder.hidden { display: none; }
+
+.edit-cover-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+}
+
+/* ── TOCADAS RECENTEMENTE ─────────────────────
+   Reaproveita o mesmo visual da lista de músicas
+   (.track-item / .track-art / .track-info), só que
+   sem número, checkbox, duração ou botões extras. */
+.recent-track-item .track-art { width: 44px; height: 44px; }
+
+/* ── COLEÇÕES RECENTES (carrossel de chips) ───── */
+.recent-collections-list {
+  display: flex;
+  gap: var(--sp-3);
+  overflow-x: auto;
+  scrollbar-width: none;
+  padding-bottom: 2px;
+}
+.recent-collections-list::-webkit-scrollbar { display: none; }
+
+.recent-collection-chip {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-2);
+  width: 72px;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+
+.recent-collection-chip-art {
+  width: 56px;
+  height: 56px;
+  border-radius: var(--radius-md);
+  background: var(--gradient-brand);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(255,255,255,0.9);
+  transition: transform var(--transition), box-shadow var(--transition);
+}
+.recent-collection-chip:hover .recent-collection-chip-art { box-shadow: 0 0 18px rgba(124,58,255,0.45); }
+.recent-collection-chip:active .recent-collection-chip-art { transform: scale(0.94); }
+.recent-collection-chip-art.is-fav { background: linear-gradient(135deg, #ff5c8a, #ff8fab); }
+
+.recent-collection-chip-name {
+  font-size: 0.74rem;
+  text-align: center;
+  color: var(--white);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+/* ── TRACK LIST ────────────────────────────── */
+.track-list { display: flex; flex-direction: column; gap: var(--sp-1); }
+
+.track-item {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-2) var(--sp-2);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background var(--transition);
+}
+
+.track-item:hover  { background: var(--surface); }
+.track-item:active { background: var(--surface2); }
+.track-item.playing { background: rgba(124,58,255,0.10); }
+
+.track-num {
+  width: 20px;
+  text-align: center;
+  font-size: 0.8rem;
+  color: var(--grey-dark);
+  flex-shrink: 0;
+}
+
+.track-item.playing .track-num { color: var(--purple-soft); }
+
+.track-art {
+  width: 48px;
+  height: 48px;
+  border-radius: var(--sp-2);
+  background: var(--surface2);
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--grey-dark);
+  overflow: hidden;
+}
+
+.track-art img { width: 100%; height: 100%; object-fit: cover; }
+
+.track-info { flex: 1; min-width: 0; }
+
+.track-title {
+  display: block;
+  font-size: 0.9rem;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.track-item.playing .track-title { color: var(--purple-soft); font-weight: 600; }
+
+.track-meta {
+  display: block;
+  font-size: 0.76rem;
+  color: var(--grey);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-top: 2px;
+}
+
+.track-duration {
+  font-size: 0.76rem;
+  color: var(--grey-dark);
+  flex-shrink: 0;
+}
+
+/* ── SKELETON ──────────────────────────────── */
+.skeleton {
+  background: linear-gradient(90deg, var(--surface) 25%, var(--surface2) 50%, var(--surface) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.4s infinite;
+  min-height: 64px;
+  border: 1px solid var(--border-soft);
+}
+
+@keyframes shimmer {
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* ── PLAYER ────────────────────────────────── */
+.player {
+  position: fixed;
+  bottom: var(--nav-h);
+  left: 0; right: 0;
+  background: #000;
+  border-top: 1px solid var(--border);
+  padding: var(--sp-3) var(--sp-4) var(--sp-2);
+  z-index: 90;
+  transition: transform var(--transition);
+}
+
+.player.hidden { transform: translateY(100%); pointer-events: none; }
+
+.player-track {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  margin-bottom: var(--sp-3);
+}
+
+.player-art {
+  width: 44px;
+  height: 44px;
+  border-radius: var(--sp-2);
+  background: var(--gradient-brand);
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(255,255,255,0.9);
+  overflow: hidden;
+  box-shadow: 0 4px 14px rgba(124,58,255,0.25);
+}
+
+.player-art img { width: 100%; height: 100%; object-fit: cover; }
+
+.player-info { flex: 1; min-width: 0; }
+
+.player-title {
+  display: block;
+  font-size: 0.92rem;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  letter-spacing: -0.01em;
+}
+
+.player-artist {
+  display: block;
+  font-size: 0.76rem;
+  color: var(--grey);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-top: 2px;
+}
+
+.fav-btn { color: var(--grey); }
+.fav-btn.active { color: var(--purple-soft); }
+.fav-btn.active svg { fill: var(--purple-soft); stroke: var(--purple-soft); }
+
+/* PROGRESS */
+.player-progress {
+  position: relative;
+  z-index: 3; /* fica acima do brilho/argolas do play, que vazam pra fora da caixinha dele */
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  margin-bottom: var(--sp-2);
+}
+
+.time-label {
+  font-size: 0.7rem;
+  color: var(--grey-dark);
+  width: 30px;
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.seek-bar-wrap {
+  position: relative;
+  flex: 1;
+  display: flex;
+  align-items: center;
+}
+
+.seek-bar {
+  flex: 1;
+  -webkit-appearance: none;
+  appearance: none;
+  height: 3px;
+  border-radius: var(--radius-full);
+  background: var(--surface2);
+  outline: none;
+  cursor: pointer;
+  accent-color: var(--purple);
+  transition: box-shadow var(--transition);
+}
+
+/* brilho neon "respirando" — mesmo halo da linha que existia no topo do
+   player, só ligado enquanto a música está tocando de verdade */
+.seek-bar-wrap.is-playing .seek-bar {
+  animation: seek-bar-glow 3.5s ease-in-out infinite;
+}
+
+@keyframes seek-bar-glow {
+  0%, 100% { box-shadow: 0 0 8px rgba(124,58,255,0.45); }
+  50%      { box-shadow: 0 0 18px rgba(124,58,255,0.8), 0 0 28px rgba(199,125,255,0.4); }
+}
+
+/* faixa de luz que corre sobre a barra sem parar — o "brilho correndo"
+   propriamente dito. Fica por cima do input (pointer-events:none pra
+   não atrapalhar o arraste), sempre do mesmo tamanho, repetindo o
+   percurso inteiro da barra continuamente. */
+/* faixa de luz que corre só sobre a parte já preenchida (roxa) da barra —
+   por isso fica dentro de um "clip" cuja largura o JS atualiza junto do
+   progresso (updateProgress, em ui.js). pointer-events:none em tudo pra
+   não atrapalhar o arraste do input por baixo. */
+.seek-bar-fill-clip {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  width: 0%;
+  height: 4px;
+  transform: translateY(-50%);
+  overflow: hidden;
+  border-radius: var(--radius-full);
+  pointer-events: none;
+}
+
+.seek-bar-shimmer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 40%;
+  height: 100%;
+  transform: translateX(-120%);
+  background: linear-gradient(90deg,
+    transparent,
+    rgba(255,255,255,0.95),
+    rgba(199,125,255,0.9),
+    transparent);
+  border-radius: var(--radius-full);
+  filter: blur(1.5px);
+  opacity: 0;
+}
+
+.seek-bar-wrap.is-playing .seek-bar-shimmer {
+  opacity: 1;
+  animation: seek-bar-shimmer-run 2s linear infinite;
+}
+
+@keyframes seek-bar-shimmer-run {
+  0%   { transform: translateX(-120%); }
+  100% { transform: translateX(350%); }
+}
+
+.seek-bar::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 12px; height: 12px;
+  border-radius: 50%;
+  background: var(--white);
+  box-shadow: 0 0 0 3px var(--purple-glow);
+  cursor: pointer;
+}
+
+/* CONTROLS */
+.player-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.ctrl-btn { color: var(--grey); width: 36px; height: 36px; }
+.ctrl-btn:hover { color: var(--white); }
+.ctrl-btn.active { color: var(--purple-soft); }
+
+.play-btn {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background: var(--gradient-brand);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--white);
+  transition: box-shadow var(--transition), transform var(--transition);
+  box-shadow: 0 6px 22px rgba(124,58,255,0.38);
+}
+
+.play-btn:hover  { box-shadow: 0 8px 28px rgba(124,58,255,0.5); }
+.play-btn:active { transform: scale(0.93); }
+
+/* ── BOTTOM NAV ────────────────────────────── */
+.bottom-nav {
+  position: fixed;
+  bottom: 0; left: 0; right: 0;
+  height: var(--nav-h);
+  background: #000;
+  border-top: 1px solid var(--border);
+  display: flex;
+  z-index: 100;
+}
+
+.nav-btn {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  color: var(--grey-dark);
+  font-size: 0.68rem;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  transition: color var(--transition);
+  padding-bottom: env(safe-area-inset-bottom, 0);
+}
+
+.nav-btn svg { transition: transform var(--transition); }
+.nav-btn:hover  { color: var(--grey); }
+.nav-btn.active { color: var(--purple-soft); }
+.nav-btn.active svg { transform: scale(1.1); }
+
+/* ── PROFILE VIEW ──────────────────────────── */
+.profile-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-3);
+  padding-top: var(--sp-6);
+  text-align: center;
+}
+
+.profile-avatar {
+  width: 92px;
+  height: 92px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 3px solid var(--purple);
+  box-shadow: 0 0 32px var(--purple-glow);
+}
+
+.profile-name {
+  font-family: var(--font-display);
+  font-size: 1.35rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.profile-email { font-size: 0.85rem; color: var(--grey); }
+
+.btn-outline {
+  margin-top: var(--sp-4);
+  padding: 11px 30px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-full);
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--grey-soft);
+  transition: border-color var(--transition), color var(--transition);
+}
+
+.btn-outline:hover { border-color: var(--purple); color: var(--white); }
+
+/* ── TOAST ─────────────────────────────────── */
+.toast {
+  position: fixed;
+  bottom: calc(var(--nav-h) + var(--player-h) + var(--sp-3));
+  left: 50%;
+  transform: translateX(-50%) translateY(12px) scale(0.96);
+  background: var(--surface2);
+  color: var(--white);
+  font-size: 0.85rem;
+  font-weight: 500;
+  padding: var(--sp-3) var(--sp-5);
+  border-radius: var(--radius-full);
+  border: 1px solid var(--border);
+  box-shadow: 0 8px 28px rgba(0,0,0,0.4), 0 0 0 rgba(124,58,255,0);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s var(--ease), transform 0.25s var(--ease), box-shadow 0.25s var(--ease);
+  white-space: nowrap;
+  z-index: 200;
+}
+
+.toast.show {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0) scale(1);
+  box-shadow: 0 8px 28px rgba(0,0,0,0.4), 0 0 22px rgba(124,58,255,0.35), inset 0 0 0 1px rgba(124,58,255,0.3);
+}
+
+/* ── UTILITÁRIOS ───────────────────────────── */
+.hidden { display: none !important; }
+
+/* ── RESPONSIVO (tablet+) ───────────────────── */
+@media (min-width: 600px) {
+  .main-content { max-width: 680px; margin: 0 auto; }
+}
+
+/* ═══════════════════════════════════════════════
+   SPLASH SCREEN
+═══════════════════════════════════════════════ */
+.splash {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: var(--bg);
+  overflow: hidden;
+  transition: opacity 0.45s var(--ease), visibility 0.45s var(--ease);
+}
+
+.splash.splash-hide { opacity: 0; visibility: hidden; pointer-events: none; }
+
+.splash-center {
+  position: absolute;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.splash-aurora {
+  position: absolute;
+  inset: -20%;
+  background:
+    radial-gradient(circle at 25% 25%, rgba(124,58,255,0.45) 0%, transparent 38%),
+    radial-gradient(circle at 75% 30%, rgba(199,125,255,0.35) 0%, transparent 35%),
+    radial-gradient(circle at 50% 80%, rgba(91,31,214,0.4) 0%, transparent 40%);
+  filter: blur(50px);
+  animation: aurora-drift 9s ease-in-out infinite alternate;
+}
+
+@keyframes aurora-drift {
+  0%   { transform: rotate(0deg) scale(1); }
+  100% { transform: rotate(12deg) scale(1.15); }
+}
+
+.splash-orb {
+  position: relative;
+  width: 92px;
+  height: 92px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ring {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  border: 1.5px solid var(--purple-soft);
+  opacity: 0;
+  animation: ring-pulse 2.4s var(--ease) infinite;
+}
+
+.ring-1 { width: 110px; height: 110px; animation-delay: 0s; }
+.ring-2 { width: 110px; height: 110px; animation-delay: 0.6s; }
+.ring-3 { width: 110px; height: 110px; animation-delay: 1.2s; }
+
+@keyframes ring-pulse {
+  0%   { width: 110px; height: 110px; opacity: 0.7; border-color: var(--purple-soft); }
+  100% { width: 260px; height: 260px; opacity: 0;   border-color: var(--purple); }
+}
+
+.splash-logo {
+  width: 72px;
+  height: 72px;
+  object-fit: contain;
+  position: relative;
+  z-index: 2;
+  filter: drop-shadow(0 0 18px var(--purple-glow));
+  animation: splash-glow 2.2s ease-in-out infinite;
+}
+
+@keyframes splash-glow {
+  0%, 100% { filter: drop-shadow(0 0 18px var(--purple-glow)) drop-shadow(0 0 36px rgba(124,58,255,0.15)); }
+  50%      { filter: drop-shadow(0 0 30px rgba(124,58,255,0.55)) drop-shadow(0 0 54px rgba(199,125,255,0.3)); }
+}
+
+.splash-title {
+  margin-top: var(--sp-4);
+  font-family: var(--font-display);
+  font-size: 1.7rem;
+  font-weight: 900;
+  letter-spacing: -0.02em;
+  color: var(--white);
+  position: relative;
+  z-index: 2;
+  opacity: 0;
+  animation: splash-title-in 0.7s var(--ease) 0.4s both;
+}
+
+/* "Music" com o gradiente da marca — classe reaproveitável em qualquer
+   lugar do app que mostre o nome HappyMusic (splash, login, header, etc.) */
+.brand-music {
+  background: var(--gradient-brand);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+@keyframes splash-title-in {
+  0%   { opacity: 0; transform: translateY(8px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
+.splash-bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 4px;
+  height: 18px;
+  margin-top: var(--sp-4);
+  position: relative;
+  z-index: 2;
+  opacity: 0;
+  animation: splash-title-in 0.6s var(--ease) 0.8s both;
+}
+
+.splash-bars span {
+  width: 3px;
+  border-radius: var(--radius-full);
+  background: var(--gradient-brand);
+  animation: eq-bounce 1s ease-in-out infinite;
+}
+
+.splash-bars span:nth-child(1) { height: 40%; animation-delay: 0s; }
+.splash-bars span:nth-child(2) { height: 100%; animation-delay: 0.15s; }
+.splash-bars span:nth-child(3) { height: 60%; animation-delay: 0.3s; }
+.splash-bars span:nth-child(4) { height: 90%; animation-delay: 0.1s; }
+.splash-bars span:nth-child(5) { height: 50%; animation-delay: 0.25s; }
+
+@keyframes eq-bounce {
+  0%, 100% { transform: scaleY(0.4); }
+  50%      { transform: scaleY(1); }
+}
+
+/* ═══════════════════════════════════════════════
+   AURORA DE FUNDO (telas de login / app)
+═══════════════════════════════════════════════ */
+.aurora-bg {
+  position: absolute;
+  inset: -30%;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 20% 15%, rgba(124,58,255,0.22) 0%, transparent 35%),
+    radial-gradient(circle at 80% 25%, rgba(199,125,255,0.14) 0%, transparent 32%),
+    radial-gradient(circle at 50% 90%, rgba(91,31,214,0.18) 0%, transparent 38%);
+  filter: blur(60px);
+  animation: aurora-drift 14s ease-in-out infinite alternate;
+}
+
+.login-wrap, .login-wrap * { position: relative; z-index: 1; }
+
+/* ═══════════════════════════════════════════════
+   REFORÇOS NEON
+═══════════════════════════════════════════════ */
+
+/* título de login com brilho neon sutil */
+.login-title {
+  text-shadow: 0 0 24px rgba(124,58,255,0.5), 0 0 50px rgba(124,58,255,0.2);
+}
+
+/* botão google com shimmer animado */
+.btn-google {
+  position: relative;
+  overflow: hidden;
+  animation: btn-pulse 3.5s ease-in-out infinite;
+}
+
+.btn-google::after {
+  content: '';
+  position: absolute;
+  top: 0; left: -60%;
+  width: 40%; height: 100%;
+  background: linear-gradient(120deg, transparent, rgba(255,255,255,0.35), transparent);
+  transform: skewX(-20deg);
+  animation: shimmer-sweep 3s ease-in-out infinite;
+}
+
+@keyframes shimmer-sweep {
+  0%   { left: -60%; }
+  60%  { left: 130%; }
+  100% { left: 130%; }
+}
+
+@keyframes btn-pulse {
+  0%, 100% { box-shadow: 0 8px 24px rgba(124,58,255,0.3); }
+  50%      { box-shadow: 0 8px 34px rgba(124,58,255,0.55), 0 0 40px rgba(199,125,255,0.25); }
+}
+
+/* play button com pulso neon discreto — só enquanto está tocando de
+   verdade (classe ligada/desligada em setPlayState, no ui.js) */
+.play-btn.is-playing {
+  animation: play-pulse 2.6s ease-in-out infinite;
+}
+
+@keyframes play-pulse {
+  0%, 100% { box-shadow: 0 6px 22px rgba(124,58,255,0.38); }
+  50%      { box-shadow: 0 6px 32px rgba(124,58,255,0.6), 0 0 36px rgba(199,125,255,0.3); }
+}
+
+/* capa em destaque no player com glow girante */
+.player-art {
+  position: relative;
+}
+
+.player:not(.hidden) .player-art::before {
+  content: '';
+  position: absolute;
+  inset: -3px;
+  border-radius: inherit;
+  background: conic-gradient(from 0deg, var(--purple), var(--purple-soft), #C77DFF, var(--purple));
+  z-index: -1;
+  filter: blur(6px);
+  opacity: 0.7;
+  animation: spin 3.5s linear infinite;
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* barra de progresso com fluxo neon */
+.seek-bar {
+  background: linear-gradient(90deg, var(--purple) 0%, var(--purple) var(--prog, 0%), var(--surface2) var(--prog, 0%));
+}
+
+/* item tocando: barrinha lateral neon pulsante */
+.track-item.playing {
+  position: relative;
+  box-shadow: inset 3px 0 0 0 var(--purple-soft);
+}
+
+.track-item.playing .track-art {
+  box-shadow: 0 0 16px rgba(124,58,255,0.45);
+}
+
+.track-item.playing .track-num {
+  animation: dot-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes dot-pulse {
+  0%, 100% { opacity: 0.6; text-shadow: 0 0 0 transparent; }
+  50%      { opacity: 1; text-shadow: 0 0 10px var(--purple-soft); }
+}
+
+/* nav ativo com glow */
+.nav-btn.active {
+  text-shadow: 0 0 16px rgba(160,108,255,0.6);
+}
+
+.nav-btn.active svg {
+  filter: drop-shadow(0 0 6px rgba(160,108,255,0.7));
+}
+
+/* track-art com brilho ambiente nas tocadas recentemente */
+.recent-track-item:hover .track-art,
+.recent-track-item:active .track-art {
+  box-shadow: 0 0 18px rgba(124,58,255,0.45);
+}
+
+/* logo do header com leve glow ao redor */
+.header-logo {
+  box-shadow: 0 0 12px rgba(124,58,255,0.35);
+}
+
+/* ── REDUCED MOTION: desativa animações neon ───── */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+  .splash { transition: none !important; }
+}
+
+/* ── PRIVACIDADE (login) ────────────────────── */
+.login-privacy {
+  margin-top: var(--sp-5);
+  color: var(--grey-dark);
+  font-size: 0.78rem;
+  line-height: 1.6;
+  max-width: 260px;
+}
+
+/* ── PERFIL: SEÇÕES ─────────────────────────── */
+.profile-section {
+  width: 100%;
+  max-width: 320px;
+  margin-top: var(--sp-5);
+  padding: var(--sp-4);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  text-align: left;
+}
+
+.profile-section-title {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--white);
+  margin-bottom: var(--sp-1);
+}
+
+.profile-section-hint {
+  font-size: 0.8rem;
+  color: var(--grey);
+  line-height: 1.5;
+  margin-bottom: var(--sp-3);
+}
+
+.btn-small {
+  padding: var(--sp-2) var(--sp-4);
+  font-size: 0.85rem;
+  width: auto;
+}
+
+/* ── MODAL OVERLAY ──────────────────────────── */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.6);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 500;
+  padding: var(--sp-5);
+  animation: fade-in 0.2s var(--ease);
+}
+
+.modal-overlay.hidden { display: none; }
+
+.modal-box {
+  position: relative;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: var(--sp-6) var(--sp-5);
+  max-width: 360px;
+  width: 100%;
+  max-height: 85vh;
+  overflow-y: auto;
+  text-align: center;
+  box-shadow: 0 16px 50px rgba(0,0,0,0.5);
+}
+
+.modal-close {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  color: var(--grey);
+  z-index: 1;
+  transition: color var(--transition), background var(--transition);
+}
+.modal-close:hover { color: var(--white); background: var(--surface2); }
+
+.modal-icon {
+  width: 56px;
+  height: 56px;
+  border-radius: var(--radius-md);
+  margin-bottom: var(--sp-3);
+}
+
+.modal-title {
+  font-family: var(--font-display);
+  font-size: 1.3rem;
+  font-weight: 700;
+  margin-bottom: var(--sp-3);
+}
+
+.modal-text {
+  color: var(--grey-soft);
+  font-size: 0.88rem;
+  line-height: 1.6;
+  margin-bottom: var(--sp-4);
+}
+
+.modal-steps {
+  text-align: left;
+  list-style: none;
+  counter-reset: step;
+  margin-bottom: var(--sp-5);
+  padding: 0;
+}
+
+.modal-steps li {
+  counter-increment: step;
+  position: relative;
+  padding-left: 36px;
+  margin-bottom: var(--sp-3);
+  font-size: 0.85rem;
+  color: var(--grey-soft);
+  line-height: 1.5;
+}
+
+.modal-steps li::before {
+  content: counter(step);
+  position: absolute;
+  left: 0;
+  top: -2px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--gradient-brand, var(--purple));
+  color: var(--white);
+  font-size: 0.78rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.modal-box .btn-primary {
+  width: 100%;
+  justify-content: center;
+  margin-top: 0;
+}
+
+.modal-skip {
+  display: block;
+  width: 100%;
+  margin-top: var(--sp-3);
+  text-align: center;
+}
+
+/* ── SELETOR DE PASTA ───────────────────────── */
+.folder-list {
+  max-height: 280px;
+  overflow-y: auto;
+  margin-bottom: var(--sp-2);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+
+.folder-item {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-3);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-soft);
+  cursor: pointer;
+  text-align: left;
+  font-size: 0.88rem;
+  color: var(--grey-soft);
+  transition: background var(--transition), border-color var(--transition);
+}
+
+.folder-item:hover { background: var(--surface); border-color: var(--border); }
+.folder-item.selected { border-color: var(--purple); color: var(--white); background: rgba(124,58,255,0.1); }
+.folder-item svg { flex-shrink: 0; color: var(--purple-soft); }
+
+/* ── DOWNLOAD OFFLINE ───────────────────────── */
+
+/* Botão de baixar/remover (lista de músicas + player) */
+.dl-btn {
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  color: var(--grey-dark);
+  transition: color var(--transition), background var(--transition);
+}
+
+.track-item .dl-btn:hover { color: var(--white); background: var(--surface2); }
+
+.dl-btn.downloaded        { color: var(--purple-soft); }
+.dl-btn.downloading       { color: var(--purple-soft); cursor: default; }
+.dl-btn.downloading:hover { background: none; }
+
+/* Spinner enquanto a faixa baixa */
+.dl-spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid var(--border);
+  border-top-color: var(--purple-soft);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+/* Botão de download no player fixo: alinhar com o tamanho do ícone do coração */
+#btn-download-current { color: var(--grey); }
+#btn-download-current.downloaded  { color: var(--purple-soft); }
+#btn-download-current.downloading { color: var(--purple-soft); }
+
+/* Seção "Modo offline" no perfil */
+.offline-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+}
+
+.offline-actions .btn-small { flex: 1; min-width: 130px; }
+
+.offline-clear {
+  display: block;
+  margin-top: var(--sp-3);
+  color: var(--grey);
+  font-size: 0.78rem;
+}
+.offline-clear:hover { color: var(--white); }
+
+.dl-progress {
+  margin-bottom: var(--sp-3);
+}
+
+.dl-progress-bar {
+  width: 100%;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--surface2);
+  overflow: hidden;
+  margin-bottom: 4px;
+}
+
+.dl-progress-fill {
+  position: relative;
+  height: 100%;
+  width: 0%;
+  background: var(--gradient-brand);
+  border-radius: 999px;
+  transition: width 0.25s ease;
+  box-shadow: 0 0 10px rgba(124,58,255,0.5);
+  overflow: hidden;
+}
+
+.dl-progress-fill::after {
+  content: '';
+  position: absolute;
+  top: 0; left: -60%;
+  width: 40%; height: 100%;
+  background: linear-gradient(120deg, transparent, rgba(255,255,255,0.45), transparent);
+  transform: skewX(-20deg);
+  animation: shimmer-sweep 1.6s ease-in-out infinite;
+}
+
+#offline-progress-text { margin-bottom: 0; }
+
+.btn-outline.btn-cancel {
+  border-color: var(--purple);
+  color: var(--purple-soft);
+}
+
+/* ═══════════════════════════════════════════════
+   FILTROS (gênero / artista / álbum)
+═══════════════════════════════════════════════ */
+/* Card que agrupa os 3 filtros — antes eram só 3 selects soltos na tela,
+   agora ficam visualmente separados da lista de músicas, com um rótulo
+   no topo e o botão de limpar junto dele (em vez de espremido na fileira
+   dos selects). */
+.filter-card {
+  padding: var(--sp-3) var(--sp-3) var(--sp-2);
+  margin-bottom: var(--sp-2);
+  border-radius: var(--radius-md, 16px);
+  background: var(--surface);
+  border: 1px solid var(--border);
+}
+
+.filter-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--sp-2);
+}
+
+.filter-card-title {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--grey);
+}
+
+.filter-bar,
+.filter-chip-row {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  flex-wrap: wrap;
+}
+
+/* Cada filtro agora é um chip que abre um modal com a lista completa —
+   nada de picker nativo do Android/iOS brigando com o visual do app. */
+.filter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+  min-width: 88px;
+  justify-content: center;
+  padding: 10px 12px;
+  border-radius: var(--radius-full);
+  border: 1px solid var(--border);
+  background: var(--surface2);
+  color: var(--grey-soft);
+  font-size: 0.78rem;
+  font-family: inherit;
+  transition: border-color var(--transition), box-shadow var(--transition), background var(--transition), color var(--transition);
+}
+
+.filter-chip:active { transform: scale(0.97); }
+
+.filter-chip-icon { flex-shrink: 0; opacity: 0.85; }
+
+.filter-chip-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: left;
+}
+
+.filter-chip-caret { flex-shrink: 0; opacity: 0.6; transition: transform var(--transition); }
+
+/* quando um filtro está ativo, o chip inteiro vira uma "pill" neon cheia,
+   com um X pra limpar só aquele filtro em vez de precisar reabrir a lista */
+.filter-chip.active {
+  border-color: var(--purple);
+  color: var(--white);
+  background: rgba(124,58,255,0.22);
+  box-shadow: 0 0 12px rgba(124,58,255,0.25);
+}
+.filter-chip.active .filter-chip-icon { opacity: 1; color: var(--purple-soft); }
+.filter-chip.active .filter-chip-caret { transform: rotate(180deg); opacity: 1; }
+
+.filter-clear {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 10px;
+  border-radius: var(--radius-full);
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--purple-soft);
+  background: rgba(124,58,255,0.12);
+  border: 1px solid rgba(124,58,255,0.3);
+  transition: background var(--transition), color var(--transition);
+}
+.filter-clear:hover { color: var(--white); background: rgba(124,58,255,0.22); }
+
+.filter-summary {
+  font-size: 0.78rem;
+  color: var(--grey);
+  margin: 0 0 var(--sp-2);
+}
+
+/* ── MODAL: SELECIONAR FILTRO (lista + busca) ─── */
+.filter-picker-box {
+  text-align: left;
+  padding-top: var(--sp-5);
+}
+
+.filter-picker-box .modal-title { margin-bottom: var(--sp-3); }
+
+.filter-picker-search-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  margin-bottom: var(--sp-3);
+  color: var(--grey);
+}
+
+.filter-picker-search-wrap svg {
+  position: absolute;
+  left: 12px;
+  pointer-events: none;
+}
+
+.filter-picker-search {
+  width: 100%;
+  padding: 10px 12px 10px 34px;
+  border-radius: var(--radius-full);
+  border: 1px solid var(--border);
+  background: var(--surface2);
+  color: var(--white);
+  font-size: 0.85rem;
+  font-family: inherit;
+}
+.filter-picker-search:focus { outline: none; border-color: var(--purple); }
+
+.filter-picker-list {
+  max-height: 50vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0 calc(var(--sp-5) * -1) calc(var(--sp-5) * -1);
+  padding: 0 var(--sp-5) var(--sp-5);
+}
+
+.filter-picker-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  padding: 11px 10px;
+  border-radius: var(--radius-sm, 10px);
+  color: var(--grey-soft);
+  font-size: 0.88rem;
+  text-align: left;
+}
+
+.filter-picker-item span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.filter-picker-item:active { background: var(--surface2); }
+
+.filter-picker-item.active {
+  color: var(--white);
+  background: rgba(124,58,255,0.14);
+  font-weight: 600;
+}
+
+.filter-picker-item .picker-check {
+  flex-shrink: 0;
+  color: var(--purple-soft);
+  visibility: hidden;
+}
+.filter-picker-item.active .picker-check { visibility: visible; }
+
+.filter-picker-empty {
+  padding: var(--sp-4) 0;
+  text-align: center;
+  color: var(--grey-dark);
+  font-size: 0.85rem;
+}
+
+/* ═══════════════════════════════════════════════
+   MENU DE AÇÕES DA FAIXA (editar / add à playlist)
+═══════════════════════════════════════════════ */
+.track-menu-btn {
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  color: var(--grey-dark);
+  transition: color var(--transition), background var(--transition);
+}
+
+.track-item .track-menu-btn:hover { color: var(--white); background: var(--surface2); }
+
+.track-menu-popover {
+  position: fixed;
+  z-index: 600;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  box-shadow: 0 12px 32px rgba(0,0,0,0.5);
+  display: flex;
+  flex-direction: column;
+  min-width: 200px;
+  overflow: hidden;
+  animation: fade-in 0.15s var(--ease);
+}
+
+.track-menu-popover button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  text-align: left;
+  font-size: 0.85rem;
+  color: var(--white);
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+.track-menu-popover button svg { flex-shrink: 0; color: var(--grey); }
+.track-menu-popover button:hover svg { color: var(--purple-soft); }
+
+.track-menu-popover button:hover { background: var(--surface2); }
+
+.track-menu-popover-divider { height: 1px; background: var(--border); margin: 4px 0; }
+
+.track-menu-popover button.danger { color: #FF6B6B; }
+.track-menu-popover button.danger svg { color: #FF6B6B; }
+.track-menu-popover button.danger:hover { background: rgba(255,107,107,0.1); }
+.track-menu-popover button.danger:hover svg { color: #FF6B6B; }
+
+/* ═══════════════════════════════════════════════
+   CAMPOS DE TEXTO (upload / edição de metadados)
+═══════════════════════════════════════════════ */
+.upload-field {
+  text-align: left;
+  margin-bottom: var(--sp-3);
+}
+
+.upload-field label {
+  display: block;
+  font-size: 0.75rem;
+  color: var(--grey);
+  margin-bottom: 4px;
+}
+
+.text-input {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--surface, var(--bg-elevated));
+  color: var(--white);
+  font-size: 0.88rem;
+  font-family: inherit;
+}
+
+.text-input:focus { outline: none; border-color: var(--purple); }
+
+/* ═══════════════════════════════════════════════
+   MODAL DE UPLOAD
+═══════════════════════════════════════════════ */
+.modal-box-wide { max-width: 460px; }
+
+.upload-list {
+  max-height: 50vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  margin-bottom: var(--sp-3);
+}
+
+.upload-item {
+  text-align: left;
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-md);
+  padding: var(--sp-3);
+  background: var(--surface, rgba(255,255,255,0.02));
+}
+
+.upload-item-done { opacity: 0.65; }
+
+.upload-item-head {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  margin-bottom: var(--sp-2);
+}
+
+.upload-item-filename {
+  flex: 1;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--white);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.upload-item-badge {
+  font-size: 0.75rem;
+  color: var(--purple-soft);
+  flex-shrink: 0;
+}
+
+.upload-item-remove { flex-shrink: 0; }
+
+.upload-item .upload-field { margin-bottom: var(--sp-2); }
+
+.upload-item-error {
+  color: var(--grey-soft);
+  font-size: 0.78rem;
+  margin: 4px 0 var(--sp-2);
+}
+
+.upload-item.upload-item-error { border-color: var(--purple); }
+
+.upload-actions {
+  display: flex;
+  gap: var(--sp-2);
+  margin-bottom: var(--sp-2);
+}
+.upload-actions .btn-outline,
+.upload-actions .btn-primary { flex: 1; }
+
+/* ═══════════════════════════════════════════════
+   PLAYLISTS
+═══════════════════════════════════════════════ */
+.playlist-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--sp-3);
+}
+
+.playlist-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  padding: var(--sp-3);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-soft);
+  cursor: pointer;
+  transition: background var(--transition), border-color var(--transition), transform var(--transition), box-shadow var(--transition);
+}
+
+.playlist-card:hover {
+  background: var(--surface2);
+  border-color: var(--purple);
+  box-shadow: 0 0 20px rgba(124,58,255,0.25);
+  transform: translateY(-2px);
+}
+
+.playlist-card-art {
+  width: 100%;
+  aspect-ratio: 1.8;
+  border-radius: var(--radius-sm);
+  background: var(--gradient-brand);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(255,255,255,0.9);
+  box-shadow: 0 0 0 rgba(124,58,255,0);
+  transition: box-shadow var(--transition);
+}
+
+.playlist-card:hover .playlist-card-art { box-shadow: 0 6px 24px rgba(124,58,255,0.4); }
+
+.playlist-card-name {
+  display: block;
+  width: 100%;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--white);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.playlist-card-count {
+  display: block;
+  width: 100%;
+  font-size: 0.75rem;
+  color: var(--grey);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.playlist-detail-header {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  margin-bottom: var(--sp-3);
+}
+.playlist-detail-header h2 {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.playlist-detail-actions { display: flex; gap: var(--sp-2); flex-wrap: wrap; margin-bottom: var(--sp-3); }
+
+/* Card fixo de Favoritas no topo da grade de playlists */
+.playlist-card-art-fav { background: linear-gradient(135deg, #ff5c8a, #ff8fab); }
+
+/* Itens do seletor de músicas (modal "Adicionar músicas") */
+.track-picker-item input[type="checkbox"] {
+  -webkit-appearance: none;
+  appearance: none;
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  position: relative;
+  border-radius: 6px;
+  border: 2px solid var(--grey-dark);
+  background: var(--surface2);
+  cursor: pointer;
+  transition: background var(--transition), border-color var(--transition), box-shadow var(--transition);
+}
+.track-picker-item input[type="checkbox"]:checked {
+  background: var(--purple);
+  border-color: var(--purple);
+  box-shadow: 0 0 10px var(--purple-glow);
+}
+.track-picker-item input[type="checkbox"]:checked::after {
+  content: '';
+  position: absolute;
+  left: 5px;
+  top: 1px;
+  width: 5px;
+  height: 10px;
+  border: solid var(--white);
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+
+.playlist-pick-item { justify-content: space-between; }
+.playlist-pick-item.selected { border-color: var(--purple); background: rgba(124,58,255,0.1); }
+
+/* ═══════════════════════════════════════════════
+   SELEÇÃO MÚLTIPLA (atribuir gênero em lote)
+═══════════════════════════════════════════════ */
+.track-select-cb {
+  display: none;
+  -webkit-appearance: none;
+  appearance: none;
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+  margin-right: 2px;
+  cursor: pointer;
+  position: relative;
+  border-radius: 6px;
+  border: 2px solid var(--grey-dark);
+  background: var(--surface2);
+  transition: background var(--transition), border-color var(--transition), box-shadow var(--transition);
+}
+
+/* Área de toque invisível maior que os 22px visuais — mais fácil de
+   acertar no celular sem mudar o tamanho visual do quadradinho. */
+.track-select-cb::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 40px;
+  height: 40px;
+  transform: translate(-50%, -50%);
+}
+
+.track-select-cb:checked {
+  background: var(--purple);
+  border-color: var(--purple);
+  box-shadow: 0 0 10px var(--purple-glow);
+}
+.track-select-cb:checked::after {
+  content: '';
+  position: absolute;
+  left: 5px;
+  top: 1px;
+  width: 5px;
+  height: 10px;
+  border: solid var(--white);
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+
+.track-list.select-mode .track-select-cb { display: block; }
+.track-list.select-mode .track-menu-btn,
+.track-list.select-mode .dl-btn { display: none; }
+
+.track-item.selected {
+  background: rgba(124,58,255,0.14);
+  border-radius: var(--radius-sm);
+  box-shadow: inset 3px 0 0 var(--purple), 0 0 14px rgba(124,58,255,0.18);
+}
+
+/* Balão de seleção em lote — antes era uma fileira só, roxa, com scroll
+   horizontal escondido (fácil de não perceber que dava pra rolar). Agora
+   é um card com 2 linhas: "N selecionadas" + cancelar em cima, e os 3
+   botões de ação embaixo, em grade, sempre visíveis por inteiro. */
+.selection-bar {
+  padding: var(--sp-2) var(--sp-3) var(--sp-3);
+  margin-bottom: var(--sp-2);
+  border-radius: var(--radius-md, 16px);
+  background: var(--surface2);
+  border: 1px solid rgba(124,58,255,0.35);
+  box-shadow: 0 0 16px rgba(124,58,255,0.15);
+  color: var(--white);
+  animation: fade-in 0.2s var(--ease);
+}
+
+.selection-bar.hidden { display: none; }
+
+.selection-bar-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--sp-2);
+}
+
+#selection-count {
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.selection-bar-actions {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--sp-2);
+}
+
+.selection-action-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  padding: var(--sp-2) 4px;
+  border-radius: var(--radius-sm, 10px);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--grey-soft);
+  font-size: 0.7rem;
+  font-weight: 600;
+  transition: border-color var(--transition), color var(--transition), background var(--transition);
+}
+
+.selection-action-btn:not(:disabled):hover,
+.selection-action-btn:not(:disabled):active {
+  border-color: var(--purple);
+  color: var(--white);
+  background: rgba(124,58,255,0.15);
+}
+
+.selection-action-btn:disabled {
+  opacity: 0.4;
+  pointer-events: none;
+}
+
+.btn-icon-label {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.upload-item-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* ═══════════════════════════════════════════════
+   VÍDEOS
+═══════════════════════════════════════════════ */
+
+.yt-search-row {
+  display: flex;
+  gap: 8px;
+}
+.yt-search-row .text-input { flex: 1; }
+
+.yt-search-results {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+  margin-top: 10px;
+  max-height: 260px;
+  overflow-y: auto;
+  padding-right: 2px;
+}
+.yt-search-results.hidden { display: none; }
+
+.yt-search-result {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-soft);
+  overflow: hidden;
+  background: none;
+  padding: 0;
+  text-align: left;
+  transition: border-color var(--transition), transform var(--transition);
+}
+.yt-search-result:hover,
+.yt-search-result:focus-visible {
+  border-color: var(--purple-soft);
+  transform: translateY(-1px);
+}
+.yt-search-result-thumb {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  background-size: cover;
+  background-position: center;
+  background-color: var(--surface2);
+}
+.yt-search-result-title {
+  font-size: 12px;
+  line-height: 1.3;
+  padding: 4px 6px 6px;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.yt-search-empty {
+  grid-column: 1 / -1;
+  font-size: 13px;
+  color: var(--grey);
+  padding: 8px 2px;
+}
+
+.yt-preview {
+  margin-top: 10px;
+}
+.yt-preview.hidden { display: none; }
+.yt-preview-frame {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  background: var(--surface2);
+}
+.yt-preview-frame iframe {
+  width: 100%;
+  height: 100%;
+  border: 0;
+  display: block;
+}
+.yt-preview-title {
+  font-size: 13px;
+  color: var(--grey-soft);
+  margin: 8px 0 0;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.yt-preview-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+.yt-preview-actions .btn-outline,
+.yt-preview-actions .btn-primary { flex: 1; }
+
+/* Miniatura de vídeo em formato 16:9 dentro da linha (em vez do
+   quadrado usado pra capa de música) — mesma altura da linha, só a
+   proporção da arte muda. */
+.movie-row .track-art {
+  width: 64px;
+  height: 36px;
+}
+
+/* ── PLAYER DE VÍDEO (tela cheia) ────────────── */
+.movie-player-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 700;
+  background: var(--bg);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  animation: fade-in 0.2s var(--ease);
+}
+
+.movie-player-overlay.hidden { display: none; }
+
+.movie-video {
+  width: 100%;
+  max-height: 100vh;
+  background: var(--bg);
+}
+
+.movie-player-title {
+  position: absolute;
+  top: 16px;
+  left: 60px;
+  right: 60px;
+  color: var(--white);
+  font-size: 0.9rem;
+  font-weight: 600;
+  text-shadow: 0 2px 8px rgba(0,0,0,0.8);
+  z-index: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.movie-player-close {
+  position: fixed;
+  top: 14px;
+  right: 14px;
+  z-index: 2;
+  background: rgba(0,0,0,0.5);
+  color: var(--white);
+}
+.movie-player-close:hover { background: var(--purple); }
+
+/* Favoritar, no canto oposto ao fechar — mesmo tratamento visual */
+.movie-player-favorite {
+  position: fixed;
+  top: 14px;
+  left: 14px;
+  z-index: 2;
+  background: rgba(0,0,0,0.5);
+  color: var(--white);
+}
+.movie-player-favorite:hover { background: var(--purple); }
+.movie-player-favorite.active { color: var(--purple-soft); }
+.movie-player-favorite.active svg { fill: var(--purple-soft); stroke: var(--purple-soft); }
+
+/* ── ÁREA DO VÍDEO (iframe do YouTube) ──────── */
+.movie-video-wrap {
+  position: relative;
+  width: 100%;
+  max-height: calc(100vh - 84px); /* deixa espaço pra barra de controles neon embaixo */
+  aspect-ratio: 16/9;
+  background: var(--bg);
+}
+
+.movie-video-wrap iframe {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+}
+
+/* ── CONTROLES NEON DO PLAYER DE VÍDEO ──────── */
+/* Reaproveita as mesmas classes do player de música (.seek-bar,
+   .play-btn etc.) — assim herda o visual neon automaticamente e sem
+   duplicar CSS. Só o layout do container é específico daqui. */
+.movie-player-controls {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  max-width: 480px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  padding: var(--sp-3) var(--sp-4);
+}
+
+.movie-player-controls .player-progress {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.movie-player-controls .player-controls {
+  padding: 0 var(--sp-2);
+}
+
+.play-btn-sm {
+  width: 42px;
+  height: 42px;
+  flex-shrink: 0;
+}
