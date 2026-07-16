@@ -22,6 +22,20 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
 
+            <!-- App Links: quando o Google termina o login OAuth e redireciona
+                 de volta pra https://happymusic-crn.pages.dev/, o Android
+                 entrega essa URL pro app em vez de deixar aberta no navegador
+                 (mesmo mecanismo que já era usado pelo TWA — o assetlinks.json
+                 em .well-known/ já valida esse domínio pra este pacote). -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data
+                    android:scheme="https"
+                    android:host="happymusic-crn.pages.dev" />
+            </intent-filter>
+
         </activity>
 
         <provider
