@@ -1674,6 +1674,16 @@ const App = (() => {
     UI.bindTrackListEvents(UI.el.searchResults, results);
   }
 
+  // Fecha a busca ao tocar uma música nos resultados — sem isso a barra
+  // continuava aberta flutuando por cima da tela depois de escolher algo.
+  function _bindSearchResultsClose() {
+    if (UI.el.searchResults.dataset.hmCloseBound) return;
+    UI.el.searchResults.dataset.hmCloseBound = '1';
+    UI.el.searchResults.addEventListener('click', e => {
+      if (e.target.closest('.track-item')) UI.closeSearchBar();
+    });
+  }
+
   // ── SELEÇÃO DE PASTA ───────────────────────────
   function _bindFolderListClick(folders) {
     UI.el.folderList.dataset.bound = '1';
@@ -1780,6 +1790,7 @@ const App = (() => {
 
     // Filtros, upload, edição de metadados e playlists
     _bindFilterEvents();
+    _bindSearchResultsClose();
     _bindSelectionEvents();
     _bindUploadEvents();
     _bindEditModalEvents();
@@ -1828,8 +1839,9 @@ const App = (() => {
       }
     });
 
-    // Busca em tempo real
+    // Busca em tempo real — apagar o texto todo fecha a barra
     UI.el.searchInput.addEventListener('input', e => {
+      if (!e.target.value) { UI.closeSearchBar(); return; }
       _handleSearch(e.target.value);
     });
 

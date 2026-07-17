@@ -1679,7 +1679,10 @@ const UI = (() => {
 
     // Nav inferior
     el.navBtns.forEach(btn => {
-      btn.addEventListener('click', () => showView(btn.dataset.view));
+      btn.addEventListener('click', () => {
+        if (!el.searchBar.classList.contains('hidden')) closeSearchBar();
+        showView(btn.dataset.view);
+      });
     });
 
     // Search toggle
@@ -1687,7 +1690,10 @@ const UI = (() => {
     el.btnSearchClose?.addEventListener('click', closeSearchBar);
 
     // Avatar → perfil
-    el.btnUser.addEventListener('click', () => showView('profile'));
+    el.btnUser.addEventListener('click', () => {
+      if (!el.searchBar.classList.contains('hidden')) closeSearchBar();
+      showView('profile');
+    });
 
     // Player callbacks
     Player.onPlay(track => {
