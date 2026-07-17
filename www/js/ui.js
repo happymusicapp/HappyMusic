@@ -15,6 +15,7 @@ const UI = (() => {
 
     // Header
     btnSearchToggle:$('btn-search-toggle'),
+    btnSearchClose: $('btn-search-close'),
     btnUser:        $('btn-user'),
     userAvatar:     $('user-avatar'),
     searchBar:      $('search-bar'),
@@ -287,14 +288,20 @@ const UI = (() => {
 
   // ── SEARCH BAR TOGGLE ──────────────────────────
   function toggleSearchBar() {
-    const hidden = el.searchBar.classList.toggle('hidden');
-    if (!hidden) {
+    const hidden = el.searchBar.classList.contains('hidden');
+    if (hidden) {
+      el.searchBar.classList.remove('hidden');
       el.searchInput.focus();
       showView('search');
     } else {
-      el.searchInput.value = '';
-      showView('home');
+      closeSearchBar();
     }
+  }
+
+  function closeSearchBar() {
+    el.searchBar.classList.add('hidden');
+    el.searchInput.value = '';
+    showView('home');
   }
 
   // ── PERFIL ─────────────────────────────────────
@@ -1677,6 +1684,7 @@ const UI = (() => {
 
     // Search toggle
     el.btnSearchToggle.addEventListener('click', toggleSearchBar);
+    el.btnSearchClose?.addEventListener('click', closeSearchBar);
 
     // Avatar → perfil
     el.btnUser.addEventListener('click', () => showView('profile'));
@@ -1837,6 +1845,7 @@ const UI = (() => {
     showView,
     getCurrentView,
     toggleSearchBar,
+    closeSearchBar,
     renderProfile,
     setGreeting,
     renderRecent,
