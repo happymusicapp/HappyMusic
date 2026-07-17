@@ -12,6 +12,23 @@ const App = (() => {
   const KEY_ONBOARDED = 'hm_onboarded';
   const GDRIVE_URL = 'https://drive.google.com/drive/my-drive';
 
+  // Abre o Google Drive já na conta logada no app (evita cair numa
+  // conta diferente ou pedir login de novo) e sempre num navegador de
+  // verdade — dentro do app nativo, window.open() na WebView embutida
+  // não reaproveita a sessão feita no login (mesmo motivo do OAuth).
+  function _openGoogleDrive() {
+    const email = Drive.getUser()?.email;
+    const url = email
+      ? `${GDRIVE_URL}?authuser=${encodeURIComponent(email)}`
+      : GDRIVE_URL;
+
+    if (window.NativeBrowser && window.NativeBrowser.isNative) {
+      window.NativeBrowser.open(url);
+    } else {
+      window.open(url, '_blank');
+    }
+  }
+
   // Filtros da tela "Todas as músicas"
   let _filters = { genre: '', artist: '', album: '' };
 
@@ -189,7 +206,7 @@ const App = (() => {
             <button id="btn-empty-drive" class="btn-outline btn-small">Abrir Google Drive</button>
           </div>`;
         const btn = document.getElementById('btn-empty-drive');
-        if (btn) btn.addEventListener('click', () => window.open(GDRIVE_URL, '_blank'));
+        if (btn) btn.addEventListener('click', _openGoogleDrive);
         _renderRecent();
         _refreshFilterBar();
         return;
@@ -1732,18 +1749,14 @@ const App = (() => {
     });
 
     // Onboarding: abrir Drive / pular
-    UI.el.btnOnboardingDrive.addEventListener('click', () => {
-      window.open(GDRIVE_URL, '_blank');
-    });
+    UI.el.btnOnboardingDrive.addEventListener('click', _openGoogleDrive);
     UI.el.btnOnboardingClose.addEventListener('click', () => {
       localStorage.setItem(KEY_ONBOARDED, '1');
       UI.hideOnboarding();
     });
 
     // Perfil: abrir Drive
-    UI.el.btnOpenDrive.addEventListener('click', () => {
-      window.open(GDRIVE_URL, '_blank');
-    });
+    UI.el.btnOpenDrive.addEventListener('click', _openGoogleDrive);
 
     // Perfil: escolher pasta
     UI.el.btnChooseFolder.addEventListener('click', async () => {
