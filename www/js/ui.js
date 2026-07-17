@@ -98,6 +98,10 @@ const UI = (() => {
     filterChipAlbum:  $('filter-chip-album'),
     btnFilterClear: $('btn-filter-clear'),
     filterSummary:  $('filter-summary'),
+    btnFilterMenu:      $('btn-filter-menu'),
+    filterMenuDot:      $('filter-menu-dot'),
+    modalFilterMenu:    $('modal-filter-menu'),
+    btnFilterMenuClose: $('btn-filter-menu-close'),
     modalFilterPicker:   $('modal-filter-picker'),
     btnFilterPickerClose: $('btn-filter-picker-close'),
     filterPickerTitle:  $('filter-picker-title'),
@@ -486,14 +490,18 @@ const UI = (() => {
       return;
     }
     el.recentCollectionsShelf.classList.remove('hidden');
-    el.recentCollectionsList.innerHTML = items.map(it => `
+    el.recentCollectionsList.innerHTML = items.map(it => {
+      const fallback = it.isFavorites ? _favIcon(true, 24) : _playlistIcon();
+      const art = _collageArt(it.tracks, fallback);
+      return `
       <div class="recent-collection-chip" data-id="${it.id}" role="button" tabindex="0" aria-label="${_escape(it.name)}">
         <div class="recent-collection-chip-art ${it.isFavorites ? 'is-fav' : ''}">
-          ${it.isFavorites ? _favIcon(true, 24) : _playlistIcon()}
+          ${art}
         </div>
         <span class="recent-collection-chip-name">${_escape(it.name)}</span>
       </div>
-    `).join('');
+    `;
+    }).join('');
   }
 
   // ── TRACK LIST ─────────────────────────────────
@@ -829,7 +837,21 @@ const UI = (() => {
 
     const hasFilter = !!(active.genre || active.artist || active.album);
     el.btnFilterClear.classList.toggle('hidden', !hasFilter);
+    el.filterMenuDot?.classList.toggle('hidden', !hasFilter);
   }
+
+  // ── MENU DE FILTROS (ícone único → escolher Gênero/Artista/Álbum) ──
+  function showFilterMenu() { el.modalFilterMenu.classList.remove('hidden'); }
+  function hideFilterMenu() { el.modalFilterMenu.classList.add('hidden'); }
+
+  function _bindFilterMenuEvents() {
+    el.btnFilterMenu?.addEventListener('click', showFilterMenu);
+    el.btnFilterMenuClose?.addEventListener('click', hideFilterMenu);
+    el.modalFilterMenu?.addEventListener('click', e => {
+      if (e.target === el.modalFilterMenu) hideFilterMenu();
+    });
+  }
+  _bindFilterMenuEvents();
 
   // Aceita tanto uma lista de strings (gênero/artista/álbum de música —
   // valor e rótulo são a mesma coisa) quanto uma lista de objetos
@@ -1017,11 +1039,31 @@ const UI = (() => {
     </svg>`;
   }
 
+  // Capa em colagem (estilo Spotify): usa a capa de até 4 faixas da
+  // coleção num grid 2x2. Com menos de 4 faixas com capa, repete as que
+  // existem pra preencher o quadrado; sem nenhuma, cai no ícone genérico.
+  function _collageArt(tracks, fallbackIcon) {
+    const covers = (tracks || [])
+      .map(t => t?.thumbnail)
+      .filter(Boolean);
+
+    if (!covers.length) return fallbackIcon;
+
+    const slots = [];
+    for (let i = 0; i < 4; i++) slots.push(covers[i % covers.length]);
+
+    return `<div class="collage-art">${slots.map(src =>
+      `<div class="collage-art-cell" style="background-image:url('${src}')"></div>`
+    ).join('')}</div>`;
+  }
+
   function renderPlaylists(playlists) {
-    const favCount = Player.getFavorites().length;
+    const favTracks = Player.getFavorites().slice(0, 4);
+    const favCount  = favTracks.length;
+    const favArt    = _collageArt(favTracks, _favIcon(true, 26));
     const favCard = `
       <div class="playlist-card playlist-card-fav" data-id="__favorites__" role="button" tabindex="0">
-        <div class="playlist-card-art playlist-card-art-fav">${_favIcon(true, 26)}</div>
+        <div class="playlist-card-art playlist-card-art-fav">${favArt}</div>
         <span class="playlist-card-name">Favoritas</span>
         <span class="playlist-card-count">${favCount} música${favCount === 1 ? '' : 's'}</span>
       </div>`;
@@ -1030,13 +1072,17 @@ const UI = (() => {
       el.playlistsList.innerHTML = favCard + `<p class="empty-hint">Nenhuma playlist ainda. Crie a primeira!</p>`;
       return;
     }
-    el.playlistsList.innerHTML = favCard + playlists.map(p => `
+    el.playlistsList.innerHTML = favCard + playlists.map(p => {
+      const tracks = window.HMResolvePlaylistTracks ? window.HMResolvePlaylistTracks(p).slice(0, 4) : [];
+      const art = _collageArt(tracks, _playlistIcon());
+      return `
       <div class="playlist-card" data-id="${p.id}" role="button" tabindex="0">
-        <div class="playlist-card-art">${_playlistIcon()}</div>
+        <div class="playlist-card-art">${art}</div>
         <span class="playlist-card-name">${_escape(p.name)}</span>
         <span class="playlist-card-count">${p.trackIds.length} música${p.trackIds.length === 1 ? '' : 's'}</span>
       </div>
-    `).join('');
+    `;
+    }).join('');
   }
 
   function showPlaylistsRoot() {
@@ -1818,6 +1864,8 @@ const UI = (() => {
 
     // Filtros
     renderFilterOptions,
+    showFilterMenu,
+    hideFilterMenu,
     showFilterPicker,
     hideFilterPicker,
     setFilterSummary,

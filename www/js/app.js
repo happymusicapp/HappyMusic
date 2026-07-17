@@ -520,6 +520,7 @@ const App = (() => {
 
   function _bindFilterEvents() {
     UI.el.filterChipGenre.addEventListener('click', () => {
+      UI.hideFilterMenu();
       UI.showFilterPicker('genre', _filters.genre, value => {
         _filters.genre = value;
         _refreshFilterBar();
@@ -527,6 +528,7 @@ const App = (() => {
       });
     });
     UI.el.filterChipArtist.addEventListener('click', () => {
+      UI.hideFilterMenu();
       UI.showFilterPicker('artist', _filters.artist, value => {
         _filters.artist = value;
         _refreshFilterBar();
@@ -534,6 +536,7 @@ const App = (() => {
       });
     });
     UI.el.filterChipAlbum.addEventListener('click', () => {
+      UI.hideFilterMenu();
       UI.showFilterPicker('album', _filters.album, value => {
         _filters.album = value;
         _refreshFilterBar();
@@ -865,6 +868,10 @@ const App = (() => {
   function _playlistTracks(playlist) {
     return playlist.trackIds.map(id => _findTrackAnywhere(id)).filter(Boolean);
   }
+  // ui.js usa isso pra montar a capa em colagem da grade de Coleções
+  // (renderPlaylists), sem precisar que cada um dos vários lugares que
+  // chamam essa função passe as faixas resolvidas manualmente.
+  window.HMResolvePlaylistTracks = _playlistTracks;
 
   async function _loadPlaylists() {
     _playlists = await Drive.loadPlaylists();
@@ -893,9 +900,11 @@ const App = (() => {
 
   function _renderRecentCollections() {
     const items = _getRecentPlaylistIds().map(id => {
-      if (id === FAVORITES_ID) return { id: FAVORITES_ID, name: 'Favoritas', isFavorites: true };
+      if (id === FAVORITES_ID) {
+        return { id: FAVORITES_ID, name: 'Favoritas', isFavorites: true, tracks: Player.getFavorites().slice(0, 4) };
+      }
       const p = _playlists.find(pl => pl.id === id);
-      return p ? { id: p.id, name: p.name, isFavorites: false } : null;
+      return p ? { id: p.id, name: p.name, isFavorites: false, tracks: _playlistTracks(p).slice(0, 4) } : null;
     }).filter(Boolean).slice(0, 6);
     UI.renderRecentCollections(items);
   }
