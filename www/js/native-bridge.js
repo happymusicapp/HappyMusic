@@ -146,12 +146,28 @@
   const AUDIO_DIR = 'audio';
   const _audioPath = (id) => `${AUDIO_DIR}/${id}.bin`;
 
+  // Garante que a pasta "audio" existe antes de baixar — só precisa
+  // rodar de verdade uma vez (as chamadas seguintes caem no catch,
+  // porque a pasta já existe, e isso é esperado/inofensivo).
+  let _audioDirReady = false;
+  async function _ensureAudioDir() {
+    if (_audioDirReady) return;
+    try { await fsPlugin.mkdir({ path: AUDIO_DIR, directory: 'DATA', recursive: true }); }
+    catch { /* já existe — tudo certo */ }
+    _audioDirReady = true;
+  }
+
   const NativeFS = {
     isNative: !!fsPlugin,
 
     // Baixa direto pro disco (sem passar pela RAM do WebView).
     // { url, headers } vem de Drive.getAudioDownloadInfo(fileId).
     async downloadAudio(id, { url, headers }) {
+      // IMPORTANTE: ao contrário de writeFile/mkdir, o downloadFile do
+      // Capacitor no Android IGNORA a opção "recursive" — não cria a
+      // pasta de destino sozinho. Sem isso, todo primeiro download
+      // falhava (pasta "audio" não existia ainda) de forma silenciosa.
+      await _ensureAudioDir();
       await fsPlugin.downloadFile({
         url,
         headers,

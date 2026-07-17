@@ -394,6 +394,11 @@ const UI = (() => {
       });
       return;
     }
+    if (state === 'error') {
+      showToast('Não deu pra baixar essa música. Tente de novo.');
+      document.querySelectorAll(`[data-dl="${id}"]`).forEach(btn => _setDlBtnState(btn, 'idle'));
+      return;
+    }
     document.querySelectorAll(`[data-dl="${id}"]`).forEach(btn => _setDlBtnState(btn, state));
   }
 
