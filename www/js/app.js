@@ -333,10 +333,11 @@ const App = (() => {
     if (!storage || !storage.quota) return true;
 
     if (totalBytes > storage.available * 0.9) {
-      return window.confirm(
+      return UI.confirmDialog(
         `Isso baixa cerca de ${_formatBytes(totalBytes)}, mas seu aparelho tem só ` +
         `${_formatBytes(storage.available)} livres. Baixar mesmo assim? ` +
-        `(pode parar antes de terminar tudo)`
+        `(pode parar antes de terminar tudo)`,
+        { title: 'Pouco espaço livre', okLabel: 'Baixar mesmo assim', danger: false }
       );
     }
     return true;
@@ -780,7 +781,11 @@ const App = (() => {
 
   // ── EXCLUIR UMA FAIXA DO DRIVE ──────────────────
   async function _deleteTrack(track) {
-    if (!window.confirm(`Excluir "${track.title}" do Google Drive? O arquivo vai pra lixeira do Drive (fica recuperável por lá), mas some do HappyMusic.`)) return;
+    const ok = await UI.confirmDialog(
+      `O arquivo vai pra lixeira do Drive (fica recuperável por lá), mas some do HappyMusic.`,
+      { title: `Excluir "${track.title}"?`, okLabel: 'Excluir' }
+    );
+    if (!ok) return;
 
     try {
       await Drive.deleteTrack(track.id);
@@ -995,7 +1000,11 @@ const App = (() => {
       if (_activePlaylistId === FAVORITES_ID) return;
       const playlist = _playlists.find(p => p.id === _activePlaylistId);
       if (!playlist) return;
-      if (!window.confirm(`Excluir a playlist "${playlist.name}"? Isso não apaga as músicas, só a playlist.`)) return;
+      const ok = await UI.confirmDialog(
+        'Isso não apaga as músicas, só a playlist.',
+        { title: `Excluir "${playlist.name}"?`, okLabel: 'Excluir' }
+      );
+      if (!ok) return;
 
       _playlists = _playlists.filter(p => p.id !== playlist.id);
       _activePlaylistId = null;
@@ -1255,7 +1264,11 @@ const App = (() => {
     UI.el.btnMovieCollectionDelete.addEventListener('click', async () => {
       const playlist = _moviePlaylists.find(p => p.id === _movieCollection);
       if (!playlist) return;
-      if (!window.confirm(`Excluir a playlist "${playlist.name}"? Isso não apaga os vídeos, só a playlist.`)) return;
+      const ok = await UI.confirmDialog(
+        'Isso não apaga os vídeos, só a playlist.',
+        { title: `Excluir "${playlist.name}"?`, okLabel: 'Excluir' }
+      );
+      if (!ok) return;
 
       _moviePlaylists = _moviePlaylists.filter(p => p.id !== playlist.id);
       _movieCollection = '__all__';
@@ -1791,7 +1804,11 @@ const App = (() => {
     });
 
     UI.el.btnClearDownloads.addEventListener('click', async () => {
-      if (!window.confirm('Remover todas as músicas baixadas para offline?')) return;
+      const ok = await UI.confirmDialog(
+        'As músicas continuam disponíveis pra baixar de novo quando quiser.',
+        { title: 'Remover todos os downloads?', okLabel: 'Remover' }
+      );
+      if (!ok) return;
       await Downloads.clearAll();
       UI.refreshDownloadBadges();
       _updateOfflineSummary();

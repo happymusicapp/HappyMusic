@@ -103,6 +103,11 @@ const UI = (() => {
     filterMenuDot:      $('filter-menu-dot'),
     modalFilterMenu:    $('modal-filter-menu'),
     btnFilterMenuClose: $('btn-filter-menu-close'),
+    modalConfirm:      $('modal-confirm'),
+    confirmTitle:      $('confirm-title'),
+    confirmMessage:    $('confirm-message'),
+    btnConfirmCancel:  $('btn-confirm-cancel'),
+    btnConfirmOk:      $('btn-confirm-ok'),
     modalFilterPicker:   $('modal-filter-picker'),
     btnFilterPickerClose: $('btn-filter-picker-close'),
     filterPickerTitle:  $('filter-picker-title'),
@@ -864,6 +869,35 @@ const UI = (() => {
     });
   }
   _bindFilterMenuEvents();
+
+  // ── CONFIRMAÇÃO CUSTOMIZADA (substitui window.confirm) ─────────
+  // window.confirm() abre um alerta genérico do sistema, fora da
+  // identidade visual do app — isso resolve com um modal próprio.
+  // Uso: if (!(await UI.confirmDialog('Excluir isso?'))) return;
+  let _confirmResolve = null;
+
+  function confirmDialog(message, { title = 'Confirmar', okLabel = 'Confirmar', danger = true } = {}) {
+    el.confirmTitle.textContent = title;
+    el.confirmMessage.textContent = message;
+    el.btnConfirmOk.textContent = okLabel;
+    el.btnConfirmOk.classList.toggle('btn-danger', danger);
+    el.modalConfirm.classList.remove('hidden');
+
+    return new Promise(resolve => { _confirmResolve = resolve; });
+  }
+
+  function _settleConfirm(value) {
+    el.modalConfirm.classList.add('hidden');
+    const resolve = _confirmResolve;
+    _confirmResolve = null;
+    resolve?.(value);
+  }
+
+  el.btnConfirmOk?.addEventListener('click', () => _settleConfirm(true));
+  el.btnConfirmCancel?.addEventListener('click', () => _settleConfirm(false));
+  el.modalConfirm?.addEventListener('click', e => {
+    if (e.target === el.modalConfirm) _settleConfirm(false);
+  });
 
   // Aceita tanto uma lista de strings (gênero/artista/álbum de música —
   // valor e rótulo são a mesma coisa) quanto uma lista de objetos
@@ -1886,6 +1920,7 @@ const UI = (() => {
     renderFilterOptions,
     showFilterMenu,
     hideFilterMenu,
+    confirmDialog,
     showFilterPicker,
     hideFilterPicker,
     setFilterSummary,
