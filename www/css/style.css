@@ -841,6 +841,30 @@ img    { display: block; }
 
 .btn-outline:hover { border-color: var(--purple); color: var(--white); }
 
+/* Estilo base do botão primário — antes só existia combinado com
+   .btn-google (login); botões como "Salvar"/"Confirmar" que usam só
+   .btn-primary ficavam sem nenhuma aparência de botão. */
+.btn-primary {
+  padding: 12px 30px;
+  background: var(--gradient-brand);
+  color: var(--white);
+  font-size: 0.9rem;
+  font-weight: 600;
+  border-radius: var(--radius-full);
+  box-shadow: 0 6px 18px rgba(124,58,255,0.3);
+  transition: box-shadow var(--transition), transform var(--transition), opacity var(--transition);
+}
+.btn-primary:hover  { box-shadow: 0 8px 24px rgba(124,58,255,0.45); }
+.btn-primary:active { transform: scale(0.97); }
+.btn-primary:disabled { opacity: 0.5; box-shadow: none; }
+
+/* Variante de perigo (excluir, remover) — mesmo formato, cor de alerta */
+.btn-primary.btn-danger {
+  background: linear-gradient(135deg, #e0344c, #ff5c7a);
+  box-shadow: 0 6px 18px rgba(224,52,76,0.35);
+}
+.btn-primary.btn-danger:hover { box-shadow: 0 8px 24px rgba(224,52,76,0.5); }
+
 /* ── TOAST ─────────────────────────────────── */
 .toast {
   position: fixed;
@@ -1257,6 +1281,15 @@ img    { display: block; }
   font-size: 0.88rem;
   line-height: 1.6;
   margin-bottom: var(--sp-4);
+}
+
+.modal-btn-row {
+  display: flex;
+  gap: var(--sp-3);
+}
+.modal-btn-row .btn-outline,
+.modal-btn-row .btn-primary {
+  flex: 1;
 }
 
 .modal-steps {
