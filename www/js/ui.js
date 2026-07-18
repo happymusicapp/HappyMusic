@@ -973,8 +973,12 @@ const UI = (() => {
       const item = e.target.closest('.filter-picker-item');
       if (!item) return;
       const value = item.dataset.value || '';
+      // hideFilterPicker() zera _pickerOnSelect como limpeza — captura a
+      // referência ANTES de fechar, senão a seleção nunca chega a
+      // quem chamou (esse era o bug do filtro não aplicar nada).
+      const onSelect = _pickerOnSelect;
       hideFilterPicker();
-      _pickerOnSelect?.(value);
+      onSelect?.(value);
     });
   }
   _bindFilterPickerEvents();
