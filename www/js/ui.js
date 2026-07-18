@@ -103,6 +103,10 @@ const UI = (() => {
     filterMenuDot:      $('filter-menu-dot'),
     modalFilterMenu:    $('modal-filter-menu'),
     btnFilterMenuClose: $('btn-filter-menu-close'),
+    modalCollectionPreview:      $('modal-collection-preview'),
+    btnCollectionPreviewClose:   $('btn-collection-preview-close'),
+    collectionPreviewTitle:      $('collection-preview-title'),
+    collectionPreviewList:       $('collection-preview-list'),
     modalConfirm:      $('modal-confirm'),
     confirmTitle:      $('confirm-title'),
     confirmMessage:    $('confirm-message'),
@@ -125,6 +129,7 @@ const UI = (() => {
     modalBulkGenre:         $('modal-bulk-genre'),
     bulkGenreCount:         $('bulk-genre-count'),
     bulkGenreField:         $('bulk-genre-field'),
+    bulkGenreFieldList:     $('bulk-genre-field-list'),
     bulkGenreProgress:      $('bulk-genre-progress'),
     bulkGenreProgressFill:  $('bulk-genre-progress-fill'),
     btnBulkGenreSave:       $('btn-bulk-genre-save'),
@@ -151,7 +156,7 @@ const UI = (() => {
     editFieldArtist: $('edit-field-artist'),
     editFieldAlbum:  $('edit-field-album'),
     editFieldGenre:  $('edit-field-genre'),
-    genreSuggestions:$('genre-suggestions'),
+    editFieldGenreList: $('edit-field-genre-list'),
     btnEditSave:     $('btn-edit-save'),
     btnEditCancel:   $('btn-edit-cancel'),
 
@@ -190,8 +195,9 @@ const UI = (() => {
     movieGrid:            $('movie-grid'),
     btnMovieRefresh:      $('btn-movie-refresh'),
     btnMovieUploadOpen:   $('btn-movie-upload-open'),
-    filterChipMovieGenre: $('filter-chip-movie-genre'),
-    btnMovieFilterClear:  $('btn-movie-filter-clear'),
+    btnMovieFilterMenu:   $('btn-movie-filter-menu'),
+    movieFilterMenuDot:   $('movie-filter-menu-dot'),
+    movieFilterSummary:   $('movie-filter-summary'),
 
     filterChipMovieCollection: $('filter-chip-movie-collection'),
     btnMovieNewPlaylist:     $('btn-movie-new-playlist'),
@@ -220,14 +226,14 @@ const UI = (() => {
     btnMoviePreviewUse:     $('btn-movie-preview-use'),
     movieAddUrl:            $('movie-add-url'),
     movieAddGenre:          $('movie-add-genre'),
-    movieAddGenreSuggestions: $('movie-add-genre-suggestions'),
+    movieAddGenreList:      $('movie-add-genre-list'),
     btnMovieAddSave:        $('btn-movie-add-save'),
     btnUploadMovieClose:    $('btn-upload-movie-close'),
 
     modalMovieEdit:         $('modal-movie-edit'),
     editMovieTitle:         $('edit-movie-title'),
     editMovieGenre:         $('edit-movie-genre'),
-    movieGenreSuggestions:  $('movie-genre-suggestions'),
+    editMovieGenreList:     $('edit-movie-genre-list'),
     btnMovieEditSave:       $('btn-movie-edit-save'),
     btnMovieEditCancel:     $('btn-movie-edit-cancel'),
     btnMovieEditDelete:     $('btn-movie-edit-delete'),
@@ -870,6 +876,31 @@ const UI = (() => {
   }
   _bindFilterMenuEvents();
 
+  // ── PRÉVIA DE COLEÇÃO (modal, aberto pelos balões de "Coleções
+  // recentes" no topo da Home — em vez de navegar pra outra tela) ──
+  function showCollectionPreview(name, tracks, currentTrackId) {
+    el.collectionPreviewTitle.textContent = name;
+    if (!tracks.length) {
+      el.collectionPreviewList.innerHTML = `<p class="empty-hint">Nada por aqui ainda.</p>`;
+    } else {
+      renderTrackList(el.collectionPreviewList, tracks, currentTrackId);
+      bindTrackListEvents(el.collectionPreviewList, tracks);
+    }
+    el.modalCollectionPreview.classList.remove('hidden');
+  }
+
+  function hideCollectionPreview() {
+    el.modalCollectionPreview.classList.add('hidden');
+  }
+
+  function _bindCollectionPreviewEvents() {
+    el.btnCollectionPreviewClose?.addEventListener('click', hideCollectionPreview);
+    el.modalCollectionPreview?.addEventListener('click', e => {
+      if (e.target === el.modalCollectionPreview) hideCollectionPreview();
+    });
+  }
+  _bindCollectionPreviewEvents();
+
   // ── CONFIRMAÇÃO CUSTOMIZADA (substitui window.confirm) ─────────
   // window.confirm() abre um alerta genérico do sistema, fora da
   // identidade visual do app — isso resolve com um modal próprio.
@@ -1015,12 +1046,14 @@ const UI = (() => {
     }
   }
 
+  let _musicKnownGenres = [];
+
   function showTrackEditModal(track, knownGenres = []) {
     el.editFieldTitle.value  = track.title  || '';
     el.editFieldArtist.value = track.artist === 'Desconhecido' ? '' : (track.artist || '');
     el.editFieldAlbum.value  = track.album  || '';
     el.editFieldGenre.value  = track.genre  || '';
-    el.genreSuggestions.innerHTML = knownGenres.map(g => `<option value="${_escape(g)}"></option>`).join('');
+    _musicKnownGenres = knownGenres;
 
     _editCoverFile   = null;
     _editCoverAction = null;
@@ -1356,8 +1389,11 @@ const UI = (() => {
   // ── FILTRO DE VÍDEOS (gênero) ───────────────────
   function renderMovieFilterOptions(genres, activeGenre = '') {
     _filterData.moviegenres = genres;
-    _setChip(el.filterChipMovieGenre, 'Gênero', activeGenre, 'Gênero');
-    el.btnMovieFilterClear.classList.toggle('hidden', !activeGenre);
+    el.movieFilterMenuDot?.classList.toggle('hidden', !activeGenre);
+    if (el.movieFilterSummary) {
+      el.movieFilterSummary.classList.toggle('hidden', !activeGenre);
+      el.movieFilterSummary.textContent = activeGenre ? `Filtrando por: ${activeGenre}` : '';
+    }
   }
 
   // ── COLEÇÕES DE VÍDEO (favoritos + playlists) ───
@@ -1428,10 +1464,12 @@ const UI = (() => {
   }
 
   // ── MODAL: ADICIONAR VÍDEO (link do YouTube) ───
+  let _movieAddKnownGenres = [];
+
   function showMovieAddModal(knownGenres = []) {
     el.movieAddUrl.value = '';
     el.movieAddGenre.value = '';
-    el.movieAddGenreSuggestions.innerHTML = knownGenres.map(g => `<option value="${_escape(g)}"></option>`).join('');
+    _movieAddKnownGenres = knownGenres;
     el.movieSearchInput.value = '';
     hideMovieSearchResults();
     hideMoviePreview();
@@ -1515,10 +1553,12 @@ const UI = (() => {
   }
 
   // ── MODAL: EDITAR INFORMAÇÕES DO VÍDEO ─────────
+  let _movieEditKnownGenres = [];
+
   function showMovieEditModal(video, knownGenres = []) {
     el.editMovieTitle.value = video.title || '';
     el.editMovieGenre.value = video.genre || '';
-    el.movieGenreSuggestions.innerHTML = knownGenres.map(g => `<option value="${_escape(g)}"></option>`).join('');
+    _movieEditKnownGenres = knownGenres;
     el.modalMovieEdit.classList.remove('hidden');
     el.modalMovieEdit.dataset.videoId = video.id;
     el.editMovieTitle.focus();
@@ -1629,7 +1669,7 @@ const UI = (() => {
   function showBulkGenreModal(count, knownGenres = []) {
     el.bulkGenreCount.textContent = count === 1 ? '1 música selecionada' : `${count} músicas selecionadas`;
     el.bulkGenreField.value = '';
-    el.genreSuggestions.innerHTML = knownGenres.map(g => `<option value="${_escape(g)}"></option>`).join('');
+    _musicKnownGenres = knownGenres;
     el.bulkGenreProgress.classList.add('hidden');
     el.bulkGenreProgressFill.style.width = '0%';
     el.btnBulkGenreSave.disabled = false;
@@ -1650,6 +1690,54 @@ const UI = (() => {
   }
 
   // ── ESCAPE XSS ────────────────────────────────
+  // ── SUGESTÕES DE GÊNERO (substitui <datalist>) ─────────────────
+  // No WebView do Android, o <datalist> nativo renderiza a lista fora
+  // do lugar (por cima do campo de texto) — esse dropdown próprio
+  // resolve isso e fica com a cara do resto do app.
+  // options: array de strings, ou função que retorna esse array (pra
+  // pegar a lista mais atual na hora de abrir, sem precisar re-wire).
+  function _attachGenreSuggest(input, listEl, options) {
+    if (!input || !listEl) return;
+
+    function getOptions() {
+      return typeof options === 'function' ? (options() || []) : (options || []);
+    }
+
+    function render() {
+      const q = input.value.trim().toLowerCase();
+      const opts = getOptions()
+        .filter(g => !q || g.toLowerCase().includes(q))
+        .slice(0, 8);
+
+      if (!opts.length) { listEl.classList.add('hidden'); return; }
+
+      listEl.innerHTML = opts.map(g =>
+        `<div class="genre-suggest-item" data-value="${_escape(g)}">${_escape(g)}</div>`
+      ).join('');
+      listEl.classList.remove('hidden');
+    }
+
+    input.addEventListener('focus', render);
+    input.addEventListener('input', render);
+    // blur com um delay pequeno — senão o clique na sugestão nunca
+    // registra, porque o blur esconde a lista antes do click disparar
+    input.addEventListener('blur', () => setTimeout(() => listEl.classList.add('hidden'), 150));
+
+    listEl.addEventListener('mousedown', e => {
+      const item = e.target.closest('.genre-suggest-item');
+      if (!item) return;
+      e.preventDefault(); // evita o blur do input antes de aplicar o valor
+      input.value = item.dataset.value;
+      listEl.classList.add('hidden');
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+  }
+
+  _attachGenreSuggest(el.editFieldGenre,  el.editFieldGenreList,  () => _musicKnownGenres);
+  _attachGenreSuggest(el.bulkGenreField,  el.bulkGenreFieldList,  () => _musicKnownGenres);
+  _attachGenreSuggest(el.movieAddGenre,   el.movieAddGenreList,   () => _movieAddKnownGenres);
+  _attachGenreSuggest(el.editMovieGenre,  el.editMovieGenreList,  () => _movieEditKnownGenres);
+
   function _escape(str) {
     return String(str || '')
       .replace(/&/g, '&amp;')
@@ -1864,12 +1952,27 @@ const UI = (() => {
     el.offlineStatus.textContent = text;
   }
 
+  // Ajusta o botão "Baixar tudo" conforme quanto já foi baixado:
+  // nada baixado → "Baixar tudo"; parte baixada → "Baixar restante";
+  // tudo já baixado → o botão some (não tem mais o que baixar).
+  function updateDownloadAllButton(downloadedCount, totalCount) {
+    const allDone = totalCount > 0 && downloadedCount >= totalCount;
+    el.btnDownloadAll.classList.toggle('hidden', allDone);
+    if (allDone) return;
+
+    const label = downloadedCount > 0 ? 'Baixar restante' : 'Baixar tudo';
+    el.btnDownloadAll.dataset.idleLabel = label;
+    if (!el.btnDownloadAll.classList.contains('btn-cancel')) {
+      el.btnDownloadAll.textContent = label;
+    }
+  }
+
   // which: 'all' | 'fav' | null — controla qual botão vira "Cancelar"
   function setDownloadBatchUI(running, done = 0, total = 0, which = null) {
     el.btnDownloadAll.disabled       = running && which !== 'all';
     el.btnDownloadFavorites.disabled = running && which !== 'fav';
 
-    el.btnDownloadAll.textContent       = (running && which === 'all') ? 'Cancelar' : 'Baixar tudo';
+    if (which === 'all') el.btnDownloadAll.textContent = running ? 'Cancelar' : el.btnDownloadAll.dataset.idleLabel || 'Baixar tudo';
     el.btnDownloadFavorites.textContent = (running && which === 'fav') ? 'Cancelar' : 'Baixar favoritas';
 
     el.btnDownloadAll.classList.toggle('btn-cancel', running && which === 'all');
@@ -1918,12 +2021,15 @@ const UI = (() => {
     bindRecentEvents,
     refreshDownloadBadges,
     setOfflineSummary,
+    updateDownloadAllButton,
     setDownloadBatchUI,
 
     // Filtros
     renderFilterOptions,
     showFilterMenu,
     hideFilterMenu,
+    showCollectionPreview,
+    hideCollectionPreview,
     confirmDialog,
     showFilterPicker,
     hideFilterPicker,

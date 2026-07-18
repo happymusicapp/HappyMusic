@@ -314,6 +314,8 @@ const App = (() => {
       }
     });
 
+    UI.updateDownloadAllButton(count, _tracks.length);
+
     if (!count) {
       UI.setOfflineSummary('Nenhuma música baixada ainda. Baixe antes de pegar estrada sem internet.');
       return;
@@ -986,9 +988,18 @@ const App = (() => {
     UI.el.recentCollectionsList.addEventListener('click', e => {
       const chip = e.target.closest('.recent-collection-chip');
       if (!chip) return;
-      UI.showView('playlists');
-      if (chip.dataset.id === FAVORITES_ID) _openFavoritesView();
-      else _openPlaylist(chip.dataset.id);
+
+      if (chip.dataset.id === FAVORITES_ID) {
+        UI.showCollectionPreview('Favoritas', Player.getFavorites(), _currentId());
+        return;
+      }
+      const playlist = _playlists.find(p => p.id === chip.dataset.id);
+      if (!playlist) return;
+      UI.showCollectionPreview(playlist.name, _playlistTracks(playlist), _currentId());
+    });
+
+    UI.el.collectionPreviewList.addEventListener('click', e => {
+      if (e.target.closest('.track-item')) UI.hideCollectionPreview();
     });
 
     UI.el.btnPlaylistBack.addEventListener('click', () => {
@@ -1171,17 +1182,12 @@ const App = (() => {
   }
 
   function _bindMovieFilterEvents() {
-    UI.el.filterChipMovieGenre.addEventListener('click', () => {
+    UI.el.btnMovieFilterMenu.addEventListener('click', () => {
       UI.showFilterPicker('moviegenre', _movieFilterGenre, value => {
         _movieFilterGenre = value;
         _refreshMovieFilterBar();
         _renderMovieGrid();
       });
-    });
-    UI.el.btnMovieFilterClear.addEventListener('click', () => {
-      _movieFilterGenre = '';
-      _refreshMovieFilterBar();
-      _renderMovieGrid();
     });
     UI.el.btnMovieRefresh.addEventListener('click', () => _loadMovies());
   }
