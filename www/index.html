@@ -239,6 +239,10 @@
             <button id="btn-movie-upload-open" class="icon-btn icon-btn-sm icon-btn-accent" aria-label="Adicionar vídeo" title="Adicionar vídeo (link do YouTube)">
               <svg width="19" height="19" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
             </button>
+            <button id="btn-movie-filter-menu" class="icon-btn icon-btn-sm" aria-label="Filtrar vídeos" title="Filtrar por gênero">
+              <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z"/></svg>
+              <span id="movie-filter-menu-dot" class="filter-menu-dot hidden"></span>
+            </button>
           </div>
         </div>
 
@@ -267,23 +271,9 @@
           </div>
         </div>
 
-        <!-- Filtro por gênero -->
-        <div class="filter-card">
-          <div class="filter-card-header">
-            <span class="filter-card-title">Filtrar por</span>
-            <button id="btn-movie-filter-clear" class="filter-clear hidden" aria-label="Limpar filtro" title="Limpar filtro">
-              <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg>
-              Limpar
-            </button>
-          </div>
-          <div id="movie-filter-bar" class="filter-chip-row">
-            <button type="button" id="filter-chip-movie-genre" class="filter-chip" data-filter-type="moviegenre">
-              <svg class="filter-chip-icon" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="m20.59 13.41-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82Z"/><circle cx="7" cy="7" r="1.4" fill="currentColor" stroke="none"/></svg>
-              <span class="filter-chip-label">Gênero</span>
-              <svg class="filter-chip-caret" width="9" height="9" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg>
-            </button>
-          </div>
-        </div>
+        <!-- O filtro por gênero agora vive no modal #modal-movie-filter-menu,
+             aberto pelo ícone de filtro lá em cima. -->
+        <p id="movie-filter-summary" class="filter-summary hidden"></p>
 
         <div id="movie-grid" class="track-list movie-list">
           <p class="empty-hint">Carregando vídeos…</p>
@@ -555,12 +545,25 @@
       <p id="bulk-genre-count" class="modal-text">0 músicas selecionadas</p>
       <div class="upload-field">
         <label>Gênero</label>
-        <input id="bulk-genre-field" type="text" class="text-input" list="genre-suggestions" placeholder="Ex: MPB" />
+        <div class="genre-suggest-wrap">
+          <input id="bulk-genre-field" type="text" class="text-input" autocomplete="off" placeholder="Ex: MPB" />
+          <div id="bulk-genre-field-list" class="genre-suggest-list hidden"></div>
+        </div>
       </div>
       <div id="bulk-genre-progress" class="dl-progress hidden">
         <div class="dl-progress-bar"><div id="bulk-genre-progress-fill" class="dl-progress-fill" style="width:0%"></div></div>
       </div>
       <button id="btn-bulk-genre-save" class="btn-primary">Aplicar a todas</button>
+    </div>
+  </div>
+
+  <!-- MODAL: PRÉVIA DE COLEÇÃO (balões de "Coleções recentes" no topo
+       da Home abrem isso, em vez de navegar pra outra tela) -->
+  <div id="modal-collection-preview" class="modal-overlay hidden">
+    <div class="modal-box modal-box-wide">
+      <button id="btn-collection-preview-close" class="modal-close" aria-label="Fechar"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+      <h2 id="collection-preview-title" class="modal-title">Coleção</h2>
+      <div id="collection-preview-list" class="track-list"></div>
     </div>
   </div>
 
@@ -675,8 +678,10 @@
       </div>
       <div class="upload-field">
         <label>Gênero</label>
-        <input id="edit-field-genre" type="text" class="text-input" list="genre-suggestions" />
-        <datalist id="genre-suggestions"></datalist>
+        <div class="genre-suggest-wrap">
+          <input id="edit-field-genre" type="text" class="text-input" autocomplete="off" />
+          <div id="edit-field-genre-list" class="genre-suggest-list hidden"></div>
+        </div>
       </div>
       <button id="btn-edit-save" class="btn-primary">Salvar</button>
     </div>
@@ -756,8 +761,10 @@
       </div>
       <div class="upload-field">
         <label>Gênero</label>
-        <input id="movie-add-genre" type="text" class="text-input" list="movie-add-genre-suggestions" />
-        <datalist id="movie-add-genre-suggestions"></datalist>
+        <div class="genre-suggest-wrap">
+          <input id="movie-add-genre" type="text" class="text-input" autocomplete="off" />
+          <div id="movie-add-genre-list" class="genre-suggest-list hidden"></div>
+        </div>
       </div>
       <button id="btn-movie-add-save" class="btn-primary">Adicionar</button>
     </div>
@@ -774,8 +781,10 @@
       </div>
       <div class="upload-field">
         <label>Gênero</label>
-        <input id="edit-movie-genre" type="text" class="text-input" list="movie-genre-suggestions" />
-        <datalist id="movie-genre-suggestions"></datalist>
+        <div class="genre-suggest-wrap">
+          <input id="edit-movie-genre" type="text" class="text-input" autocomplete="off" />
+          <div id="edit-movie-genre-list" class="genre-suggest-list hidden"></div>
+        </div>
       </div>
       <button id="btn-movie-edit-save" class="btn-primary">Salvar</button>
       <button id="btn-movie-edit-delete" class="text-btn upload-item-remove" style="margin-top:10px;width:100%;text-align:center;">Remover dos vídeos</button>
