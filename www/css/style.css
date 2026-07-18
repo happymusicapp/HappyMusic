@@ -1411,7 +1411,13 @@ img    { display: block; }
   gap: var(--sp-2);
 }
 
-.offline-actions .btn-small { flex: 1; min-width: 130px; }
+.offline-actions .btn-small {
+  flex: 1;
+  min-width: 110px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 
 .offline-clear {
   display: block;
@@ -1596,7 +1602,7 @@ img    { display: block; }
   background: var(--purple);
   box-shadow: 0 0 6px rgba(124,58,255,0.7);
 }
-#btn-filter-menu { position: relative; }
+#btn-filter-menu, #btn-movie-filter-menu { position: relative; }
 
 /* ── MODAL: SELECIONAR FILTRO (lista + busca) ─── */
 .filter-picker-box {
@@ -2177,7 +2183,12 @@ img    { display: block; }
   margin-top: 10px;
 }
 .yt-preview-actions .btn-outline,
-.yt-preview-actions .btn-primary { flex: 1; }
+.yt-preview-actions .btn-primary {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 
 /* Miniatura de vídeo em formato 16:9 dentro da linha (em vez do
    quadrado usado pra capa de música) — mesma altura da linha, só a
@@ -2292,4 +2303,37 @@ img    { display: block; }
   width: 42px;
   height: 42px;
   flex-shrink: 0;
+}
+
+/* ── SUGESTÕES DE GÊNERO (substitui <datalist> — no WebView do
+   Android ele renderiza fora do lugar, por cima do campo) ────── */
+.genre-suggest-wrap {
+  position: relative;
+}
+
+.genre-suggest-list {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  z-index: 20;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  max-height: 180px;
+  overflow-y: auto;
+  box-shadow: 0 12px 32px rgba(0,0,0,0.5);
+}
+
+.genre-suggest-item {
+  padding: 10px 14px;
+  font-size: 0.9rem;
+  color: var(--grey-soft);
+  cursor: pointer;
+  transition: background var(--transition), color var(--transition);
+}
+.genre-suggest-item:hover,
+.genre-suggest-item:active {
+  background: var(--surface2);
+  color: var(--white);
 }
