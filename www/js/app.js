@@ -10,6 +10,7 @@ const App = (() => {
   let _initialized = false;
   let _readyFired = false;
   const KEY_ONBOARDED = 'hm_onboarded';
+  const KEY_AUTO_DOWNLOAD = 'hm_auto_download';
   const GDRIVE_URL = 'https://drive.google.com/drive/my-drive';
 
   // Abre o Google Drive já na conta logada no app (evita cair numa
@@ -218,6 +219,8 @@ const App = (() => {
       _renderAllTracksList();
       _primeLastPlayed();
 
+      _autoDownloadMissing();
+
     } catch (err) {
       console.error('[App] Erro ao carregar músicas:', err);
 
@@ -327,7 +330,7 @@ const App = (() => {
 
   // Avisa se o download vai provavelmente estourar o espaço livre do
   // aparelho, mas deixa o usuário decidir se quer arriscar mesmo assim
-  async function _confirmIfLowStorage(tracks) {
+  async function _confirmIfLowStorage(tracks, silent = false) {
     const totalBytes = tracks.reduce((sum, t) => sum + (t.size || 0), 0);
     if (!totalBytes) return true; // sem estimativa de tamanho, não bloqueia
 
@@ -335,6 +338,7 @@ const App = (() => {
     if (!storage || !storage.quota) return true;
 
     if (totalBytes > storage.available * 0.9) {
+      if (silent) return false;
       return UI.confirmDialog(
         `Isso baixa cerca de ${_formatBytes(totalBytes)}, mas seu aparelho tem só ` +
         `${_formatBytes(storage.available)} livres. Baixar mesmo assim? ` +
@@ -343,6 +347,40 @@ const App = (() => {
       );
     }
     return true;
+  }
+
+  // ── DOWNLOAD AUTOMÁTICO ─────────────────────────
+  // Baixa sozinho o que ainda falta assim que a biblioteca carrega —
+  // sem precisar tocar em "Baixar tudo" toda vez. Silencioso: sem
+  // internet ou sem espaço suficiente, só não faz nada (ou avisa por
+  // toast), nunca interrompe o uso do app.
+  let _autoDownloadRanThisSession = false;
+
+  function isAutoDownloadEnabled() {
+    return localStorage.getItem(KEY_AUTO_DOWNLOAD) !== '0'; // ligado por padrão
+  }
+
+  function setAutoDownloadEnabled(enabled) {
+    localStorage.setItem(KEY_AUTO_DOWNLOAD, enabled ? '1' : '0');
+  }
+
+  async function _autoDownloadMissing() {
+    if (_autoDownloadRanThisSession) return;
+    if (!isAutoDownloadEnabled() || !navigator.onLine || _batchRunning) return;
+
+    const missing = _tracks.filter(t => !Downloads.isDownloaded(t.id));
+    _autoDownloadRanThisSession = true; // só tenta uma vez por sessão
+    if (!missing.length) return;
+
+    // Checagem silenciosa de espaço — automático não deve interromper
+    // com um popup perguntando "baixar mesmo assim?"; só avisa e
+    // deixa pra a pessoa baixar manualmente o que quiser depois.
+    if (!(await _confirmIfLowStorage(missing, /* silent */ true))) {
+      UI.showToast('Espaço baixo pro download automático — baixe manualmente o que precisar em Perfil.');
+      return;
+    }
+
+    await _runDownloadBatch(missing, 'all');
   }
 
   async function _runDownloadBatch(tracks, which) {
@@ -1819,6 +1857,11 @@ const App = (() => {
       UI.refreshDownloadBadges();
       _updateOfflineSummary();
       UI.showToast('Downloads removidos.');
+    });
+
+    UI.el.chkAutoDownload.checked = isAutoDownloadEnabled();
+    UI.el.chkAutoDownload.addEventListener('change', () => {
+      setAutoDownloadEnabled(UI.el.chkAutoDownload.checked);
     });
 
     // Mantém o resumo "X de Y músicas baixadas" sempre atualizado

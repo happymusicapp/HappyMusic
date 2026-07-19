@@ -191,29 +191,34 @@ const Drive = (() => {
       return true;
     }
 
-    // Sem internet: não dá pra renovar o token agora, mas isso não pode
-    // derrubar a sessão — senão o usuário perde acesso até às músicas já
-    // baixadas só por estar sem sinal (ex.: token vence durante um voo
-    // ou um trecho sem cobertura). Mantém a sessão com o token vencido
-    // que já tem; assim que a conexão voltar, a primeira chamada à API
-    // renova de verdade ou detecta uma expiração legítima.
-    if (!navigator.onLine && token) {
-      _token = token;
-      _user  = user ? JSON.parse(user) : null;
-      return true;
+    // Sem token nenhum salvo — nunca fez login, aí sim precisa mesmo.
+    if (!token) {
+      _clearSession();
+      return false;
     }
 
-    // Access token expirado (app fechado/tela travada por mais de ~1h) —
-    // antes de forçar login de novo, tenta renovar com o refresh_token.
+    // Access token expirado (app fechado/tela travada por mais de ~1h)
+    // — antes de forçar login de novo, tenta renovar com o refresh_token.
     if (localStorage.getItem(KEY_REFRESH)) {
       const refreshed = await _refreshAccessToken();
       if (refreshed) {
         _user = user ? JSON.parse(user) : null;
         return true;
       }
-      // Falhou por falta de conexão (não por token revogado) — mesma
-      // lógica: mantém a sessão em vez de forçar login sem internet.
-      if (!navigator.onLine && token) {
+
+      // A renovação falhou — mas só é motivo de verdade pra derrubar a
+      // sessão se o Google respondeu dizendo que o refresh_token não
+      // vale mais (_lastRefreshWasRevoked). Qualquer outra falha (sem
+      // internet, timeout, sinal fraco, etc.) mantém a sessão com o
+      // token vencido que já tem: o app abre normalmente e toca o que
+      // já foi baixado; a próxima chamada com internet de verdade
+      // renova ou detecta uma expiração legítima então.
+      //
+      // Importante: NÃO depende de navigator.onLine pra essa decisão
+      // — esse sinal só indica se existe uma interface de rede ativa,
+      // não se ela tem internet de verdade (ex.: sinal fraco, portal
+      // cativo de wifi), e por isso não é confiável aqui.
+      if (!_lastRefreshWasRevoked) {
         _token = token;
         _user  = user ? JSON.parse(user) : null;
         return true;
@@ -260,18 +265,45 @@ const Drive = (() => {
   // ── RENOVAÇÃO DE TOKEN ─────────────────────────
   let _refreshPromise = null; // evita disparar vários refreshes em paralelo
 
+  // true só quando o Google respondeu de verdade dizendo que o
+  // refresh_token não vale mais (ex.: revogado/expirado) — diferente de
+  // uma falha de rede, que não significa que a sessão acabou.
+  let _lastRefreshWasRevoked = false;
+
   function _refreshAccessToken() {
     if (_refreshPromise) return _refreshPromise;
 
     const refreshToken = localStorage.getItem(KEY_REFRESH);
     if (!refreshToken) return Promise.resolve(false);
 
+    _lastRefreshWasRevoked = false;
+
+    // Timeout curto: numa conexão "meio viva" (sinal fraco tentando
+    // conectar, sem nunca completar), sem isso o fetch pode ficar
+    // pendurado por muito tempo, travando o app numa tela de
+    // carregamento em vez de cair pro modo offline rapidinho.
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 8000);
+
     _refreshPromise = fetch(`${API_BASE}/api/refresh`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ refresh_token: refreshToken }),
+      signal: controller.signal,
     })
-      .then(res => (res.ok ? res.json() : null))
+      .then(async res => {
+        if (!res.ok) {
+          // O Google respondeu (não é falha de rede) — se foi porque o
+          // refresh_token não vale mais, isso sim é uma sessão vencida
+          // de verdade, não uma questão de conexão.
+          try {
+            const body = await res.json();
+            if (body?.error === 'invalid_grant') _lastRefreshWasRevoked = true;
+          } catch { /* corpo não veio em JSON, ignora */ }
+          return null;
+        }
+        return res.json();
+      })
       .then(data => {
         if (!data || !data.access_token) return false;
         _token = data.access_token;
@@ -281,10 +313,16 @@ const Drive = (() => {
         return true;
       })
       .catch(err => {
+        // Erro de fetch de verdade (sem resposta nenhuma do servidor) —
+        // sem internet, DNS falhou, timeout, etc. Não é o Google
+        // dizendo "não", é só falta de conexão mesmo.
         console.warn('[Drive] Falha ao renovar token:', err);
         return false;
       })
-      .finally(() => { _refreshPromise = null; });
+      .finally(() => {
+        clearTimeout(timeoutId);
+        _refreshPromise = null;
+      });
 
     return _refreshPromise;
   }
