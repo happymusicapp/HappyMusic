@@ -2337,3 +2337,18 @@ img    { display: block; }
   background: var(--surface2);
   color: var(--white);
 }
+
+.auto-download-toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  font-size: 0.85rem;
+  color: var(--grey-soft);
+  margin: var(--sp-2) 0 var(--sp-3);
+  cursor: pointer;
+}
+.auto-download-toggle input[type="checkbox"] {
+  accent-color: var(--purple);
+  width: 17px;
+  height: 17px;
+}
