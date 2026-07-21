@@ -424,13 +424,17 @@ img    { display: block; }
    sem número, checkbox, duração ou botões extras. */
 .recent-track-item .track-art { width: 44px; height: 44px; }
 
-/* ── COLEÇÕES RECENTES (carrossel de chips) ───── */
+/* ── COLEÇÕES RECENTES (carrossel de chips) ─────
+   Painel preto por trás de toda a fileira, igual ao fundo do player —
+   os cards em si continuam com o gradiente roxo/rosa por cima. */
 .recent-collections-list {
   display: flex;
   gap: var(--sp-3);
   overflow-x: auto;
   scrollbar-width: none;
-  padding-bottom: 2px;
+  background: #000;
+  border-radius: var(--radius-lg, 16px);
+  padding: var(--sp-3);
 }
 .recent-collections-list::-webkit-scrollbar { display: none; }
 
@@ -439,14 +443,18 @@ img    { display: block; }
   flex-direction: column;
   align-items: center;
   gap: var(--sp-2);
-  width: 92px;
+  /* Largura calculada a partir do espaço disponível, não um valor fixo —
+     assim SEMPRE cabem exatamente 4 cards por linha, enquadrados, em
+     qualquer largura de tela (o valor fixo de 92px cabia em telas
+     grandes mas cortava o 4º card em telas menores). */
+  width: calc((100% - 3 * var(--sp-3)) / 4);
   flex-shrink: 0;
   cursor: pointer;
 }
 
 .recent-collection-chip-art {
-  width: 84px;
-  height: 84px;
+  width: 100%;
+  aspect-ratio: 1 / 1;
   border-radius: var(--radius-md);
   background: var(--gradient-brand);
   display: flex;
