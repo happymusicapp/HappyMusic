@@ -456,7 +456,10 @@ img    { display: block; }
   width: 100%;
   aspect-ratio: 1 / 1;
   border-radius: var(--radius-md);
-  background: var(--gradient-brand);
+  /* Preto — só aparece mesmo quando a coleção não tem nenhuma capa
+     (cai no ícone de fallback); com fotos, a colagem cobre 100% do
+     card por cima e esse fundo nem chega a aparecer. */
+  background: #000;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -468,7 +471,9 @@ img    { display: block; }
 .recent-collection-chip:hover .recent-collection-chip-art,
 .recent-collection-chip:active .recent-collection-chip-art { box-shadow: 0 6px 22px rgba(124,58,255,0.5); }
 .recent-collection-chip:active .recent-collection-chip-art { transform: scale(0.96); }
-.recent-collection-chip-art.is-fav { background: linear-gradient(135deg, #ff5c8a, #ff8fab); }
+/* Favoritas: mesmo preto, só o ícone de coração fica rosa pra continuar
+   reconhecível de cara. */
+.recent-collection-chip-art.is-fav { color: #ff5c8a; }
 
 /* Capa em colagem 2x2 (playlists/favoritas com faixas com capa) —
    preenche o quadrado do card por cima do fundo em gradiente. */
