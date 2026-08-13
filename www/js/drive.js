@@ -104,14 +104,12 @@ const Drive = (() => {
     const verifier   = await _generateVerifier();
     const challenge  = await _generateChallenge(verifier);
 
-    // localStorage (não sessionStorage): no app nativo, o login acontece
-    // numa aba externa do Chrome (Custom Tab) — o Android pode encerrar o
-    // processo do app em segundo plano nesse meio-tempo pra liberar
-    // memória, o que apaga o sessionStorage e faz o login "sumir" quando
-    // o usuário volta, obrigando a tentar de novo. localStorage sobrevive
-    // a isso. Continua seguro: o verifier só serve junto com um código de
-    // autorização de uso único que acabou de ser gerado por este mesmo
-    // login, e é removido logo depois de usado (ver handleCallback).
+    // localStorage (não sessionStorage): o login do Google roda numa
+    // Custom Tab externa, fora da WebView, e o Android pode matar o
+    // processo do app nesse meio-tempo pra liberar memória — o que
+    // zeraria o sessionStorage antes do usuário terminar o login e
+    // sumiria com o verifier, quebrando a troca do código pelo token
+    // (e, junto, qualquer upload, já que ele depende de sessão válida).
     localStorage.setItem(KEY_VERIFIER, verifier);
 
     const params = new URLSearchParams({
@@ -199,34 +197,29 @@ const Drive = (() => {
       return true;
     }
 
-    // Sem token nenhum salvo — nunca fez login, aí sim precisa mesmo.
-    if (!token) {
-      _clearSession();
-      return false;
+    // Sem internet: não dá pra renovar o token agora, mas isso não pode
+    // derrubar a sessão — senão o usuário perde acesso até às músicas já
+    // baixadas só por estar sem sinal (ex.: token vence durante um voo
+    // ou um trecho sem cobertura). Mantém a sessão com o token vencido
+    // que já tem; assim que a conexão voltar, a primeira chamada à API
+    // renova de verdade ou detecta uma expiração legítima.
+    if (!navigator.onLine && token) {
+      _token = token;
+      _user  = user ? JSON.parse(user) : null;
+      return true;
     }
 
-    // Access token expirado (app fechado/tela travada por mais de ~1h)
-    // — antes de forçar login de novo, tenta renovar com o refresh_token.
+    // Access token expirado (app fechado/tela travada por mais de ~1h) —
+    // antes de forçar login de novo, tenta renovar com o refresh_token.
     if (localStorage.getItem(KEY_REFRESH)) {
       const refreshed = await _refreshAccessToken();
       if (refreshed) {
         _user = user ? JSON.parse(user) : null;
         return true;
       }
-
-      // A renovação falhou — mas só é motivo de verdade pra derrubar a
-      // sessão se o Google respondeu dizendo que o refresh_token não
-      // vale mais (_lastRefreshWasRevoked). Qualquer outra falha (sem
-      // internet, timeout, sinal fraco, etc.) mantém a sessão com o
-      // token vencido que já tem: o app abre normalmente e toca o que
-      // já foi baixado; a próxima chamada com internet de verdade
-      // renova ou detecta uma expiração legítima então.
-      //
-      // Importante: NÃO depende de navigator.onLine pra essa decisão
-      // — esse sinal só indica se existe uma interface de rede ativa,
-      // não se ela tem internet de verdade (ex.: sinal fraco, portal
-      // cativo de wifi), e por isso não é confiável aqui.
-      if (!_lastRefreshWasRevoked) {
+      // Falhou por falta de conexão (não por token revogado) — mesma
+      // lógica: mantém a sessão em vez de forçar login sem internet.
+      if (!navigator.onLine && token) {
         _token = token;
         _user  = user ? JSON.parse(user) : null;
         return true;
@@ -273,45 +266,18 @@ const Drive = (() => {
   // ── RENOVAÇÃO DE TOKEN ─────────────────────────
   let _refreshPromise = null; // evita disparar vários refreshes em paralelo
 
-  // true só quando o Google respondeu de verdade dizendo que o
-  // refresh_token não vale mais (ex.: revogado/expirado) — diferente de
-  // uma falha de rede, que não significa que a sessão acabou.
-  let _lastRefreshWasRevoked = false;
-
   function _refreshAccessToken() {
     if (_refreshPromise) return _refreshPromise;
 
     const refreshToken = localStorage.getItem(KEY_REFRESH);
     if (!refreshToken) return Promise.resolve(false);
 
-    _lastRefreshWasRevoked = false;
-
-    // Timeout curto: numa conexão "meio viva" (sinal fraco tentando
-    // conectar, sem nunca completar), sem isso o fetch pode ficar
-    // pendurado por muito tempo, travando o app numa tela de
-    // carregamento em vez de cair pro modo offline rapidinho.
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 8000);
-
     _refreshPromise = fetch(`${API_BASE}/api/refresh`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ refresh_token: refreshToken }),
-      signal: controller.signal,
     })
-      .then(async res => {
-        if (!res.ok) {
-          // O Google respondeu (não é falha de rede) — se foi porque o
-          // refresh_token não vale mais, isso sim é uma sessão vencida
-          // de verdade, não uma questão de conexão.
-          try {
-            const body = await res.json();
-            if (body?.error === 'invalid_grant') _lastRefreshWasRevoked = true;
-          } catch { /* corpo não veio em JSON, ignora */ }
-          return null;
-        }
-        return res.json();
-      })
+      .then(res => (res.ok ? res.json() : null))
       .then(data => {
         if (!data || !data.access_token) return false;
         _token = data.access_token;
@@ -321,16 +287,10 @@ const Drive = (() => {
         return true;
       })
       .catch(err => {
-        // Erro de fetch de verdade (sem resposta nenhuma do servidor) —
-        // sem internet, DNS falhou, timeout, etc. Não é o Google
-        // dizendo "não", é só falta de conexão mesmo.
         console.warn('[Drive] Falha ao renovar token:', err);
         return false;
       })
-      .finally(() => {
-        clearTimeout(timeoutId);
-        _refreshPromise = null;
-      });
+      .finally(() => { _refreshPromise = null; });
 
     return _refreshPromise;
   }
@@ -344,58 +304,33 @@ const Drive = (() => {
     return _refreshAccessToken();
   }
 
-  // ── FETCH AUTENTICADO CENTRALIZADO ─────────────
-  // TODA chamada autenticada ao Drive/Google passa por aqui. Ponto único
-  // que decide quando uma sessão realmente acabou.
-  //
-  // Antes, cada função tinha sua própria cópia de "if (res.status===401)
-  // _clearSession()" — e isso derrubava a sessão inteira (mandando pro
-  // login) sempre que uma renovação de token falhava por QUALQUER motivo,
-  // incluindo uma rede instável (sinal fraco, troca de wifi↔dados, portal
-  // cativo). Era a causa raiz do login sendo pedido com frequência demais:
-  // bastava uma chamada ao Drive coincidir com um soluço de conexão.
-  //
-  // Agora só derruba a sessão (e exige login de novo) quando o Google
-  // responde de forma explícita dizendo que o refresh_token não vale mais
-  // (_lastRefreshWasRevoked). Qualquer outra falha vira DRIVE_UNAVAILABLE,
-  // que os chamadores tratam como "sem internet agora", sem tirar o
-  // usuário da conta.
-  async function _authFetch(url, options = {}) {
+  // ── REQUISIÇÃO AUTENTICADA ────────────────────
+  async function _get(url, params = {}) {
     await _ensureValidToken();
 
-    const _withAuth = () => ({
-      ...options,
-      headers: { ...(options.headers || {}), Authorization: `Bearer ${_token}` },
-    });
-
-    let res = await fetch(url, _withAuth());
-
-    if (res.status === 401) {
-      const refreshed = await _refreshAccessToken();
-      if (refreshed) {
-        res = await fetch(url, _withAuth());
-      }
-      if (res.status === 401) {
-        if (_lastRefreshWasRevoked) {
-          _clearSession();
-          throw new Error('UNAUTHORIZED');
-        }
-        // Refresh falhou por conexão, não por revogação — mantém a
-        // sessão salva e sinaliza como indisponibilidade temporária.
-        throw new Error('DRIVE_UNAVAILABLE');
-      }
-    }
-
-    return res;
-  }
-
-  // ── REQUISIÇÃO AUTENTICADA (GET, JSON) ─────────
-  async function _get(url, params = {}) {
     const qs  = new URLSearchParams(params).toString();
     const sep = url.includes('?') ? '&' : '?';
     const fullUrl = qs ? `${url}${sep}${qs}` : url;
 
-    const res = await _authFetch(fullUrl);
+    let res = await fetch(fullUrl, {
+      headers: { Authorization: `Bearer ${_token}` },
+    });
+
+    if (res.status === 401) {
+      // Token pode ter expirado no meio da chamada — tenta renovar uma
+      // vez antes de desistir e derrubar a sessão.
+      const refreshed = await _refreshAccessToken();
+      if (refreshed) {
+        res = await fetch(fullUrl, {
+          headers: { Authorization: `Bearer ${_token}` },
+        });
+      }
+      if (res.status === 401) {
+        _clearSession();
+        throw new Error('UNAUTHORIZED');
+      }
+    }
+
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     return res.json();
   }
@@ -524,7 +459,12 @@ const Drive = (() => {
       }
       _videosFileId = file.id;
 
-      const res = await _authFetch(`https://www.googleapis.com/drive/v3/files/${file.id}?alt=media`);
+      await _ensureValidToken();
+
+      const res = await fetch(`https://www.googleapis.com/drive/v3/files/${file.id}?alt=media`, {
+        headers: { Authorization: `Bearer ${_token}` },
+      });
+      if (res.status === 401) { _clearSession(); throw new Error('UNAUTHORIZED'); }
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
       const list = await res.json();
@@ -752,8 +692,21 @@ const Drive = (() => {
       if (localSrc) return localSrc;
     }
 
+    await _ensureValidToken();
+
     const requestUrl = `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`;
-    const res = await _authFetch(requestUrl);
+    let res = await fetch(requestUrl, { headers: { Authorization: `Bearer ${_token}` } });
+
+    if (res.status === 401) {
+      const refreshed = await _refreshAccessToken();
+      if (refreshed) {
+        res = await fetch(requestUrl, { headers: { Authorization: `Bearer ${_token}` } });
+      }
+      if (res.status === 401) {
+        _clearSession();
+        throw new Error('UNAUTHORIZED');
+      }
+    }
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
     const blob = await res.blob();
@@ -840,11 +793,20 @@ const Drive = (() => {
         // Se a capa personalizada falhar ao carregar, cai pro fallback abaixo.
       }
 
-      const res = await _authFetch(
+      const res = await fetch(
         `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`,
-        { headers: { Range: 'bytes=0-1500000' } } // 1.5MB costuma bastar pra capa embutida
+        {
+          headers: {
+            Authorization: `Bearer ${_token}`,
+            Range: 'bytes=0-1500000', // 1.5MB costuma bastar pra capa embutida
+          },
+        }
       );
 
+      if (res.status === 401) {
+        _clearSession();
+        throw new Error('UNAUTHORIZED');
+      }
       if (!res.ok && res.status !== 206) throw new Error(`HTTP ${res.status}`);
 
       const blob = await res.blob();
@@ -862,7 +824,11 @@ const Drive = (() => {
   // Baixa uma imagem do Drive (arquivo de capa personalizada) e devolve
   // como dataURL, pro mesmo formato usado pela capa embutida/ID3.
   async function _fetchImageAsDataUrl(fileId) {
-    const res = await _authFetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`);
+    const res = await fetch(
+      `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`,
+      { headers: { Authorization: `Bearer ${_token}` } }
+    );
+    if (res.status === 401) { _clearSession(); throw new Error('UNAUTHORIZED'); }
     if (!res.ok) return null;
     const blob = await res.blob();
     return _blobToDataUrl(blob);
@@ -909,12 +875,15 @@ const Drive = (() => {
   function _sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
   async function _initResumableSession(meta, file) {
-    const res = await _authFetch(
+    await _ensureValidToken();
+
+    const res = await fetch(
       'https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable&supportsAllDrives=true' +
       '&fields=id,name,size,mimeType,modifiedTime,thumbnailLink,videoMediaMetadata,properties',
       {
         method: 'POST',
         headers: {
+          Authorization: `Bearer ${_token}`,
           'Content-Type': 'application/json; charset=UTF-8',
           'X-Upload-Content-Type': meta.mimeType,
           'X-Upload-Content-Length': String(file.size),
@@ -923,6 +892,7 @@ const Drive = (() => {
       }
     );
 
+    if (res.status === 401) { _clearSession(); throw new Error('UNAUTHORIZED'); }
     if (!res.ok) throw new Error(`Falha ao iniciar envio (HTTP ${res.status})`);
 
     const location = res.headers.get('Location');
@@ -950,16 +920,7 @@ const Drive = (() => {
           catch { reject(new Error('Resposta inválida do Drive ao enviar o arquivo.')); }
           return;
         }
-        if (xhr.status === 401) {
-          const refreshed = await _refreshAccessToken();
-          if (!refreshed && _lastRefreshWasRevoked) { _clearSession(); reject(new Error('UNAUTHORIZED')); return; }
-          if (attempt >= 3) { reject(new Error('Falha no envio: sessão indisponível no momento. Tente novamente.')); return; }
-          try {
-            await _sleep(1000 * (attempt + 1));
-            resolve(await _resumeUpload(sessionUrl, blob, totalSize, onProgress, attempt + 1));
-          } catch (err) { reject(err); }
-          return;
-        }
+        if (xhr.status === 401) { _clearSession(); reject(new Error('UNAUTHORIZED')); return; }
         if (attempt >= 3) { reject(new Error(`Falha no envio (HTTP ${xhr.status}) após várias tentativas.`)); return; }
 
         try {
@@ -1036,16 +997,22 @@ const Drive = (() => {
       },
     };
 
-    const res = await _authFetch(
+    await _ensureValidToken();
+
+    const res = await fetch(
       `https://www.googleapis.com/drive/v3/files/${fileId}` +
       '?supportsAllDrives=true&fields=id,name,size,mimeType,modifiedTime,thumbnailLink,videoMediaMetadata,properties',
       {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          Authorization: `Bearer ${_token}`,
+          'Content-Type': 'application/json',
+        },
         body: JSON.stringify(body),
       }
     );
 
+    if (res.status === 401) { _clearSession(); throw new Error('UNAUTHORIZED'); }
     if (!res.ok) throw new Error(`Falha ao salvar alterações (HTTP ${res.status})`);
 
     const updated = await res.json();
@@ -1062,6 +1029,8 @@ const Drive = (() => {
   // (arriscado e nem sempre suportado pelo formato) — o Drive é quem guarda
   // o vínculo, então continua funcionando mesmo se o arquivo for renomeado.
   async function _uploadCoverImage(track, imageFile) {
+    await _ensureValidToken();
+
     const meta = {
       name: `.happymusic_capa_${track.id}`,
       properties: { hm_cover_for: track.id },
@@ -1073,11 +1042,16 @@ const Drive = (() => {
     form.append('metadata', new Blob([JSON.stringify(meta)], { type: 'application/json; charset=UTF-8' }));
     form.append('file', imageFile);
 
-    const res = await _authFetch(
+    const res = await fetch(
       'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true&fields=id',
-      { method: 'POST', body: form }
+      {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${_token}` },
+        body: form,
+      }
     );
 
+    if (res.status === 401) { _clearSession(); throw new Error('UNAUTHORIZED'); }
     if (!res.ok) throw new Error(`Falha ao enviar a capa (HTTP ${res.status})`);
 
     const created = await res.json();
@@ -1087,15 +1061,21 @@ const Drive = (() => {
   // Atualiza só as properties informadas, sem mexer nas outras já salvas —
   // a Drive API faz merge por chave (valor `null` remove a chave).
   async function _patchProperties(fileId, propsPatch) {
-    const res = await _authFetch(
+    await _ensureValidToken();
+
+    const res = await fetch(
       `https://www.googleapis.com/drive/v3/files/${fileId}?supportsAllDrives=true&fields=id,properties`,
       {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          Authorization: `Bearer ${_token}`,
+          'Content-Type': 'application/json',
+        },
         body: JSON.stringify({ properties: propsPatch }),
       }
     );
 
+    if (res.status === 401) { _clearSession(); throw new Error('UNAUTHORIZED'); }
     if (!res.ok) throw new Error(`Falha ao salvar alterações (HTTP ${res.status})`);
     return res.json();
   }
@@ -1104,11 +1084,15 @@ const Drive = (() => {
   // (ex.: capa antiga já tinha sido apagada por fora) — não é crítico.
   async function _trashFileSilently(fileId) {
     try {
-      await _authFetch(
+      await _ensureValidToken();
+      await fetch(
         `https://www.googleapis.com/drive/v3/files/${fileId}?supportsAllDrives=true`,
         {
           method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            Authorization: `Bearer ${_token}`,
+            'Content-Type': 'application/json',
+          },
           body: JSON.stringify({ trashed: true }),
         }
       );
@@ -1155,15 +1139,21 @@ const Drive = (() => {
   // recuperável pela lixeira do Google Drive por um tempo, é mais seguro
   // do que apagar de vez direto pelo app.
   async function deleteTrack(fileId) {
-    const res = await _authFetch(
+    await _ensureValidToken();
+
+    const res = await fetch(
       `https://www.googleapis.com/drive/v3/files/${fileId}?supportsAllDrives=true`,
       {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          Authorization: `Bearer ${_token}`,
+          'Content-Type': 'application/json',
+        },
         body: JSON.stringify({ trashed: true }),
       }
     );
 
+    if (res.status === 401) { _clearSession(); throw new Error('UNAUTHORIZED'); }
     if (res.status === 404) {
       // Já não existe no Drive (apagado por fora) — trata como sucesso local.
       _tracks = _tracks.filter(t => t.id !== fileId);
@@ -1213,7 +1203,12 @@ const Drive = (() => {
       }
       _playlistsFileId = file.id;
 
-      const res = await _authFetch(`https://www.googleapis.com/drive/v3/files/${file.id}?alt=media`);
+      await _ensureValidToken();
+
+      const res = await fetch(`https://www.googleapis.com/drive/v3/files/${file.id}?alt=media`, {
+        headers: { Authorization: `Bearer ${_token}` },
+      });
+      if (res.status === 401) { _clearSession(); throw new Error('UNAUTHORIZED'); }
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
       const list = await res.json();
@@ -1234,21 +1229,33 @@ const Drive = (() => {
       `--${boundary}\r\nContent-Type: application/json\r\n\r\n${content}\r\n` +
       `--${boundary}--`;
 
-    const res = await _authFetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id', {
+    await _ensureValidToken();
+
+    const res = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id', {
       method: 'POST',
-      headers: { 'Content-Type': `multipart/related; boundary=${boundary}` },
+      headers: {
+        Authorization: `Bearer ${_token}`,
+        'Content-Type': `multipart/related; boundary=${boundary}`,
+      },
       body,
     });
+    if (res.status === 401) { _clearSession(); throw new Error('UNAUTHORIZED'); }
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     return res.json();
   }
 
   async function _mediaUpdateJson(fileId, content) {
-    const res = await _authFetch(`https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=media`, {
+    await _ensureValidToken();
+
+    const res = await fetch(`https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=media`, {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        Authorization: `Bearer ${_token}`,
+        'Content-Type': 'application/json',
+      },
       body: content,
     });
+    if (res.status === 401) { _clearSession(); throw new Error('UNAUTHORIZED'); }
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     return res.json();
   }
@@ -1307,7 +1314,12 @@ const Drive = (() => {
       }
       _moviePlaylistsFileId = file.id;
 
-      const res = await _authFetch(`https://www.googleapis.com/drive/v3/files/${file.id}?alt=media`);
+      await _ensureValidToken();
+
+      const res = await fetch(`https://www.googleapis.com/drive/v3/files/${file.id}?alt=media`, {
+        headers: { Authorization: `Bearer ${_token}` },
+      });
+      if (res.status === 401) { _clearSession(); throw new Error('UNAUTHORIZED'); }
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
       const list = await res.json();
