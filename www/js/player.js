@@ -248,6 +248,17 @@ const Player = (() => {
     else              pause();
   }
 
+  // Fone/Bluetooth desconectado de verdade (evento nativo, ver
+  // MainActivity.java) — precisa pausar igual ao pause() manual, e NÃO
+  // cair na auto-retomada acima (que é só pra "roubadas" de foco
+  // passageiras). Sem isso, a música voltava a tocar sozinha pelo
+  // alto-falante do celular assim que o Bluetooth caía.
+  if (window.NativeApp && window.NativeApp.isNative) {
+    window.addEventListener('hmAudioBecomingNoisy', () => {
+      if (!audio.paused) pause();
+    });
+  }
+
   function isPlaying() { return !audio.paused; }
 
   // ── CONTINUAR SOZINHO (MODO RÁDIO) ─────────────
