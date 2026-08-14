@@ -262,18 +262,16 @@ img    { display: block; }
   border: 2px solid var(--purple);
 }
 
-/* ── SEARCH BAR ────────────────────────────── */
+/* ── SEARCH BAR (agora é parte da aba Buscar, não overlay) ── */
 .search-bar {
-  position: fixed;
-  top: var(--header-h);
-  left: 0; right: 0;
-  background: var(--bg-elevated);
-  border-bottom: 1px solid var(--border);
   display: flex;
   align-items: center;
   gap: var(--sp-2);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-full, 999px);
   padding: var(--sp-3) var(--sp-4);
-  z-index: 99;
+  margin-bottom: var(--sp-4);
   color: var(--grey);
 }
 
@@ -288,20 +286,6 @@ img    { display: block; }
 }
 
 .search-bar input::placeholder { color: var(--grey-dark); }
-
-.search-bar-close {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  color: var(--grey);
-  flex-shrink: 0;
-  transition: color var(--transition), background var(--transition);
-}
-.search-bar-close:hover,
-.search-bar-close:active { color: var(--purple-soft); background: var(--surface2); }
 
 /* ── MAIN CONTENT ──────────────────────────── */
 .main-content {
@@ -319,6 +303,34 @@ img    { display: block; }
 /* ── VIEWS ─────────────────────────────────── */
 .view { display: none; padding: var(--sp-4); animation: fade-in 0.25s var(--ease); }
 .view.active { display: block; }
+
+/* ── BIBLIOTECA: sub-abas Músicas / Playlists ── */
+.library-tabs {
+  display: flex;
+  gap: var(--sp-2);
+  margin-bottom: var(--sp-4);
+  background: var(--bg-elevated);
+  border-radius: var(--radius-full, 999px);
+  padding: 4px;
+}
+.library-tab {
+  flex: 1;
+  border: none;
+  background: none;
+  color: var(--grey);
+  font-family: var(--font-display);
+  font-size: 0.9rem;
+  font-weight: 600;
+  padding: var(--sp-2) 0;
+  border-radius: var(--radius-full, 999px);
+  transition: background var(--transition), color var(--transition);
+}
+.library-tab.active {
+  background: var(--purple-soft);
+  color: var(--bg);
+}
+.library-panel { display: none; }
+.library-panel.active { display: block; }
 
 @keyframes fade-in {
   from { opacity: 0; transform: translateY(8px); }
@@ -601,11 +613,63 @@ img    { display: block; }
 
 .player.hidden { transform: translateY(100%); pointer-events: none; }
 
+/* ── PLAYER EXPANDIDO (tela cheia, toque na capa/título) ── */
+.player.expanded {
+  position: fixed;
+  inset: 0;
+  bottom: 0;
+  height: 100dvh;
+  border-top: none;
+  z-index: 200;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: var(--sp-6) var(--sp-5);
+  background: linear-gradient(180deg, #0d0d12 0%, #000 70%);
+}
+
+.player.expanded .player-track {
+  flex-direction: column;
+  margin-bottom: var(--sp-6);
+}
+
+.player.expanded .player-track-btn {
+  flex-direction: column;
+  width: 100%;
+}
+
+.player.expanded .player-art {
+  width: min(70vw, 280px);
+  height: min(70vw, 280px);
+  border-radius: var(--sp-3);
+  margin-bottom: var(--sp-4);
+}
+
+.player.expanded .player-info { width: 100%; text-align: center; }
+.player.expanded .player-title { font-size: 1.15rem; white-space: normal; }
+.player.expanded .player-artist { font-size: 0.9rem; }
+
+/* Some junto com o player expandido pra não competir por espaço */
+.player.expanded ~ .bottom-nav { display: none; }
+
 .player-track {
   display: flex;
   align-items: center;
   gap: var(--sp-3);
   margin-bottom: var(--sp-3);
+}
+
+.player-track-btn {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  flex: 1;
+  min-width: 0;
+  background: none;
+  border: none;
+  padding: 0;
+  text-align: left;
+  cursor: pointer;
 }
 
 .player-art {
