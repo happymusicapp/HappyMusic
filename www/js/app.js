@@ -244,7 +244,20 @@ const App = (() => {
     // Reativado: a Home ficou com um vão vazio depois que "Todas as
     // músicas" foi pra aba Biblioteca — o histórico (Player.getRecent())
     // nunca parou de ser gravado, só não tinha pra onde desenhar.
-    UI.renderRecent(Player.getRecent());
+    //
+    // Player.getRecent() devolve uma FOTO congelada de cada música (foi
+    // gravada em localStorage no instante em que ela tocou) — se a capa
+    // foi trocada depois (manualmente, ou porque a busca automática de
+    // capa só termina alguns segundos depois de a música começar), essa
+    // foto antiga nunca se atualiza sozinha. Por isso, sempre que for
+    // desenhar, atualiza cada item com os dados atuais de _tracks (a
+    // fonte viva) antes de mostrar — assim a Home sempre reflete a capa
+    // (e título/artista, se tiverem sido editados) mais recente.
+    const recent = Player.getRecent().map(saved => {
+      const live = _tracks.find(t => t.id === saved.id);
+      return live ? { ...saved, ...live } : saved;
+    });
+    UI.renderRecent(recent);
     _renderRecentCollections();
   }
 
@@ -872,11 +885,17 @@ const App = (() => {
 
   function _reRenderCurrentViews() {
     _refreshFilterBar();
-    if (UI.getCurrentView() === 'home') _renderAllTracksList();
+    // "home" virou "library" na reforma da navegação — essa checagem
+    // ficou presa ao nome antigo e nunca mais disparava.
+    if (UI.getCurrentView() === 'library') _renderAllTracksList();
     if (UI.getCurrentView() === 'search' && UI.el.searchInput.value.trim()) {
       _handleSearch(UI.el.searchInput.value);
     }
     if (_activePlaylistId) _renderActivePlaylistTracks();
+    // A Home mostra "Tocadas recentemente" com dados que podem ter ficado
+    // desatualizados (capa/título/artista) — reconcilia sempre que algo
+    // muda, esteja o usuário olhando pra Home agora ou não.
+    _renderRecent();
   }
 
   function _bindEditModalEvents() {
