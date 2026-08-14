@@ -27,6 +27,7 @@ const UI = (() => {
     mainContent:    $('main-content'),
 
     // Listas
+    recentShelf:    $('recent-shelf'),
     recentList:     $('recent-list'),
     recentCollectionsShelf: $('recent-collections-shelf'),
     recentCollectionsList:  $('recent-collections-list'),
@@ -520,9 +521,11 @@ const UI = (() => {
   // ── RECENT LIST (formato compacto, igual à lista) ─
   function renderRecent(tracks) {
     if (!tracks.length) {
-      el.recentList.innerHTML = `<p class="empty-hint">Nenhuma música tocada ainda.</p>`;
+      el.recentShelf.classList.add('hidden');
+      el.recentList.innerHTML = '';
       return;
     }
+    el.recentShelf.classList.remove('hidden');
 
     el.recentList.innerHTML = tracks.map(track => `
       <div class="track-item recent-track-item" data-id="${track.id}" role="button" tabindex="0" aria-label="${_escape(track.title)} — ${_escape(track.artist)}">
@@ -538,7 +541,7 @@ const UI = (() => {
       </div>
     `).join('');
 
-    tracks.forEach(track => _queueCoverFetch(track));
+    _observeCovers(el.recentList, tracks);
   }
 
   // ── COLEÇÕES RECENTES (playlists / favoritas abertas recentemente) ─
