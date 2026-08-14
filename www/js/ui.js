@@ -466,6 +466,40 @@ const UI = (() => {
     }
   }
 
+  // Só busca a capa de músicas que o usuário realmente está vendo (ou
+  // prestes a ver, com uma margem de rolagem), em vez de disparar a
+  // lista inteira de uma vez — numa biblioteca de centenas de músicas
+  // isso fazia a busca de capas competir por rede/CPU muito além do que
+  // dá pra perceber na tela, deixando tudo mais lento pra aparecer.
+  // Reaproveita um único observer por lista, guardando track por id.
+  const _coverObservers = new WeakMap(); // container -> IntersectionObserver
+
+  function _observeCovers(container, tracks) {
+    if (!('IntersectionObserver' in window)) {
+      // Sem suporte (não deveria acontecer no WebView do app) — volta
+      // ao comportamento antigo, buscando tudo de uma vez.
+      tracks.forEach(track => _queueCoverFetch(track));
+      return;
+    }
+
+    const byId = new Map(tracks.map(t => [String(t.id), t]));
+
+    let observer = _coverObservers.get(container);
+    if (observer) observer.disconnect();
+
+    observer = new IntersectionObserver(entries => {
+      entries.forEach(entry => {
+        if (!entry.isIntersecting) return;
+        const track = byId.get(entry.target.dataset.id);
+        if (track) _queueCoverFetch(track, true);
+        observer.unobserve(entry.target);
+      });
+    }, { root: null, rootMargin: '600px 0px', threshold: 0.01 });
+
+    _coverObservers.set(container, observer);
+    container.querySelectorAll('[data-id]').forEach(el => observer.observe(el));
+  }
+
   function _applyCoverToDom(trackId, dataUrl) {
     document.querySelectorAll(`[data-id="${trackId}"]`).forEach(item => {
       const art = item.querySelector('.track-art, .recent-art');
@@ -564,7 +598,7 @@ const UI = (() => {
       </div>
     `).join('');
 
-    tracks.forEach(track => _queueCoverFetch(track));
+    _observeCovers(container, tracks);
   }
 
   function _menuIcon() {

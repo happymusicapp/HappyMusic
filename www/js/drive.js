@@ -5,6 +5,49 @@
 
 const Drive = (() => {
 
+  // ── CACHE PERSISTENTE DE CAPAS (IndexedDB) ────
+  // As capas embutidas (ID3/MP4) são caras de buscar: cada uma exige
+  // baixar um pedaço do arquivo de áudio do Drive e decodificar com
+  // jsmediatags. Antes, esse resultado só ficava num Map em memória —
+  // ou seja, toda vez que o app era reaberto, TODAS as capas eram
+  // buscadas de novo do zero. Isso guarda o resultado em disco (via
+  // IndexedDB, que aguenta bem mais dado que localStorage) pra abrir o
+  // app de novo já mostrar as capas na hora, sem nova rede.
+  const _coverDbPromise = (() => {
+    if (!('indexedDB' in window)) return Promise.resolve(null);
+    return new Promise(resolve => {
+      const req = indexedDB.open('hm_covers_db', 1);
+      req.onupgradeneeded = () => {
+        req.result.createObjectStore('covers', { keyPath: 'id' });
+      };
+      req.onsuccess = () => resolve(req.result);
+      req.onerror   = () => resolve(null); // sem IndexedDB, só não persiste — não quebra o app
+    });
+  })();
+
+  async function _coverDbGet(id) {
+    const db = await _coverDbPromise;
+    if (!db) return undefined;
+    return new Promise(resolve => {
+      try {
+        const tx = db.transaction('covers', 'readonly');
+        const req = tx.objectStore('covers').get(id);
+        req.onsuccess = () => resolve(req.result ? req.result.dataUrl : undefined);
+        req.onerror   = () => resolve(undefined);
+      } catch { resolve(undefined); }
+    });
+  }
+
+  function _coverDbSet(id, dataUrl) {
+    _coverDbPromise.then(db => {
+      if (!db || !dataUrl) return;
+      try {
+        const tx = db.transaction('covers', 'readwrite');
+        tx.objectStore('covers').put({ id, dataUrl });
+      } catch { /* sem espaço ou indisponível — ignora, não é crítico */ }
+    });
+  }
+
   // ── CONFIGURAÇÃO ──────────────────────────────
   const CLIENT_ID   = '1097906554235-06h3ll6bn26opgqsddohls1d2a0mct5p.apps.googleusercontent.com';
   // Dentro do app nativo (Capacitor), window.location.origin é um
@@ -862,6 +905,18 @@ const Drive = (() => {
 
   async function fetchEmbeddedCover(fileId, customCoverId = null) {
     if (_coverCache.has(fileId)) return _coverCache.get(fileId);
+
+    // Cache em disco (sobrevive a fechar/reabrir o app) — só vale pra
+    // capa embutida sem capa personalizada; capa personalizada pode ter
+    // sido trocada, então sempre revalida essa (é rara, não pesa).
+    if (!customCoverId) {
+      const cached = await _coverDbGet(fileId);
+      if (cached !== undefined) {
+        _coverCache.set(fileId, cached);
+        return cached;
+      }
+    }
+
     if (!_token) return null;
 
     try {
@@ -886,6 +941,7 @@ const Drive = (() => {
       const blob = await res.blob();
       const dataUrl = await _readCoverFromBlob(blob);
       _coverCache.set(fileId, dataUrl);
+      _coverDbSet(fileId, dataUrl); // grava em disco pra próxima abertura do app
       return dataUrl;
 
     } catch (err) {
