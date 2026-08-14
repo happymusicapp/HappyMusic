@@ -233,7 +233,10 @@ const App = (() => {
 
       UI.el.allTracksList.innerHTML = `
         <p class="empty-hint">Erro ao carregar músicas. Verifique sua conexão.</p>`;
-      UI.showToast('Não foi possível carregar as músicas.');
+      // DIAGNÓSTICO TEMPORÁRIO: mostra a mensagem real do erro no toast
+      // (a genérica escondia o motivo de verdade). Reverter depois que
+      // acharmos a causa.
+      UI.showToast('Erro: ' + (err && err.message ? err.message : err), 6000);
     }
   }
 
