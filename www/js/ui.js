@@ -14,8 +14,7 @@ const UI = (() => {
     screenApp:      $('screen-app'),
 
     // Header
-    btnSearchToggle:$('btn-search-toggle'),
-    btnSearchClose: $('btn-search-close'),
+    btnPlayerExpand: $('btn-player-expand'),
     btnUser:        $('btn-user'),
     userAvatar:     $('user-avatar'),
     searchBar:      $('search-bar'),
@@ -162,7 +161,10 @@ const UI = (() => {
     btnEditCancel:   $('btn-edit-cancel'),
 
     // Playlists
-    viewPlaylists:        $('view-playlists'),
+    viewLibrary:          $('view-library'),
+    libraryTabs:          document.querySelectorAll('.library-tab'),
+    libraryPanelTracks:   $('library-panel-tracks'),
+    libraryPanelPlaylists: $('library-panel-playlists'),
     playlistsListWrap:    $('playlists-list-wrap'),
     playlistsList:        $('playlists-list'),
     btnNewPlaylist:       $('btn-new-playlist'),
@@ -298,22 +300,21 @@ const UI = (() => {
 
   function getCurrentView() { return _currentView; }
 
-  // ── SEARCH BAR TOGGLE ──────────────────────────
-  function toggleSearchBar() {
-    const hidden = el.searchBar.classList.contains('hidden');
-    if (hidden) {
-      el.searchBar.classList.remove('hidden');
-      el.searchInput.focus();
-      showView('search');
-    } else {
-      closeSearchBar();
-    }
+  // ── SUB-ABAS DA BIBLIOTECA (Músicas / Playlists) ───────
+  function showLibraryTab(name) {
+    el.libraryTabs.forEach(btn => btn.classList.toggle('active', btn.dataset.libTab === name));
+    el.libraryPanelTracks.classList.toggle('active', name === 'tracks');
+    el.libraryPanelPlaylists.classList.toggle('active', name === 'playlists');
   }
 
-  function closeSearchBar() {
-    el.searchBar.classList.add('hidden');
-    el.searchInput.value = '';
-    showView('home');
+  // ── BUSCA (aba fixa — sem overlay pra abrir/fechar) ────
+  function focusSearch() {
+    showView('search');
+    el.searchInput.focus();
+  }
+
+  function clearSearchResults() {
+    el.searchResults.innerHTML = '';
   }
 
   // ── PERFIL ─────────────────────────────────────
@@ -1811,21 +1812,21 @@ const UI = (() => {
 
     // Nav inferior
     el.navBtns.forEach(btn => {
-      btn.addEventListener('click', () => {
-        if (!el.searchBar.classList.contains('hidden')) closeSearchBar();
-        showView(btn.dataset.view);
-      });
+      btn.addEventListener('click', () => showView(btn.dataset.view));
     });
 
-    // Search toggle
-    el.btnSearchToggle.addEventListener('click', toggleSearchBar);
-    el.btnSearchClose?.addEventListener('click', closeSearchBar);
+    // Player: toque na capa/título expande o player em tela cheia
+    el.btnPlayerExpand.addEventListener('click', () => {
+      el.player.classList.toggle('expanded');
+    });
+
+    // Sub-abas da Biblioteca: Músicas / Playlists
+    el.libraryTabs.forEach(btn => {
+      btn.addEventListener('click', () => showLibraryTab(btn.dataset.libTab));
+    });
 
     // Avatar → perfil
-    el.btnUser.addEventListener('click', () => {
-      if (!el.searchBar.classList.contains('hidden')) closeSearchBar();
-      showView('profile');
-    });
+    el.btnUser.addEventListener('click', () => showView('profile'));
 
     // Player callbacks
     Player.onPlay(track => {
@@ -1997,8 +1998,11 @@ const UI = (() => {
     showApp,
     showView,
     getCurrentView,
-    toggleSearchBar,
-    closeSearchBar,
+    showLibraryTab,
+    toggleSearchBar: focusSearch, // mantido por compatibilidade de nome
+    closeSearchBar:  clearSearchResults,
+    clearSearchResults,
+    focusSearch,
     renderProfile,
     setGreeting,
     renderRecent,

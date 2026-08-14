@@ -1748,15 +1748,10 @@ const App = (() => {
     UI.bindTrackListEvents(UI.el.searchResults, results);
   }
 
-  // Fecha a busca ao tocar uma música nos resultados — sem isso a barra
-  // continuava aberta flutuando por cima da tela depois de escolher algo.
-  function _bindSearchResultsClose() {
-    if (UI.el.searchResults.dataset.hmCloseBound) return;
-    UI.el.searchResults.dataset.hmCloseBound = '1';
-    UI.el.searchResults.addEventListener('click', e => {
-      if (e.target.closest('.track-item')) UI.closeSearchBar();
-    });
-  }
+  // Busca não fecha/navega mais ao tocar num resultado — a busca agora é
+  // uma aba fixa (igual Spotify/Apple Music), não um overlay que precisa
+  // fechar. Tocar num resultado só toca a música e continua na Busca.
+  function _bindSearchResultsClose() { /* nada a fazer — mantido só pra não quebrar a chamada abaixo */ }
 
   // ── SELEÇÃO DE PASTA ───────────────────────────
   function _bindFolderListClick(folders) {
@@ -1907,9 +1902,10 @@ const App = (() => {
     // (modais de playlist de vídeo fecham ao clicar fora dentro dos
     // próprios _bindMovieCollectionEvents/_bindAddVideoToPlaylistModalEvents)
 
-    // Voltar pra tela raiz de playlists sempre que a aba é reaberta
+    // Reabrir a aba Biblioteca sempre volta pra raiz (lista), fechando
+    // o detalhe de playlist se estiver aberto.
     document.querySelectorAll('.nav-btn').forEach(btn => {
-      if (btn.dataset.view === 'playlists') {
+      if (btn.dataset.view === 'library') {
         btn.addEventListener('click', () => {
           _activePlaylistId = null;
           UI.showPlaylistsRoot();
@@ -1918,16 +1914,18 @@ const App = (() => {
       }
     });
 
-    // Busca em tempo real — apagar o texto todo fecha a barra
+    // Busca em tempo real — apagar o texto todo só limpa os resultados
+    // (a busca é uma aba fixa agora, não fecha/navega mais sozinha).
     UI.el.searchInput.addEventListener('input', e => {
-      if (!e.target.value) { UI.closeSearchBar(); return; }
+      if (!e.target.value) { UI.clearSearchResults(); return; }
       _handleSearch(e.target.value);
     });
 
-    // Limpa busca ao pressionar Escape
+    // Escape limpa o campo de busca
     UI.el.searchInput.addEventListener('keydown', e => {
       if (e.key === 'Escape') {
-        UI.toggleSearchBar();
+        UI.el.searchInput.value = '';
+        UI.clearSearchResults();
       }
     });
 
