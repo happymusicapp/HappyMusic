@@ -82,27 +82,11 @@
         <span class="header-title">Happy<span class="brand-music">Music</span></span>
       </div>
       <div class="header-right">
-        <button id="btn-search-toggle" class="icon-btn" aria-label="Buscar">
-          <svg width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-            <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
-          </svg>
-        </button>
         <button id="btn-user" class="icon-btn" aria-label="Perfil">
           <img id="user-avatar" src="" alt="Perfil" class="avatar" />
         </button>
       </div>
     </header>
-
-    <!-- BARRA DE BUSCA (toggle) -->
-    <div id="search-bar" class="search-bar hidden">
-      <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-        <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
-      </svg>
-      <input id="search-input" type="text" placeholder="Buscar música, álbum ou artista…" autocomplete="off" />
-      <button id="btn-search-close" class="search-bar-close" aria-label="Fechar busca">
-        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg>
-      </button>
-    </div>
 
     <!-- CONTEÚDO PRINCIPAL -->
     <main id="main-content" class="main-content">
@@ -118,113 +102,132 @@
             <!-- preenchido por app.js -->
           </div>
         </div>
-
-        <!-- Todas as músicas -->
-        <div class="shelf">
-          <div class="shelf-header">
-            <h3 class="shelf-label">Todas as músicas</h3>
-            <div class="shelf-actions">
-              <button id="btn-select-mode" class="icon-btn icon-btn-sm" aria-label="Selecionar músicas" title="Selecionar">
-                <svg width="19" height="19" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
-                  <rect x="3" y="5" width="6" height="6" rx="1.5"/><path d="M12 6h9"/>
-                  <rect x="3" y="15" width="6" height="6" rx="1.5"/><path d="M12 18h9"/>
-                </svg>
-              </button>
-              <button id="btn-refresh" class="icon-btn icon-btn-sm" aria-label="Atualizar lista" title="Atualizar">
-                <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
-                  <path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 4v6h-6"/>
-                </svg>
-              </button>
-              <button id="btn-filter-menu" class="icon-btn icon-btn-sm" aria-label="Filtrar músicas" title="Filtrar">
-                <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z"/></svg>
-                <span id="filter-menu-dot" class="filter-menu-dot hidden"></span>
-              </button>
-            </div>
-          </div>
-
-          <!-- Barra de seleção em lote -->
-          <div id="selection-bar" class="selection-bar hidden">
-            <div class="selection-bar-top">
-              <span id="selection-count">0 selecionadas</span>
-              <button id="btn-selection-cancel" class="icon-btn icon-btn-sm" aria-label="Cancelar seleção" title="Cancelar">
-                <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg>
-              </button>
-            </div>
-            <div id="selection-bar-actions" class="selection-bar-actions">
-              <button id="btn-selection-favorite" class="selection-action-btn" disabled>
-                <svg width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
-                <span>Favoritar</span>
-              </button>
-              <button id="btn-selection-add-playlist" class="selection-action-btn" disabled>
-                <svg width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M3 6h13M3 12h9M3 18h9"/><path d="M18 14v6M15 17h6"/></svg>
-                <span>Playlist</span>
-              </button>
-              <button id="btn-selection-assign-genre" class="selection-action-btn" disabled>
-                <svg width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="m9 11 3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
-                <span>Gênero</span>
-              </button>
-            </div>
-          </div>
-
-          <!-- Filtros: agora vivem no modal #modal-filter-menu (ver perto
-               dos outros modais), aberto pelo ícone de filtro acima. -->
-          <p id="filter-summary" class="filter-summary hidden"></p>
-
-          <div id="all-tracks-list" class="track-list">
-            <!-- preenchido por drive.js + ui.js -->
-          </div>
-        </div>
       </section>
 
       <!-- VIEW: BUSCA -->
       <section id="view-search" class="view">
+        <div class="search-bar" id="search-bar">
+          <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+          </svg>
+          <input id="search-input" type="text" placeholder="Buscar música, álbum ou artista…" autocomplete="off" />
+        </div>
         <h2 class="section-title">Resultados</h2>
         <div id="search-results" class="track-list"></div>
       </section>
 
-      <!-- VIEW: COLEÇÕES (playlists + favoritas) -->
-      <section id="view-playlists" class="view">
-        <div id="playlists-list-wrap">
-          <div class="shelf-header">
-            <h2 class="section-title" style="margin:0;">Coleções</h2>
-            <button id="btn-new-playlist" class="icon-btn icon-btn-sm icon-btn-accent" aria-label="Nova playlist" title="Nova playlist">
-              <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
-            </button>
-          </div>
-          <div id="playlists-list" class="playlist-grid">
-            <p class="empty-hint">Nenhuma playlist ainda. Crie a primeira!</p>
+      <!-- VIEW: BIBLIOTECA (músicas + coleções) -->
+      <section id="view-library" class="view">
+
+        <!-- Seletor Músicas / Playlists -->
+        <div class="library-tabs" id="library-tabs">
+          <button type="button" class="library-tab active" data-lib-tab="tracks">Músicas</button>
+          <button type="button" class="library-tab" data-lib-tab="playlists">Playlists</button>
+        </div>
+
+        <!-- PAINEL: TODAS AS MÚSICAS -->
+        <div id="library-panel-tracks" class="library-panel active">
+          <div class="shelf">
+            <div class="shelf-header">
+              <h3 class="shelf-label">Todas as músicas</h3>
+              <div class="shelf-actions">
+                <button id="btn-select-mode" class="icon-btn icon-btn-sm" aria-label="Selecionar músicas" title="Selecionar">
+                  <svg width="19" height="19" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
+                    <rect x="3" y="5" width="6" height="6" rx="1.5"/><path d="M12 6h9"/>
+                    <rect x="3" y="15" width="6" height="6" rx="1.5"/><path d="M12 18h9"/>
+                  </svg>
+                </button>
+                <button id="btn-refresh" class="icon-btn icon-btn-sm" aria-label="Atualizar lista" title="Atualizar">
+                  <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
+                    <path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 4v6h-6"/>
+                  </svg>
+                </button>
+                <button id="btn-filter-menu" class="icon-btn icon-btn-sm" aria-label="Filtrar músicas" title="Filtrar">
+                  <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z"/></svg>
+                  <span id="filter-menu-dot" class="filter-menu-dot hidden"></span>
+                </button>
+              </div>
+            </div>
+
+            <!-- Barra de seleção em lote -->
+            <div id="selection-bar" class="selection-bar hidden">
+              <div class="selection-bar-top">
+                <span id="selection-count">0 selecionadas</span>
+                <button id="btn-selection-cancel" class="icon-btn icon-btn-sm" aria-label="Cancelar seleção" title="Cancelar">
+                  <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg>
+                </button>
+              </div>
+              <div id="selection-bar-actions" class="selection-bar-actions">
+                <button id="btn-selection-favorite" class="selection-action-btn" disabled>
+                  <svg width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+                  <span>Favoritar</span>
+                </button>
+                <button id="btn-selection-add-playlist" class="selection-action-btn" disabled>
+                  <svg width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M3 6h13M3 12h9M3 18h9"/><path d="M18 14v6M15 17h6"/></svg>
+                  <span>Playlist</span>
+                </button>
+                <button id="btn-selection-assign-genre" class="selection-action-btn" disabled>
+                  <svg width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="m9 11 3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+                  <span>Gênero</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- Filtros: agora vivem no modal #modal-filter-menu (ver perto
+                 dos outros modais), aberto pelo ícone de filtro acima. -->
+            <p id="filter-summary" class="filter-summary hidden"></p>
+
+            <div id="all-tracks-list" class="track-list">
+              <!-- preenchido por drive.js + ui.js -->
+            </div>
           </div>
         </div>
 
-        <!-- Detalhe de uma playlist -->
-        <div id="playlist-detail" class="hidden">
-          <div class="playlist-detail-header">
-            <button id="btn-playlist-back" class="icon-btn" aria-label="Voltar">
-              <svg width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                <polyline points="15 18 9 12 15 6"/>
-              </svg>
-            </button>
-            <h2 id="playlist-detail-title" class="section-title" style="margin:0;">—</h2>
-            <button id="btn-playlist-delete" class="icon-btn" aria-label="Excluir playlist">
-              <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                <polyline points="3 6 5 6 21 6"/>
-                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
-              </svg>
-            </button>
+        <!-- PAINEL: PLAYLISTS -->
+        <div id="library-panel-playlists" class="library-panel">
+          <div id="playlists-list-wrap">
+            <div class="shelf-header">
+              <h2 class="section-title" style="margin:0;">Playlists</h2>
+              <button id="btn-new-playlist" class="icon-btn icon-btn-sm icon-btn-accent" aria-label="Nova playlist" title="Nova playlist">
+                <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+              </button>
+            </div>
+            <div id="playlists-list" class="playlist-grid">
+              <p class="empty-hint">Nenhuma playlist ainda. Crie a primeira!</p>
+            </div>
           </div>
-          <div class="playlist-detail-actions">
-            <button id="btn-playlist-play" class="btn-outline btn-small btn-icon-label">
-              <svg width="15" height="15" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
-              Tocar tudo
-            </button>
-            <button id="btn-playlist-add-tracks" class="btn-outline btn-small btn-icon-label">
-              <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
-              Adicionar músicas
-            </button>
+
+          <!-- Detalhe de uma playlist -->
+          <div id="playlist-detail" class="hidden">
+            <div class="playlist-detail-header">
+              <button id="btn-playlist-back" class="icon-btn" aria-label="Voltar">
+                <svg width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                  <polyline points="15 18 9 12 15 6"/>
+                </svg>
+              </button>
+              <h2 id="playlist-detail-title" class="section-title" style="margin:0;">—</h2>
+              <button id="btn-playlist-delete" class="icon-btn" aria-label="Excluir playlist">
+                <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                  <polyline points="3 6 5 6 21 6"/>
+                  <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                </svg>
+              </button>
+            </div>
+            <div class="playlist-detail-actions">
+              <button id="btn-playlist-play" class="btn-outline btn-small btn-icon-label">
+                <svg width="15" height="15" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                Tocar tudo
+              </button>
+              <button id="btn-playlist-add-tracks" class="btn-outline btn-small btn-icon-label">
+                <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+                Adicionar músicas
+              </button>
+            </div>
+            <div id="playlist-tracks-list" class="track-list"></div>
           </div>
-          <div id="playlist-tracks-list" class="track-list"></div>
         </div>
       </section>
+
 
       <!-- VIEW: VÍDEOS -->
       <section id="view-movies" class="view">
@@ -402,18 +405,20 @@
 
     </main>
 
-    <!-- PLAYER FIXO -->
+    <!-- PLAYER FIXO (mini-player; toque na capa/título expande) -->
     <div id="player" class="player hidden">
       <div class="player-track">
-        <div id="player-art" class="player-art">
-          <svg width="24" height="24" fill="currentColor" viewBox="0 0 24 24">
-            <path d="M12 3v10.55A4 4 0 1 0 14 17V7h4V3h-6z"/>
-          </svg>
-        </div>
-        <div class="player-info">
-          <span id="player-title" class="player-title">—</span>
-          <span id="player-artist" class="player-artist">—</span>
-        </div>
+        <button id="btn-player-expand" class="player-track-btn" aria-label="Abrir player">
+          <div id="player-art" class="player-art">
+            <svg width="24" height="24" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M12 3v10.55A4 4 0 1 0 14 17V7h4V3h-6z"/>
+            </svg>
+          </div>
+          <div class="player-info">
+            <span id="player-title" class="player-title">—</span>
+            <span id="player-artist" class="player-artist">—</span>
+          </div>
+        </button>
         <button id="btn-fav" class="icon-btn fav-btn" aria-label="Favoritar">
           <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
             <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
@@ -483,25 +488,17 @@
         </svg>
         <span>Início</span>
       </button>
-      <button class="nav-btn" data-view="playlists" aria-label="Coleções">
+      <button class="nav-btn" data-view="search" aria-label="Buscar">
+        <svg width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+        </svg>
+        <span>Buscar</span>
+      </button>
+      <button class="nav-btn" data-view="library" aria-label="Biblioteca">
         <svg width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
           <path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>
         </svg>
-        <span>Coleções</span>
-      </button>
-      <button class="nav-btn" data-view="movies" aria-label="Vídeos">
-        <svg width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
-          <rect x="2.5" y="5" width="19" height="14" rx="2"/>
-          <path d="M7 5v14M17 5v14M2.5 9.5H7M17 9.5h4.5M2.5 14.5H7M17 14.5h4.5"/>
-        </svg>
-        <span>Vídeos</span>
-      </button>
-      <button class="nav-btn" data-view="profile" aria-label="Perfil">
-        <svg width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-          <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
-          <circle cx="12" cy="7" r="4"/>
-        </svg>
-        <span>Perfil</span>
+        <span>Biblioteca</span>
       </button>
     </nav>
 
