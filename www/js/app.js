@@ -258,6 +258,7 @@ const App = (() => {
       return live ? { ...saved, ...live } : saved;
     });
     UI.renderRecent(recent);
+    UI.bindRecentEvents(recent); // liga o clique — sem isso a lista aparece mas não toca nada
     _renderRecentCollections();
   }
 
