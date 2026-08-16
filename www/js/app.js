@@ -380,7 +380,7 @@ const App = (() => {
   let _autoDownloadRanThisSession = false;
 
   function isAutoDownloadEnabled() {
-    return localStorage.getItem(KEY_AUTO_DOWNLOAD) !== '0'; // ligado por padrão
+    return localStorage.getItem(KEY_AUTO_DOWNLOAD) === '1'; // desligado por padrão
   }
 
   function setAutoDownloadEnabled(enabled) {
