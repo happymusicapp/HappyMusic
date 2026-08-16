@@ -567,13 +567,8 @@ const UI = (() => {
   }
 
   // ── TRACK LIST ─────────────────────────────────
-  function renderTrackList(container, tracks, currentId = null) {
-    if (!tracks.length) {
-      container.innerHTML = `<p class="empty-hint">Nenhuma música encontrada.</p>`;
-      return;
-    }
-
-    container.innerHTML = tracks.map((track, i) => `
+  function _trackItemHtml(track, i, currentId) {
+    return `
       <div class="track-item ${track.id === currentId ? 'playing' : ''}"
            data-id="${track.id}"
            data-index="${i}"
@@ -599,9 +594,88 @@ const UI = (() => {
         ${_renderDlButton(track.id)}
         <button class="track-menu-btn" data-menu="${track.id}" aria-label="Mais opções">${_menuIcon()}</button>
       </div>
-    `).join('');
+    `;
+  }
 
+  function renderTrackList(container, tracks, currentId = null) {
+    if (!tracks.length) {
+      container.innerHTML = `<p class="empty-hint">Nenhuma música encontrada.</p>`;
+      return;
+    }
+
+    container.innerHTML = tracks.map((track, i) => _trackItemHtml(track, i, currentId)).join('');
     _observeCovers(container, tracks);
+  }
+
+  // ── LISTA GRANDE (renderização incremental) ────
+  // Pra "Todas as músicas" com centenas de faixas, desenhar tudo de uma
+  // vez de cara (milhares de nós no DOM) deixa a abertura da Biblioteca
+  // e a rolagem visivelmente mais pesadas. Em vez disso, desenha só um
+  // primeiro lote e vai completando o resto conforme o usuário rola,
+  // bem antes de chegar no fim (com folga de ~1200px) pra nunca dar pra
+  // perceber o "carregando mais". A busca/seleção continuam funcionando
+  // normal porque usam a lista completa (_trackListData), só o desenho
+  // em tela é que é gradual.
+  const BATCH_SIZE = 60;
+  const _incrementalState = new WeakMap(); // container -> estado do lote atual
+
+  function renderTrackListIncremental(container, tracks, currentId = null, scrollParent = null) {
+    const prev = _incrementalState.get(container);
+    if (prev) prev.scrollParent.removeEventListener('scroll', prev.onScroll);
+    _incrementalState.delete(container);
+
+    if (!tracks.length) {
+      container.innerHTML = `<p class="empty-hint">Nenhuma música encontrada.</p>`;
+      return;
+    }
+
+    // Lista pequena — nem vale a pena ser incremental, evita complexidade à toa.
+    if (tracks.length <= BATCH_SIZE || !scrollParent) {
+      renderTrackList(container, tracks, currentId);
+      return;
+    }
+
+    // Se a lista está sendo redesenhada com o usuário já rolado pra baixo
+    // (ex.: favoritou algo no meio da lista), preserva a posição — sem
+    // isso, resetar pro primeiro lote faria o conteúdo sumir debaixo dele.
+    const preservedScrollTop = scrollParent.scrollTop;
+
+    container.innerHTML = '';
+    const state = { tracks, currentId, rendered: 0, scrollParent };
+
+    const appendNextBatch = () => {
+      const next = state.tracks.slice(state.rendered, state.rendered + BATCH_SIZE);
+      if (!next.length) return;
+      const html = next.map((track, i) => _trackItemHtml(track, state.rendered + i, state.currentId)).join('');
+      container.insertAdjacentHTML('beforeend', html);
+      state.rendered += next.length;
+      _observeCovers(container, next);
+    };
+
+    const onScroll = () => {
+      if (state.rendered >= state.tracks.length) return;
+      const remaining = scrollParent.scrollHeight - scrollParent.scrollTop - scrollParent.clientHeight;
+      if (remaining < 1200) appendNextBatch();
+    };
+
+    appendNextBatch(); // primeiro lote, na hora
+
+    if (preservedScrollTop > 0) {
+      // Completa lotes extras de uma vez até cobrir onde o usuário estava.
+      let guard = 0; // segurança: nunca passa do total de lotes existentes
+      while (
+        state.rendered < state.tracks.length &&
+        container.offsetHeight < preservedScrollTop + scrollParent.clientHeight + 1200 &&
+        guard++ < Math.ceil(state.tracks.length / BATCH_SIZE)
+      ) {
+        appendNextBatch();
+      }
+      scrollParent.scrollTop = preservedScrollTop;
+    }
+
+    scrollParent.addEventListener('scroll', onScroll, { passive: true });
+    state.onScroll = onScroll;
+    _incrementalState.set(container, state);
   }
 
   function _menuIcon() {
@@ -2045,6 +2119,7 @@ const UI = (() => {
     renderRecent,
     renderRecentCollections,
     renderTrackList,
+    renderTrackListIncremental,
     setPlayingTrack,
     updatePlayerTrack,
     setPlayState,

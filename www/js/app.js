@@ -581,7 +581,7 @@ const App = (() => {
     if (!list.length) {
       UI.el.allTracksList.innerHTML = `<p class="empty-hint">Nenhuma música com esse filtro.</p>`;
     } else {
-      UI.renderTrackList(UI.el.allTracksList, list, _currentId());
+      UI.renderTrackListIncremental(UI.el.allTracksList, list, _currentId(), UI.el.mainContent);
       UI.bindTrackListEvents(UI.el.allTracksList, list);
     }
 
