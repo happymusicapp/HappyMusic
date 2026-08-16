@@ -194,6 +194,12 @@ const App = (() => {
       const wasOffline = !navigator.onLine;
       _tracks = await Drive.listTracks();
 
+      // Preenche de cara as capas que já estão salvas de uma sessão
+      // anterior, ANTES de desenhar qualquer lista — pra não aparecer o
+      // ícone piscando e trocando pra capa um instante depois em toda
+      // música que já tinha capa conhecida.
+      await Drive.preloadCachedCovers(_tracks);
+
       if (wasOffline && _tracks.length) {
         UI.showToast('Sem conexão — mostrando sua biblioteca salva. Só as músicas baixadas tocam offline.');
       }

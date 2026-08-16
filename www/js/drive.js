@@ -48,6 +48,28 @@ const Drive = (() => {
     });
   }
 
+  // Preenche de uma vez, ANTES da primeira renderização da lista, o
+  // .thumbnail de toda música que já tem capa salva em disco de uma
+  // sessão anterior. Sem isso, mesmo com o cache funcionando, a capa só
+  // era buscada depois que o item já tinha aparecido na tela (ícone
+  // primeiro, capa trocando um instante depois) — o que parece "carregar
+  // de novo toda vez" mesmo sendo instantâneo por trás, porque em qualquer
+  // biblioteca grande são dezenas/centenas de pequenos "pisca-pisca"
+  // acontecendo em sequência conforme o usuário rola a tela.
+  async function preloadCachedCovers(tracks) {
+    const db = await _coverDbPromise;
+    if (!db) return;
+
+    await Promise.all(tracks.map(async track => {
+      if (track.thumbnail || track.coverId) return; // capa personalizada sempre revalida, não preenche aqui
+      const cached = await _coverDbGet(track.id);
+      if (cached) {
+        track.thumbnail = cached;
+        _coverCache.set(track.id, cached);
+      }
+    }));
+  }
+
   // ── CONFIGURAÇÃO ──────────────────────────────
   const CLIENT_ID   = '1097906554235-06h3ll6bn26opgqsddohls1d2a0mct5p.apps.googleusercontent.com';
   // Dentro do app nativo (Capacitor), window.location.origin é um
@@ -1457,6 +1479,7 @@ const Drive = (() => {
     getAudioDownloadInfo,
     searchTracks,
     fetchEmbeddedCover,
+    preloadCachedCovers,
     setCustomCover,
     removeCustomCover,
     isAudioFile,
