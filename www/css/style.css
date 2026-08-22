@@ -604,8 +604,9 @@ img    { display: block; }
   position: fixed;
   bottom: var(--nav-h);
   left: 0; right: 0;
-  background: #000;
-  border-top: 1px solid var(--border);
+  background: linear-gradient(180deg, #0f0d16 0%, #050308 100%);
+  border-top: 1px solid rgba(124,58,255,0.25);
+  box-shadow: 0 -8px 24px rgba(0,0,0,0.35), 0 -1px 0 rgba(199,125,255,0.08) inset;
   padding: var(--sp-3) var(--sp-4) var(--sp-2);
   z-index: 90;
   transition: transform var(--transition);
@@ -643,6 +644,41 @@ img    { display: block; }
   background: linear-gradient(180deg, #0d0d12 0%, #000 70%);
 }
 
+/* Transição elástica ao abrir/fechar (classes .opening/.closing
+   ligadas via PlayerFX.toggleExpand, em player-fx.js). O overshoot
+   (>1 na escala, no meio da animação) é o que dá o efeito de mola. */
+.player.expanded.opening {
+  animation: player-pop-in 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+@keyframes player-pop-in {
+  0%   { opacity: 0; transform: translateY(28px) scale(0.96); }
+  60%  { opacity: 1; transform: translateY(-4px) scale(1.015); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.player.expanded.closing {
+  animation: player-pop-out 0.28s cubic-bezier(0.4, 0, 1, 1) both;
+}
+
+@keyframes player-pop-out {
+  0%   { opacity: 1; transform: translateY(0) scale(1); }
+  100% { opacity: 0; transform: translateY(18px) scale(0.97); }
+}
+
+/* A capa "chega" com um leve atraso e um pouco mais de mola que o
+   resto do painel, pra dar profundidade (o elemento principal se
+   destaca visualmente do fundo que abre). */
+.player.expanded.opening .player-art {
+  animation: art-pop-in 0.55s 0.05s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+@keyframes art-pop-in {
+  0%   { transform: scale(0.8) rotate(-2deg); }
+  55%  { transform: scale(1.08) rotate(1deg); }
+  100% { transform: scale(1) rotate(0deg); }
+}
+
 .player.expanded .player-track {
   flex-direction: column;
   margin-bottom: var(--sp-6);
@@ -658,6 +694,7 @@ img    { display: block; }
   height: min(70vw, 280px);
   border-radius: var(--sp-3);
   margin-bottom: var(--sp-4);
+  touch-action: pan-y; /* permite arrasto horizontal (swipe) sem brigar com scroll vertical */
 }
 
 .player.expanded .player-info { width: 100%; text-align: center; }
@@ -702,6 +739,44 @@ img    { display: block; }
 }
 
 .player-art img { width: 100%; height: 100%; object-fit: cover; }
+
+/* "Batida" no lugar de spinner genérico enquanto a próxima faixa
+   carrega — a própria capa pulsa como um coração, ligado/desligado
+   via PlayerFX.setHeartbeat (chamado nos eventos onLoading/onPlay/onError). */
+.player-art.is-loading {
+  animation: art-heartbeat 0.9s ease-in-out infinite;
+}
+
+@keyframes art-heartbeat {
+  0%, 100% { transform: scale(1); }
+  25%      { transform: scale(1.045); }
+  40%      { transform: scale(0.985); }
+  60%      { transform: scale(1.03); }
+}
+
+/* Camadas usadas durante o swipe de troca de faixa (player-fx.js,
+   initSwipe). .player-art já é o "viewport" fixo (overflow:hidden,
+   position:relative) — as camadas são o que efetivamente desliza
+   dentro dele, então a capa em si nunca se move, só o conteúdo. */
+.player-art-layer {
+  position: absolute;
+  inset: 0;
+  will-change: transform;
+}
+
+.player-art-layer img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+.player-art-peek {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--gradient-brand);
+  color: rgba(255,255,255,0.9);
+}
+
+/* Enquanto arrasta, desliga a transição padrão do botão/capa pra não
+   competir com o transform que o JS está aplicando quadro a quadro. */
+.player-art.is-dragging { touch-action: none; }
 
 .player-info { flex: 1; min-width: 0; }
 
@@ -825,6 +900,35 @@ img    { display: block; }
   100% { transform: translateX(350%); }
 }
 
+/* Brilho correndo na ponta do progresso — um "pingo" de luz vivo, além
+   do shimmer diagonal que já existia. Fica fora do clip da barra (por
+   isso não é cortado), posicionado por left:% via JS (PlayerFX.updateGlowDot,
+   chamado dentro de updateProgress em ui.js). */
+.seek-bar-glow-dot {
+  position: absolute;
+  top: 50%;
+  left: 0%;
+  width: 9px;
+  height: 9px;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background: radial-gradient(circle, #fff 0%, var(--purple-soft) 45%, transparent 75%);
+  box-shadow: 0 0 6px 2px rgba(199,125,255,0.55), 0 0 14px 4px rgba(124,58,255,0.35);
+  opacity: 0;
+  pointer-events: none;
+  transition: left 0.15s linear;
+}
+
+.seek-bar-wrap.is-playing .seek-bar-glow-dot {
+  opacity: 1;
+  animation: glow-dot-pulse 1.3s ease-in-out infinite;
+}
+
+@keyframes glow-dot-pulse {
+  0%, 100% { transform: translate(-50%, -50%) scale(1); filter: brightness(1); }
+  50%      { transform: translate(-50%, -50%) scale(1.4); filter: brightness(1.35); }
+}
+
 .seek-bar::-webkit-slider-thumb {
   -webkit-appearance: none;
   width: 12px; height: 12px;
@@ -844,6 +948,32 @@ img    { display: block; }
 .ctrl-btn { color: var(--grey); width: 36px; height: 36px; }
 .ctrl-btn:hover { color: var(--white); }
 .ctrl-btn.active { color: var(--purple-soft); }
+
+/* Ripple ao tocar em play/pause — o overflow:hidden recorta o círculo
+   de luz na forma do próprio botão; o box-shadow do botão (glow neon)
+   não é afetado, já que overflow só recorta conteúdo, não sombra própria. */
+.play-btn {
+  position: relative;
+  overflow: hidden;
+}
+
+.play-btn-ripple {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 12px;
+  height: 12px;
+  margin: -6px 0 0 -6px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255,255,255,0.9), var(--purple-soft) 55%, transparent 75%);
+  pointer-events: none;
+  animation: play-ripple 0.55s ease-out forwards;
+}
+
+@keyframes play-ripple {
+  0%   { transform: scale(0); opacity: 0.75; }
+  100% { transform: scale(9); opacity: 0; }
+}
 
 .play-btn {
   width: 52px;
@@ -2408,7 +2538,7 @@ img    { display: block; }
   top: calc(100% + 4px);
   left: 0;
   right: 0;
-  z-index: 20;
+  z-index: 50;
   background: var(--bg-elevated);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
