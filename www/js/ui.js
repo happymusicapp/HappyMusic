@@ -44,6 +44,7 @@ const UI = (() => {
     seekBar:        $('seek-bar'),
     seekBarWrap:    $('seek-bar-wrap'),
     seekBarFillClip: $('seek-bar-fill-clip'),
+    seekBarGlowDot: $('seek-bar-glow-dot'),
     timeCurrent:    $('time-current'),
     timeTotal:      $('time-total'),
     btnPlayPause:   $('btn-play-pause'),
@@ -782,14 +783,34 @@ const UI = (() => {
     `;
     document.body.appendChild(pop);
 
-    const rect = anchorEl.getBoundingClientRect();
-    const popRect = pop.getBoundingClientRect();
-    let top = rect.bottom + 4;
-    if (top + popRect.height > window.innerHeight) top = rect.top - popRect.height - 4;
-    let left = rect.right - popRect.width;
-    if (left < 8) left = 8;
-    pop.style.top  = `${top}px`;
-    pop.style.left = `${left}px`;
+    // Posiciona relativo ao botão que abriu o menu, sempre dentro dos
+    // limites da tela (vira pra cima/esquerda se não couber embaixo/
+    // direita). Feito em rAF pra garantir que o popover já tem layout
+    // final (largura real) antes de medir — evita cálculo com tamanho
+    // errado quando o menu abre de dentro de um modal recém-aberto.
+    function place() {
+      const rect = anchorEl.getBoundingClientRect();
+      const popRect = pop.getBoundingClientRect();
+      const margin = 8;
+
+      let top = rect.bottom + 4;
+      if (top + popRect.height > window.innerHeight - margin) {
+        top = rect.top - popRect.height - 4;
+      }
+      top = Math.max(margin, Math.min(top, window.innerHeight - popRect.height - margin));
+
+      let left = rect.right - popRect.width;
+      if (left < margin) left = margin;
+      if (left + popRect.width > window.innerWidth - margin) {
+        left = window.innerWidth - popRect.width - margin;
+      }
+
+      pop.style.top  = `${top}px`;
+      pop.style.left = `${left}px`;
+    }
+
+    place();
+    requestAnimationFrame(place);
 
     pop.addEventListener('click', e => {
       const btn = e.target.closest('button');
@@ -809,6 +830,11 @@ const UI = (() => {
     });
 
     setTimeout(() => document.addEventListener('click', _outsideMenuHandler, { once: true }), 0);
+    // Se a lista (dentro de um modal com scroll, por exemplo) rolar
+    // com o menu aberto, o popover ficaria "grudado" na posição antiga
+    // — fecha nesse caso, em vez de deixar flutuando fora do lugar.
+    const scrollHost = anchorEl.closest('.modal-box, .main-content');
+    scrollHost?.addEventListener('scroll', _closeTrackMenu, { once: true, passive: true });
   }
 
   // Ícone animado de equalizer para a faixa tocando
@@ -895,6 +921,9 @@ const UI = (() => {
 
     // O brilho corredor só pode aparecer dentro da parte já preenchida
     el.seekBarFillClip.style.width = `${pct}%`;
+
+    // Ponto de luz vivo na ponta do progresso (item 5 dos aprimoramentos)
+    PlayerFX.updateGlowDot(el.seekBarGlowDot, pct);
   }
 
   function setShuffleState(active) {
@@ -1498,14 +1527,29 @@ const UI = (() => {
     `;
     document.body.appendChild(pop);
 
-    const rect = anchorEl.getBoundingClientRect();
-    const popRect = pop.getBoundingClientRect();
-    let top = rect.bottom + 4;
-    if (top + popRect.height > window.innerHeight) top = rect.top - popRect.height - 4;
-    let left = rect.right - popRect.width;
-    if (left < 8) left = 8;
-    pop.style.top  = `${top}px`;
-    pop.style.left = `${left}px`;
+    function place() {
+      const rect = anchorEl.getBoundingClientRect();
+      const popRect = pop.getBoundingClientRect();
+      const margin = 8;
+
+      let top = rect.bottom + 4;
+      if (top + popRect.height > window.innerHeight - margin) {
+        top = rect.top - popRect.height - 4;
+      }
+      top = Math.max(margin, Math.min(top, window.innerHeight - popRect.height - margin));
+
+      let left = rect.right - popRect.width;
+      if (left < margin) left = margin;
+      if (left + popRect.width > window.innerWidth - margin) {
+        left = window.innerWidth - popRect.width - margin;
+      }
+
+      pop.style.top  = `${top}px`;
+      pop.style.left = `${left}px`;
+    }
+
+    place();
+    requestAnimationFrame(place);
 
     pop.addEventListener('click', e => {
       const btn = e.target.closest('button');
@@ -1518,6 +1562,8 @@ const UI = (() => {
     });
 
     setTimeout(() => document.addEventListener('click', _outsideMovieMenuHandler, { once: true }), 0);
+    const scrollHost = anchorEl.closest('.modal-box, .main-content');
+    scrollHost?.addEventListener('scroll', _closeMovieMenu, { once: true, passive: true });
   }
 
   // O popover precisa saber se o vídeo já é favorito pra escolher o
@@ -1843,6 +1889,33 @@ const UI = (() => {
       return typeof options === 'function' ? (options() || []) : (options || []);
     }
 
+    // Reposiciona a lista com detecção de colisão: por padrão abre pra
+    // baixo do campo, mas vira pra cima se não houver espaço embaixo —
+    // e nunca deixa passar da borda do modal/tela. Sem isso ela ficava
+    // sempre fixa embaixo do input, cobrindo o resto do formulário
+    // (botão salvar, outros campos) quando não cabia no espaço restante.
+    function reposition() {
+      const wrap = listEl.closest('.genre-suggest-wrap') || input.parentElement;
+      const modal = input.closest('.modal-box');
+      const boundBottom = modal ? modal.getBoundingClientRect().bottom : window.innerHeight;
+      const rect = input.getBoundingClientRect();
+      const spaceBelow = boundBottom - rect.bottom;
+      const maxH = 180;
+
+      listEl.style.maxHeight = `${maxH}px`;
+
+      if (spaceBelow < Math.min(maxH, 120) && rect.top > spaceBelow) {
+        // Não cabe embaixo — abre pra cima do campo
+        listEl.style.top = 'auto';
+        listEl.style.bottom = 'calc(100% + 4px)';
+        listEl.style.maxHeight = `${Math.min(maxH, rect.top - 16)}px`;
+      } else {
+        listEl.style.top = 'calc(100% + 4px)';
+        listEl.style.bottom = 'auto';
+        listEl.style.maxHeight = `${Math.min(maxH, Math.max(80, spaceBelow - 16))}px`;
+      }
+    }
+
     function render() {
       const q = input.value.trim().toLowerCase();
       const opts = getOptions()
@@ -1855,6 +1928,10 @@ const UI = (() => {
         `<div class="genre-suggest-item" data-value="${_escape(g)}">${_escape(g)}</div>`
       ).join('');
       listEl.classList.remove('hidden');
+      reposition();
+      // Garante que o campo (e a lista aberta) fiquem visíveis dentro
+      // do modal, em vez da lista simplesmente cobrir o que tiver embaixo.
+      input.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
     }
 
     input.addEventListener('focus', render);
@@ -1862,6 +1939,14 @@ const UI = (() => {
     // blur com um delay pequeno — senão o clique na sugestão nunca
     // registra, porque o blur esconde a lista antes do click disparar
     input.addEventListener('blur', () => setTimeout(() => listEl.classList.add('hidden'), 150));
+
+    // Se o modal tiver scroll e o usuário rolar com a lista aberta,
+    // reposiciona (ou fecha, se saiu muito da área visível) em vez de
+    // deixar a lista flutuando fora do lugar.
+    const scrollHost = input.closest('.modal-box');
+    scrollHost?.addEventListener('scroll', () => {
+      if (!listEl.classList.contains('hidden')) reposition();
+    }, { passive: true });
 
     listEl.addEventListener('mousedown', e => {
       const item = e.target.closest('.genre-suggest-item');
@@ -1953,14 +2038,28 @@ const UI = (() => {
       btn.addEventListener('click', () => showView(btn.dataset.view));
     });
 
-    // Player: toque na capa/título expande o player em tela cheia
+    // Player: toque na capa/título expande o player em tela cheia,
+    // com transição elástica (PlayerFX.toggleExpand). Se o toque veio
+    // logo depois de um swipe na capa (troca de faixa), ignora —
+    // senão cada swipe também abriria/fecharia o player.
     el.btnPlayerExpand.addEventListener('click', () => {
-      const isExpanded = el.player.classList.toggle('expanded');
-      if (isExpanded) {
-        Aurora.start();
-      } else {
-        Aurora.stop();
-      }
+      if (PlayerFX.consumeSuppressedClick()) return;
+      PlayerFX.toggleExpand(el.player, {
+        onOpen: () => Aurora.start(),
+        onClose: () => Aurora.stop(),
+      });
+    });
+
+    // Arrastar a capa expandida troca de faixa (item 9)
+    PlayerFX.initSwipe({
+      artEl: el.playerArt,
+      playerEl: el.player,
+      getPrevTrack: () => _peekTrack(-1),
+      getNextTrack: () => _peekTrack(1),
+      onCommit: (direction) => {
+        if (direction === 1) Player.next(); else Player.prev();
+      },
+      iconFallbackHtml: _musicIcon(28),
     });
 
     // Sub-abas da Biblioteca: Músicas / Playlists
