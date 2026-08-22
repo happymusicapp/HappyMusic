@@ -320,10 +320,31 @@ const UI = (() => {
   }
 
   // ── PERFIL ─────────────────────────────────────
+  // Ícone de fallback (pessoa, no roxo do app) usado quando o usuário
+  // não tem foto ainda ou quando a URL do Google falha ao carregar
+  // dentro do WebView (comum por causa de política de referrer) — sem
+  // isso, o <img> ficava com ícone de "imagem quebrada".
+  const _AVATAR_FALLBACK = 'data:image/svg+xml;utf8,' + encodeURIComponent(`
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40">
+      <circle cx="20" cy="20" r="20" fill="#2a1d4d"/>
+      <circle cx="20" cy="16" r="7" fill="#A06CFF"/>
+      <path d="M6 36c1.5-8.5 8.5-13 14-13s12.5 4.5 14 13" fill="#A06CFF"/>
+    </svg>`);
+
+  function _setAvatar(imgEl, pictureUrl) {
+    if (!imgEl) return;
+    imgEl.referrerPolicy = 'no-referrer';
+    imgEl.onerror = () => {
+      imgEl.onerror = null; // evita loop se o fallback também falhar
+      imgEl.src = _AVATAR_FALLBACK;
+    };
+    imgEl.src = pictureUrl || _AVATAR_FALLBACK;
+  }
+
   function renderProfile(user) {
     if (!user) return;
-    el.userAvatar.src     = user.picture || '';
-    el.profileAvatar.src  = user.picture || '';
+    _setAvatar(el.userAvatar, user.picture);
+    _setAvatar(el.profileAvatar, user.picture);
     el.profileName.textContent  = user.name  || 'Usuário';
     el.profileEmail.textContent = user.email || '';
   }
