@@ -48,6 +48,16 @@ const Drive = (() => {
     });
   }
 
+  function _coverDbDelete(id) {
+    _coverDbPromise.then(db => {
+      if (!db) return;
+      try {
+        const tx = db.transaction('covers', 'readwrite');
+        tx.objectStore('covers').delete(id);
+      } catch { /* não é crítico, só sobra um registro morto no cache */ }
+    });
+  }
+
   // Preenche de uma vez, ANTES da primeira renderização da lista, o
   // .thumbnail de toda música que já tem capa salva em disco de uma
   // sessão anterior. Sem isso, mesmo com o cache funcionando, a capa só
@@ -61,13 +71,25 @@ const Drive = (() => {
     if (!db) return;
 
     await Promise.all(tracks.map(async track => {
-      if (track.thumbnail || track.coverId) return; // capa personalizada sempre revalida, não preenche aqui
-      const cached = await _coverDbGet(track.id);
+      if (track.thumbnail) return;
+      // Capa personalizada usa o próprio coverId (id do arquivo de imagem no
+      // Drive) como chave — como um coverId novo é sempre um arquivo novo
+      // (ver setCustomCover), o cache nunca fica desatualizado, então dá
+      // pra confiar nele igual à capa embutida, sem precisar revalidar.
+      const cached = await _coverDbGet(_coverDbKey(track));
       if (cached) {
         track.thumbnail = cached;
         _coverCache.set(track.id, cached);
       }
     }));
+  }
+
+  // Chave usada no cache em disco: capa personalizada é identificada pelo
+  // id do arquivo de imagem (coverId); capa embutida, pelo id da própria
+  // faixa. Trocar a capa personalizada gera um coverId novo automaticamente,
+  // então a chave já muda sozinha — não precisa invalidar nada na mão.
+  function _coverDbKey(track) {
+    return track.coverId ? `custom:${track.coverId}` : track.id;
   }
 
   // ── CONFIGURAÇÃO ──────────────────────────────
@@ -928,15 +950,15 @@ const Drive = (() => {
   async function fetchEmbeddedCover(fileId, customCoverId = null) {
     if (_coverCache.has(fileId)) return _coverCache.get(fileId);
 
-    // Cache em disco (sobrevive a fechar/reabrir o app) — só vale pra
-    // capa embutida sem capa personalizada; capa personalizada pode ter
-    // sido trocada, então sempre revalida essa (é rara, não pesa).
-    if (!customCoverId) {
-      const cached = await _coverDbGet(fileId);
-      if (cached !== undefined) {
-        _coverCache.set(fileId, cached);
-        return cached;
-      }
+    // Cache em disco (sobrevive a fechar/reabrir o app). Capa personalizada
+    // usa o coverId como chave (ver _coverDbKey) — como trocar a capa
+    // sempre gera um coverId novo, essa entrada nunca fica desatualizada,
+    // então pode confiar nela igual à capa embutida, sem revalidar por rede.
+    const dbKey = customCoverId ? `custom:${customCoverId}` : fileId;
+    const cached = await _coverDbGet(dbKey);
+    if (cached !== undefined) {
+      _coverCache.set(fileId, cached);
+      return cached;
     }
 
     if (!_token) return null;
@@ -948,6 +970,7 @@ const Drive = (() => {
         const dataUrl = await _fetchImageAsDataUrl(customCoverId);
         if (dataUrl) {
           _coverCache.set(fileId, dataUrl);
+          _coverDbSet(dbKey, dataUrl); // grava em disco pra próxima abertura do app
           return dataUrl;
         }
         // Se a capa personalizada falhar ao carregar, cai pro fallback abaixo.
@@ -963,7 +986,7 @@ const Drive = (() => {
       const blob = await res.blob();
       const dataUrl = await _readCoverFromBlob(blob);
       _coverCache.set(fileId, dataUrl);
-      _coverDbSet(fileId, dataUrl); // grava em disco pra próxima abertura do app
+      _coverDbSet(dbKey, dataUrl); // grava em disco pra próxima abertura do app
       return dataUrl;
 
     } catch (err) {
@@ -1248,7 +1271,10 @@ const Drive = (() => {
     const newCoverId = await _uploadCoverImage(track, imageFile);
     await _patchProperties(track.id, { hm_cover_id: newCoverId });
 
-    if (oldCoverId && oldCoverId !== newCoverId) _trashFileSilently(oldCoverId);
+    if (oldCoverId && oldCoverId !== newCoverId) {
+      _trashFileSilently(oldCoverId);
+      _coverDbDelete(`custom:${oldCoverId}`); // limpa a entrada antiga do cache em disco
+    }
 
     track.coverId      = newCoverId;
     track._coverTried  = false;
@@ -1265,7 +1291,10 @@ const Drive = (() => {
     const oldCoverId = track.coverId || null;
 
     await _patchProperties(track.id, { hm_cover_id: null });
-    if (oldCoverId) _trashFileSilently(oldCoverId);
+    if (oldCoverId) {
+      _trashFileSilently(oldCoverId);
+      _coverDbDelete(`custom:${oldCoverId}`); // limpa a entrada antiga do cache em disco
+    }
 
     track.coverId     = null;
     track.thumbnail   = null;
