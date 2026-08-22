@@ -1955,7 +1955,12 @@ const UI = (() => {
 
     // Player: toque na capa/título expande o player em tela cheia
     el.btnPlayerExpand.addEventListener('click', () => {
-      el.player.classList.toggle('expanded');
+      const isExpanded = el.player.classList.toggle('expanded');
+      if (isExpanded) {
+        Aurora.start();
+      } else {
+        Aurora.stop();
+      }
     });
 
     // Sub-abas da Biblioteca: Músicas / Playlists
