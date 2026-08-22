@@ -1888,6 +1888,39 @@ const App = (() => {
       setAutoDownloadEnabled(UI.el.chkAutoDownload.checked);
     });
 
+    // Organizar capas antigas numa subpasta "Capas" (ver drive.js,
+    // migrateCoversToSubfolder) — ação única, sob demanda, porque
+    // percorre o Drive inteiro procurando as capas soltas.
+    UI.el.btnOrganizeCovers.addEventListener('click', async () => {
+      const ok = await UI.confirmDialog(
+        'As capas personalizadas serão movidas para uma subpasta "Capas", separadas dos áudios. Isso não afeta o funcionamento do app — só organiza o Drive.',
+        { title: 'Organizar capas antigas?', okLabel: 'Organizar' }
+      );
+      if (!ok) return;
+
+      const statusEl = UI.el.organizeCoversStatus;
+      const btn = UI.el.btnOrganizeCovers;
+      btn.disabled = true;
+      statusEl.classList.remove('hidden');
+      statusEl.textContent = 'Procurando capas…';
+
+      try {
+        const { moved, total } = await Drive.migrateCoversToSubfolder((done, tot) => {
+          statusEl.textContent = `Movendo ${done} de ${tot}…`;
+        });
+        statusEl.textContent = total
+          ? `${moved} capa${moved === 1 ? '' : 's'} movida${moved === 1 ? '' : 's'} para a pasta "Capas".`
+          : 'Nenhuma capa solta encontrada — já está tudo organizado.';
+        UI.showToast(total ? 'Capas organizadas!' : 'Já estava tudo organizado.');
+      } catch (err) {
+        console.warn('[App] falha ao organizar capas:', err);
+        statusEl.textContent = 'Não foi possível organizar agora. Tente de novo mais tarde.';
+        UI.showToast('Erro ao organizar capas.');
+      } finally {
+        btn.disabled = false;
+      }
+    });
+
     // Mantém o resumo "X de Y músicas baixadas" sempre atualizado
     Downloads.onChange(() => _updateOfflineSummary());
 
