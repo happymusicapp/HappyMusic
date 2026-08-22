@@ -472,10 +472,20 @@ const UI = (() => {
   // lista inteira de uma vez — numa biblioteca de centenas de músicas
   // isso fazia a busca de capas competir por rede/CPU muito além do que
   // dá pra perceber na tela, deixando tudo mais lento pra aparecer.
-  // Reaproveita um único observer por lista, guardando track por id.
-  const _coverObservers = new WeakMap(); // container -> IntersectionObserver
+  // Reaproveita um único observer por lista/container, guardando as
+  // faixas conhecidas num Map que vai sendo completado a cada lote.
+  //
+  // IMPORTANTE: na lista incremental (renderTrackListIncremental), cada
+  // lote novo chama isso de novo pro MESMO container. Recriar o observer
+  // do zero a cada lote (como era antes) descartava a observação das
+  // faixas de lotes anteriores que ainda não tinham entrado na tela —
+  // elas ficavam "perdidas" e só ganhavam capa se o usuário tocasse a
+  // música manualmente. Por isso o observer e o Map de faixas agora só
+  // são recriados quando `reset` é true (redesenho completo da lista);
+  // num append incremental (`reset = false`), só adiciona ao que já existe.
+  const _coverObservers = new WeakMap(); // container -> { observer, byId }
 
-  function _observeCovers(container, tracks) {
+  function _observeCovers(container, tracks, reset = true) {
     if (!('IntersectionObserver' in window)) {
       // Sem suporte (não deveria acontecer no WebView do app) — volta
       // ao comportamento antigo, buscando tudo de uma vez.
@@ -483,22 +493,36 @@ const UI = (() => {
       return;
     }
 
-    const byId = new Map(tracks.map(t => [String(t.id), t]));
+    let state = _coverObservers.get(container);
 
-    let observer = _coverObservers.get(container);
-    if (observer) observer.disconnect();
+    if (reset && state) {
+      state.observer.disconnect();
+      state = null;
+    }
 
-    observer = new IntersectionObserver(entries => {
-      entries.forEach(entry => {
-        if (!entry.isIntersecting) return;
-        const track = byId.get(entry.target.dataset.id);
-        if (track) _queueCoverFetch(track, true);
-        observer.unobserve(entry.target);
-      });
-    }, { root: null, rootMargin: '600px 0px', threshold: 0.01 });
+    if (!state) {
+      const byId = new Map();
+      const observer = new IntersectionObserver(entries => {
+        entries.forEach(entry => {
+          if (!entry.isIntersecting) return;
+          const track = byId.get(entry.target.dataset.id);
+          if (track) _queueCoverFetch(track, true);
+          observer.unobserve(entry.target);
+        });
+      }, { root: null, rootMargin: '600px 0px', threshold: 0.01 });
+      state = { observer, byId };
+      _coverObservers.set(container, state);
+    }
 
-    _coverObservers.set(container, observer);
-    container.querySelectorAll('[data-id]').forEach(el => observer.observe(el));
+    tracks.forEach(t => state.byId.set(String(t.id), t));
+
+    // Observa só os elementos das faixas passadas agora — os de lotes
+    // anteriores (append incremental) continuam observados desde a
+    // chamada em que entraram, sem precisar reobservar tudo de novo.
+    tracks.forEach(t => {
+      const node = container.querySelector(`[data-id="${t.id}"]`);
+      if (node) state.observer.observe(node);
+    });
   }
 
   function _applyCoverToDom(trackId, dataUrl) {
@@ -643,13 +667,16 @@ const UI = (() => {
     container.innerHTML = '';
     const state = { tracks, currentId, rendered: 0, scrollParent };
 
-    const appendNextBatch = () => {
+    const appendNextBatch = (resetObserver = false) => {
       const next = state.tracks.slice(state.rendered, state.rendered + BATCH_SIZE);
       if (!next.length) return;
       const html = next.map((track, i) => _trackItemHtml(track, state.rendered + i, state.currentId)).join('');
       container.insertAdjacentHTML('beforeend', html);
       state.rendered += next.length;
-      _observeCovers(container, next);
+      // reset só no 1º lote de um redesenho completo (container.innerHTML
+      // foi zerado acima) — nos lotes seguintes, mantém a observação dos
+      // anteriores em vez de descartá-la (ver comentário em _observeCovers).
+      _observeCovers(container, next, resetObserver);
     };
 
     const onScroll = () => {
@@ -658,7 +685,7 @@ const UI = (() => {
       if (remaining < 1200) appendNextBatch();
     };
 
-    appendNextBatch(); // primeiro lote, na hora
+    appendNextBatch(true); // primeiro lote, na hora — reseta o observer daqui
 
     if (preservedScrollTop > 0) {
       // Completa lotes extras de uma vez até cobrir onde o usuário estava.
