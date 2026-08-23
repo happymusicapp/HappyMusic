@@ -1888,39 +1888,6 @@ const App = (() => {
       setAutoDownloadEnabled(UI.el.chkAutoDownload.checked);
     });
 
-    // Corrigir, de uma vez, o nome no Drive das músicas que já foram
-    // editadas antes do rename automático existir (ver drive.js,
-    // syncFilenamesWithMetadata).
-    UI.el.btnSyncFilenames.addEventListener('click', async () => {
-      const ok = await UI.confirmDialog(
-        'Os arquivos de áudio no Drive serão renomeados pra bater com o título/artista/álbum que você já cadastrou no app. A extensão do arquivo não muda.',
-        { title: 'Corrigir nomes de arquivos?', okLabel: 'Corrigir' }
-      );
-      if (!ok) return;
-
-      const statusEl = UI.el.syncFilenamesStatus;
-      const btn = UI.el.btnSyncFilenames;
-      btn.disabled = true;
-      statusEl.classList.remove('hidden');
-      statusEl.textContent = 'Procurando músicas pra corrigir…';
-
-      try {
-        const { renamed, total } = await Drive.syncFilenamesWithMetadata((done, tot) => {
-          statusEl.textContent = `Renomeando ${done} de ${tot}…`;
-        });
-        statusEl.textContent = total
-          ? `${renamed} arquivo${renamed === 1 ? '' : 's'} renomeado${renamed === 1 ? '' : 's'} no Drive.`
-          : 'Nenhum nome pra corrigir — já está tudo em dia.';
-        UI.showToast(total ? 'Nomes corrigidos!' : 'Já estava tudo em dia.');
-      } catch (err) {
-        console.warn('[App] falha ao corrigir nomes:', err);
-        statusEl.textContent = 'Não foi possível corrigir agora. Tente de novo mais tarde.';
-        UI.showToast('Erro ao corrigir nomes.');
-      } finally {
-        btn.disabled = false;
-      }
-    });
-
     // Mantém o resumo "X de Y músicas baixadas" sempre atualizado
     Downloads.onChange(() => _updateOfflineSummary());
 

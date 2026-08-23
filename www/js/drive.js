@@ -1158,7 +1158,7 @@ const Drive = (() => {
       : (_mimeFromExtension(file.name) || file.type || 'application/octet-stream');
 
     const meta = {
-      name: file.name,
+      name: _formatFilename(metadata, file.name),
       mimeType,
       properties: {
         hm_title:  (metadata.title  || '').slice(0, 120),
@@ -1234,47 +1234,6 @@ const Drive = (() => {
     const idx = _tracks.findIndex(t => t.id === fileId);
     if (idx !== -1) _tracks[idx] = parsed;
     return parsed;
-  }
-
-  // Corrige de uma vez o nome, no Drive, das faixas que já foram editadas
-  // no passado (antes do rename automático existir) — percorre as faixas
-  // já carregadas com metadados customizados e cujo nome de arquivo ainda
-  // não bate com o formato esperado, e as renomeia. `onProgress(done,total)`
-  // é opcional.
-  async function syncFilenamesWithMetadata(onProgress) {
-    const targets = _tracks.filter(t => {
-      if (!t.hasCustomMetadata) return false;
-      const expected = _formatFilename(
-        { title: t.title, artist: t.artist, album: t.album },
-        t.name
-      );
-      return expected && expected !== t.name;
-    });
-
-    let done = 0;
-    for (const track of targets) {
-      const newName = _formatFilename(
-        { title: track.title, artist: track.artist, album: track.album },
-        track.name
-      );
-      const res = await _authFetch(
-        `https://www.googleapis.com/drive/v3/files/${track.id}` +
-        '?supportsAllDrives=true&fields=id,name',
-        {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name: newName }),
-        }
-      );
-      if (res.ok) {
-        const updated = await res.json();
-        const idx = _tracks.findIndex(t => t.id === track.id);
-        if (idx !== -1) _tracks[idx].name = updated.name;
-      }
-      done++;
-      onProgress && onProgress(done, targets.length);
-    }
-    return { renamed: done, total: targets.length };
   }
 
   // ── CAPA PERSONALIZADA (imagem escolhida pelo usuário) ──
@@ -1647,7 +1606,6 @@ const Drive = (() => {
     filterTracks,
     uploadTrack,
     updateTrackMetadata,
-    syncFilenamesWithMetadata,
     deleteTrack,
     loadPlaylists,
     savePlaylists,

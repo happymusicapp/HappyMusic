@@ -73,8 +73,6 @@ const UI = (() => {
     btnDownloadAll:       $('btn-download-all'),
     btnDownloadFavorites: $('btn-download-favorites'),
     btnClearDownloads:    $('btn-clear-downloads'),
-    btnSyncFilenames:       $('btn-sync-filenames'),
-    syncFilenamesStatus:    $('sync-filenames-status'),
     chkAutoDownload:      $('chk-auto-download'),
 
     // Onboarding
