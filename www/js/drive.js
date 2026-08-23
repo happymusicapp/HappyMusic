@@ -933,16 +933,19 @@ const Drive = (() => {
   function getKnownArtists() { return _facetValues('artist'); }
   function getKnownAlbums()  { return _facetValues('album'); }
 
-  // `artist` aceita tanto uma string (compatibilidade) quanto um array —
-  // o filtro de Artista na UI hoje é multi-seleção (ver showFilterPicker
-  // com { multi: true }), útil pra quando um artista aparece em faixas
-  // creditadas em conjunto, tipo "Fulano - Beltrano".
+  // Cada campo aceita tanto uma string (compatibilidade com o filtro
+  // simples da tela principal) quanto um array — usado pelo filtro de
+  // Artista multi-seleção e também pelo "Baixar por categoria" (Perfil
+  // → Modo offline), que pode juntar mais de um álbum/gênero de uma vez.
   function filterTracks({ genre, artist, album } = {}) {
-    const artistList = Array.isArray(artist) ? artist : (artist ? [artist] : []);
+    const toList = v => Array.isArray(v) ? v : (v ? [v] : []);
+    const genreList  = toList(genre);
+    const artistList = toList(artist);
+    const albumList  = toList(album);
     return _tracks.filter(t =>
-      (!genre || t.genre === genre) &&
+      (!genreList.length  || genreList.includes(t.genre)) &&
       (!artistList.length || artistList.includes(t.artist)) &&
-      (!album || t.album === album)
+      (!albumList.length  || albumList.includes(t.album))
     );
   }
 

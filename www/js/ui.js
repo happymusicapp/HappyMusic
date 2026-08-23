@@ -73,6 +73,7 @@ const UI = (() => {
     btnDownloadAll:       $('btn-download-all'),
     btnDownloadFavorites: $('btn-download-favorites'),
     btnClearDownloads:    $('btn-clear-downloads'),
+    btnDownloadCustom:      $('btn-download-custom'),
     chkAutoDownload:      $('chk-auto-download'),
 
     // Onboarding
@@ -119,6 +120,18 @@ const UI = (() => {
     filterPickerTitle:  $('filter-picker-title'),
     filterPickerSearch: $('filter-picker-search'),
     filterPickerList:   $('filter-picker-list'),
+
+    // Baixar por categoria (playlist/artista/álbum/gênero)
+    modalDownloadPicker:      $('modal-download-picker'),
+    btnDownloadPickerClose:   $('btn-download-picker-close'),
+    btnDownloadPickerBack:    $('btn-download-picker-back'),
+    downloadPickerTitle:      $('download-picker-title'),
+    downloadPickerHint:       $('download-picker-hint'),
+    downloadPickerCategories: $('download-picker-categories'),
+    downloadPickerValuesWrap: $('download-picker-values-wrap'),
+    downloadPickerSearch:     $('download-picker-search'),
+    downloadPickerValues:     $('download-picker-values'),
+    btnDownloadPickerConfirm: $('btn-download-picker-confirm'),
 
     // Seleção múltipla / atribuição de gênero em lote
     btnSelectMode:          $('btn-select-mode'),
@@ -1249,6 +1262,118 @@ const UI = (() => {
   }
   _bindFilterPickerEvents();
 
+  // ── BAIXAR POR CATEGORIA (playlist/artista/álbum/gênero) ──
+  // Modal de duas etapas: escolhe a categoria, depois marca um ou mais
+  // valores dentro dela (multi-seleção nas 4), e confirma o download.
+  // `categoriesData` é { playlist: [{value,label}], artist: [...], ... },
+  // fornecido por quem chama (app.js) porque só ele tem acesso a
+  // playlists/faixas. onConfirm(category, selectedValues) roda o download.
+  const _dlPickerCategoryLabels = { playlist: 'Playlist', artist: 'Artista', album: 'Álbum', genre: 'Gênero' };
+  let _dlPickerData = {};
+  let _dlPickerOnConfirm = null;
+  let _dlPickerCategory = null;
+  let _dlPickerSelected = [];
+
+  function showDownloadPicker(categoriesData, onConfirm) {
+    _dlPickerData = categoriesData || {};
+    _dlPickerOnConfirm = onConfirm;
+    _dlPickerCategory = null;
+    _dlPickerSelected = [];
+
+    el.downloadPickerCategories.classList.remove('hidden');
+    el.downloadPickerValuesWrap.classList.add('hidden');
+    el.btnDownloadPickerBack.classList.add('hidden');
+    el.downloadPickerTitle.textContent = 'Baixar músicas';
+    el.downloadPickerHint.textContent = 'Escolha o que baixar';
+    el.modalDownloadPicker.classList.remove('hidden');
+  }
+
+  function hideDownloadPicker() {
+    el.modalDownloadPicker.classList.add('hidden');
+    _dlPickerOnConfirm = null;
+  }
+
+  function _renderDownloadValues(query) {
+    const items = _dlPickerData[_dlPickerCategory] || [];
+    const q = (query || '').trim().toLowerCase();
+    const filtered = q ? items.filter(o => o.label.toLowerCase().includes(q)) : items;
+
+    if (!filtered.length) {
+      el.downloadPickerValues.innerHTML = `<p class="filter-picker-empty">Nada encontrado.</p>`;
+      return;
+    }
+
+    el.downloadPickerValues.innerHTML = filtered.map(item => `
+      <button type="button" class="filter-picker-item ${_dlPickerSelected.includes(item.value) ? 'active' : ''}" data-value="${_escape(item.value)}">
+        <span>${_escape(item.label)}</span>
+        <svg class="picker-check" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg>
+      </button>`).join('');
+  }
+
+  function _openDownloadCategory(cat) {
+    if (!_dlPickerData[cat] || !_dlPickerData[cat].length) {
+      showToast('Nada aqui ainda.');
+      return;
+    }
+    _dlPickerCategory = cat;
+    _dlPickerSelected = [];
+    el.downloadPickerCategories.classList.add('hidden');
+    el.downloadPickerValuesWrap.classList.remove('hidden');
+    el.btnDownloadPickerBack.classList.remove('hidden');
+    el.downloadPickerTitle.textContent = _dlPickerCategoryLabels[cat] || '';
+    el.downloadPickerHint.textContent = 'Toque para selecionar mais de um · depois toque em Baixar';
+    el.downloadPickerSearch.value = '';
+    _renderDownloadValues('');
+  }
+
+  function _backToDownloadCategories() {
+    _dlPickerCategory = null;
+    _dlPickerSelected = [];
+    el.downloadPickerCategories.classList.remove('hidden');
+    el.downloadPickerValuesWrap.classList.add('hidden');
+    el.btnDownloadPickerBack.classList.add('hidden');
+    el.downloadPickerTitle.textContent = 'Baixar músicas';
+    el.downloadPickerHint.textContent = 'Escolha o que baixar';
+  }
+
+  function _bindDownloadPickerEvents() {
+    el.btnDownloadPickerClose?.addEventListener('click', hideDownloadPicker);
+    el.btnDownloadPickerBack?.addEventListener('click', _backToDownloadCategories);
+    el.modalDownloadPicker?.addEventListener('click', e => {
+      if (e.target === el.modalDownloadPicker) hideDownloadPicker();
+    });
+
+    el.downloadPickerCategories?.addEventListener('click', e => {
+      const btn = e.target.closest('.download-picker-category');
+      if (!btn) return;
+      _openDownloadCategory(btn.dataset.category);
+    });
+
+    el.downloadPickerSearch?.addEventListener('input', () => {
+      _renderDownloadValues(el.downloadPickerSearch.value);
+    });
+
+    el.downloadPickerValues?.addEventListener('click', e => {
+      const item = e.target.closest('.filter-picker-item');
+      if (!item) return;
+      const value = item.dataset.value;
+      const idx = _dlPickerSelected.indexOf(value);
+      if (idx === -1) _dlPickerSelected.push(value);
+      else _dlPickerSelected.splice(idx, 1);
+      _renderDownloadValues(el.downloadPickerSearch.value);
+    });
+
+    el.btnDownloadPickerConfirm?.addEventListener('click', () => {
+      if (!_dlPickerSelected.length) { showToast('Selecione pelo menos um item.'); return; }
+      const onConfirm = _dlPickerOnConfirm;
+      const category = _dlPickerCategory;
+      const values = [..._dlPickerSelected];
+      hideDownloadPicker();
+      onConfirm?.(category, values);
+    });
+  }
+  _bindDownloadPickerEvents();
+
   function setFilterSummary(text) {
     if (!text) {
       el.filterSummary.classList.add('hidden');
@@ -2281,12 +2406,16 @@ const UI = (() => {
   function setDownloadBatchUI(running, done = 0, total = 0, which = null) {
     el.btnDownloadAll.disabled       = running && which !== 'all';
     el.btnDownloadFavorites.disabled = running && which !== 'fav';
+    el.btnDownloadCustom.disabled    = running && which !== 'custom';
 
     if (which === 'all') el.btnDownloadAll.textContent = running ? 'Cancelar' : el.btnDownloadAll.dataset.idleLabel || 'Baixar tudo';
     el.btnDownloadFavorites.textContent = (running && which === 'fav') ? 'Cancelar' : 'Baixar favoritas';
+    el.btnDownloadCustom.dataset.idleLabel = el.btnDownloadCustom.dataset.idleLabel || el.btnDownloadCustom.textContent;
+    el.btnDownloadCustom.textContent = (running && which === 'custom') ? 'Cancelar' : el.btnDownloadCustom.dataset.idleLabel;
 
     el.btnDownloadAll.classList.toggle('btn-cancel', running && which === 'all');
     el.btnDownloadFavorites.classList.toggle('btn-cancel', running && which === 'fav');
+    el.btnDownloadCustom.classList.toggle('btn-cancel', running && which === 'custom');
 
     if (running) {
       el.offlineProgressWrap.classList.remove('hidden');
@@ -2345,9 +2474,10 @@ const UI = (() => {
     showCollectionPreview,
     hideCollectionPreview,
     confirmDialog,
-    showFilterPicker,
-    hideFilterPicker,
+    showFilterPicker,    hideFilterPicker,
     setFilterSummary,
+    showDownloadPicker,
+    hideDownloadPicker,
 
     // Menu da faixa
     setTrackMenuHandlers,

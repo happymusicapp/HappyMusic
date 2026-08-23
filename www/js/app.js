@@ -1878,6 +1878,46 @@ const App = (() => {
       _runDownloadBatch(Player.getFavorites(), 'fav');
     });
 
+    // Baixar por categoria (playlist/artista/álbum/gênero) — Perfil →
+    // Modo offline. Monta as opções na hora de abrir (pra já refletir
+    // playlists/favoritas atuais) e resolve a seleção em faixas só
+    // quando o usuário confirma.
+    UI.el.btnDownloadCustom.addEventListener('click', () => {
+      const categoriesData = {
+        playlist: [
+          { value: FAVORITES_ID, label: `Favoritas (${Player.getFavorites().length})` },
+          ..._playlists.map(p => ({ value: p.id, label: `${p.name} (${p.trackIds.length})` })),
+        ],
+        artist: Drive.getKnownArtists().map(a => ({ value: a, label: a })),
+        album:  Drive.getKnownAlbums().map(a => ({ value: a, label: a })),
+        genre:  Drive.getKnownGenres().map(g => ({ value: g, label: g })),
+      };
+
+      UI.showDownloadPicker(categoriesData, (category, values) => {
+        let tracks = [];
+
+        if (category === 'playlist') {
+          values.forEach(v => {
+            if (v === FAVORITES_ID) tracks = tracks.concat(Player.getFavorites());
+            else {
+              const pl = _playlists.find(p => p.id === v);
+              if (pl) tracks = tracks.concat(_playlistTracks(pl));
+            }
+          });
+        } else {
+          // artist/album/genre: filterTracks já aceita array direto
+          tracks = Drive.filterTracks({ [category]: values });
+        }
+
+        // Uma faixa pode aparecer em mais de uma seleção (ex.: 2 playlists
+        // que compartilham música) — baixa só uma vez.
+        const seen = new Set();
+        tracks = tracks.filter(t => { if (seen.has(t.id)) return false; seen.add(t.id); return true; });
+
+        _runDownloadBatch(tracks, 'custom');
+      });
+    });
+
     UI.el.btnClearDownloads.addEventListener('click', async () => {
       const ok = await UI.confirmDialog(
         'As músicas continuam disponíveis pra baixar de novo quando quiser.',
