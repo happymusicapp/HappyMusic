@@ -1172,9 +1172,38 @@ const Drive = (() => {
     return parsed;
   }
 
+  // Monta o nome de arquivo "bonito" a partir dos metadados, no mesmo
+  // padrão que o app já entende ao ler arquivos sem metadados customizados
+  // (ver _parseTrack: "Artista - Título" ou "Artista - Álbum - Título").
+  // Preserva a extensão original do arquivo (nunca mexe nela).
+  function _formatFilename(metadata, originalName) {
+    const ext = (originalName || '').match(/\.[^.]+$/)?.[0] || '';
+    const artist = (metadata.artist || '').trim();
+    const album  = (metadata.album  || '').trim();
+    const title  = (metadata.title  || '').trim();
+
+    if (!title) return originalName; // sem título não dá pra formatar, mantém como está
+
+    let base;
+    if (artist && artist !== 'Desconhecido' && album) {
+      base = `${artist} - ${album} - ${title}`;
+    } else if (artist && artist !== 'Desconhecido') {
+      base = `${artist} - ${title}`;
+    } else {
+      base = title;
+    }
+
+    // Nomes de arquivo no Drive não podem ter "/" — troca por um traço
+    // pra não quebrar em subpastas sem querer.
+    base = base.replace(/[\\/]/g, '-').slice(0, 200);
+    return `${base}${ext}`;
+  }
+
   // ── EDITAR METADADOS DE UMA FAIXA EXISTENTE ────
   async function updateTrackMetadata(fileId, metadata = {}) {
+    const current = _tracks.find(t => t.id === fileId);
     const body = {
+      name: _formatFilename(metadata, current?.name || ''),
       properties: {
         hm_title:  (metadata.title  || '').slice(0, 120),
         hm_artist: (metadata.artist || 'Desconhecido').slice(0, 120),
@@ -1200,6 +1229,47 @@ const Drive = (() => {
     const idx = _tracks.findIndex(t => t.id === fileId);
     if (idx !== -1) _tracks[idx] = parsed;
     return parsed;
+  }
+
+  // Corrige de uma vez o nome, no Drive, das faixas que já foram editadas
+  // no passado (antes do rename automático existir) — percorre as faixas
+  // já carregadas com metadados customizados e cujo nome de arquivo ainda
+  // não bate com o formato esperado, e as renomeia. `onProgress(done,total)`
+  // é opcional.
+  async function syncFilenamesWithMetadata(onProgress) {
+    const targets = _tracks.filter(t => {
+      if (!t.hasCustomMetadata) return false;
+      const expected = _formatFilename(
+        { title: t.title, artist: t.artist, album: t.album },
+        t.name
+      );
+      return expected && expected !== t.name;
+    });
+
+    let done = 0;
+    for (const track of targets) {
+      const newName = _formatFilename(
+        { title: track.title, artist: track.artist, album: track.album },
+        track.name
+      );
+      const res = await _authFetch(
+        `https://www.googleapis.com/drive/v3/files/${track.id}` +
+        '?supportsAllDrives=true&fields=id,name',
+        {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: newName }),
+        }
+      );
+      if (res.ok) {
+        const updated = await res.json();
+        const idx = _tracks.findIndex(t => t.id === track.id);
+        if (idx !== -1) _tracks[idx].name = updated.name;
+      }
+      done++;
+      onProgress && onProgress(done, targets.length);
+    }
+    return { renamed: done, total: targets.length };
   }
 
   // ── CAPA PERSONALIZADA (imagem escolhida pelo usuário) ──
@@ -1572,6 +1642,7 @@ const Drive = (() => {
     filterTracks,
     uploadTrack,
     updateTrackMetadata,
+    syncFilenamesWithMetadata,
     deleteTrack,
     loadPlaylists,
     savePlaylists,
