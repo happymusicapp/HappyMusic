@@ -31,7 +31,7 @@ const App = (() => {
   }
 
   // Filtros da tela "Todas as músicas"
-  let _filters = { genre: '', artist: '', album: '' };
+  let _filters = { genre: '', artist: [], album: '' };
 
   // Playlists (cache em memória; fonte de verdade é o Drive.loadPlaylists/savePlaylists)
   let _playlists = [];
@@ -585,7 +585,7 @@ const App = (() => {
       UI.bindTrackListEvents(UI.el.allTracksList, list);
     }
 
-    const active = [_filters.genre, _filters.artist, _filters.album].filter(Boolean).length;
+    const active = [_filters.genre, (_filters.artist && _filters.artist.length ? 1 : ''), _filters.album].filter(Boolean).length;
     UI.setFilterSummary(active ? `${list.length} de ${_tracks.length} músicas com o filtro atual` : null);
 
     if (UI.isSelectMode(UI.el.allTracksList)) _updateSelectionUI();
@@ -610,11 +610,11 @@ const App = (() => {
     });
     UI.el.filterChipArtist.addEventListener('click', () => {
       UI.hideFilterMenu();
-      UI.showFilterPicker('artist', _filters.artist, value => {
-        _filters.artist = value;
+      UI.showFilterPicker('artist', _filters.artist, values => {
+        _filters.artist = values;
         _refreshFilterBar();
         _renderAllTracksList();
-      });
+      }, { multi: true });
     });
     UI.el.filterChipAlbum.addEventListener('click', () => {
       UI.hideFilterMenu();
@@ -625,7 +625,7 @@ const App = (() => {
       });
     });
     UI.el.btnFilterClear.addEventListener('click', () => {
-      _filters = { genre: '', artist: '', album: '' };
+      _filters = { genre: '', artist: [], album: '' };
       _refreshFilterBar();
       _renderAllTracksList();
     });

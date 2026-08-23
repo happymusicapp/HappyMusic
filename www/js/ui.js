@@ -1033,6 +1033,8 @@ const UI = (() => {
   let _pickerOnSelect = null;
   let _pickerAllOptions = [];
   let _pickerShowAllRow = true;
+  let _pickerMulti = false;
+  let _pickerMultiValues = [];
 
   const FILTER_TITLES = { genre: 'Gênero', artist: 'Artista', album: 'Álbum', moviegenre: 'Gênero', moviecollection: 'Coleção' };
 
@@ -1041,16 +1043,28 @@ const UI = (() => {
     chip.classList.toggle('active', !!activeValue);
   }
 
+  // Versão do _setChip pra filtro multi-valor (hoje só Artista): mostra
+  // o nome quando só 1 estiver selecionado, ou "2 artistas" etc quando
+  // for mais de um.
+  function _setChipMulti(chip, label, activeValues, placeholder) {
+    const values = activeValues || [];
+    let text = placeholder;
+    if (values.length === 1) text = values[0];
+    else if (values.length > 1) text = `${values.length} ${label.toLowerCase()}s`;
+    chip.querySelector('.filter-chip-label').textContent = text;
+    chip.classList.toggle('active', values.length > 0);
+  }
+
   function renderFilterOptions({ genres, artists, albums }, active = {}) {
     _filterData.genres  = genres;
     _filterData.artists = artists;
     _filterData.albums  = albums;
 
     _setChip(el.filterChipGenre,  'Gênero',  active.genre,  'Gênero');
-    _setChip(el.filterChipArtist, 'Artista', active.artist, 'Artista');
+    _setChipMulti(el.filterChipArtist, 'Artista', active.artist, 'Artista');
     _setChip(el.filterChipAlbum,  'Álbum',   active.album,  'Álbum');
 
-    const hasFilter = !!(active.genre || active.artist || active.album);
+    const hasFilter = !!(active.genre || (active.artist && active.artist.length) || active.album);
     el.btnFilterClear.classList.toggle('hidden', !hasFilter);
     el.filterMenuDot?.classList.toggle('hidden', !hasFilter);
   }
@@ -1132,10 +1146,14 @@ const UI = (() => {
 
   // Alguns pickers (coleções de vídeo) já trazem a opção "Todos" como um
   // item normal da lista — nesse caso não precisamos da linha extra.
+  // `activeValue` pode ser uma string (seleção única) ou um array
+  // (multi-seleção, hoje usado só pelo filtro de Artista).
   function _renderPickerList(items, activeValue, query, showAllRow = true) {
     const norm = _normalizePickerItems(items);
     const q = (query || '').trim().toLowerCase();
     const filtered = q ? norm.filter(o => o.label.toLowerCase().includes(q)) : norm;
+    const isActive = v => Array.isArray(activeValue) ? activeValue.includes(v) : v === activeValue;
+    const noneActive = Array.isArray(activeValue) ? activeValue.length === 0 : !activeValue;
 
     if (!filtered.length) {
       el.filterPickerList.innerHTML = `<p class="filter-picker-empty">Nada encontrado.</p>`;
@@ -1143,13 +1161,13 @@ const UI = (() => {
     }
 
     const allRow = (showAllRow && !q) ? `
-      <button type="button" class="filter-picker-item ${!activeValue ? 'active' : ''}" data-value="">
+      <button type="button" class="filter-picker-item ${noneActive ? 'active' : ''}" data-value="">
         <span>Todos</span>
         <svg class="picker-check" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg>
       </button>` : '';
 
     el.filterPickerList.innerHTML = allRow + filtered.map(item => `
-      <button type="button" class="filter-picker-item ${item.value === activeValue ? 'active' : ''}" data-value="${_escape(item.value)}">
+      <button type="button" class="filter-picker-item ${isActive(item.value) ? 'active' : ''}" data-value="${_escape(item.value)}">
         <span>${_escape(item.label)}</span>
         <svg class="picker-check" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg>
       </button>`).join('');
@@ -1157,21 +1175,31 @@ const UI = (() => {
 
   // Abre o modal listando as opções de um filtro (gênero/artista/álbum
   // de música, gênero de vídeo ou coleção de vídeo), com busca.
-  // onSelect(value) é chamado com '' pra "Todos" ou o valor escolhido;
-  // quem chama (app.js) decide o que fazer com isso.
-  function showFilterPicker(type, activeValue, onSelect) {
+  //
+  // Modo padrão (seleção única): onSelect(value) é chamado uma vez, com
+  // '' pra "Todos" ou o valor escolhido, e o modal fecha na hora.
+  //
+  // Modo multi (passe { multi: true }, usado pelo filtro de Artista —
+  // útil pra quando um artista aparece em faixas creditadas tipo
+  // "Fulano - Beltrano"): activeValues é um array, cada toque
+  // liga/desliga um valor sem fechar o modal, e onSelect(arrayAtual) é
+  // chamado a cada mudança. O usuário fecha manualmente quando terminar.
+  function showFilterPicker(type, activeValue, onSelect, { multi = false } = {}) {
     const options = _filterData[type + 's'] || [];
     const showAllRow = type !== 'moviecollection'; // coleções já tem "Todos os vídeos" na própria lista
     _pickerAllOptions = options;
     _pickerOnSelect = onSelect;
     _pickerShowAllRow = showAllRow;
+    _pickerMulti = multi;
+    _pickerMultiValues = multi ? [...(activeValue || [])] : [];
 
     el.filterPickerTitle.textContent = FILTER_TITLES[type] || '';
     el.filterPickerSearch.value = '';
-    _renderPickerList(options, activeValue, '', showAllRow);
+    _renderPickerList(options, multi ? _pickerMultiValues : activeValue, '', showAllRow);
 
     el.modalFilterPicker.classList.remove('hidden');
-    el.modalFilterPicker.dataset.activeValue = activeValue || '';
+    el.modalFilterPicker.classList.toggle('filter-picker-multi', multi);
+    el.modalFilterPicker.dataset.activeValue = multi ? '' : (activeValue || '');
     // sem foco automático no campo de busca — evita abrir o teclado
     // imediatamente numa lista que às vezes é curta o bastante pra não precisar
   }
@@ -1179,6 +1207,7 @@ const UI = (() => {
   function hideFilterPicker() {
     el.modalFilterPicker.classList.add('hidden');
     _pickerOnSelect = null;
+    _pickerMulti = false;
   }
 
   function _bindFilterPickerEvents() {
@@ -1188,7 +1217,7 @@ const UI = (() => {
     });
 
     el.filterPickerSearch.addEventListener('input', () => {
-      const active = el.modalFilterPicker.dataset.activeValue || '';
+      const active = _pickerMulti ? _pickerMultiValues : (el.modalFilterPicker.dataset.activeValue || '');
       _renderPickerList(_pickerAllOptions, active, el.filterPickerSearch.value, _pickerShowAllRow);
     });
 
@@ -1196,6 +1225,22 @@ const UI = (() => {
       const item = e.target.closest('.filter-picker-item');
       if (!item) return;
       const value = item.dataset.value || '';
+
+      if (_pickerMulti) {
+        // "Todos" limpa a seleção inteira; qualquer outro item liga/desliga
+        // — o modal continua aberto pra escolher mais de um.
+        if (!value) {
+          _pickerMultiValues = [];
+        } else {
+          const idx = _pickerMultiValues.indexOf(value);
+          if (idx === -1) _pickerMultiValues.push(value);
+          else _pickerMultiValues.splice(idx, 1);
+        }
+        _renderPickerList(_pickerAllOptions, _pickerMultiValues, el.filterPickerSearch.value, _pickerShowAllRow);
+        _pickerOnSelect?.([..._pickerMultiValues]);
+        return;
+      }
+
       // hideFilterPicker() zera _pickerOnSelect como limpeza — captura a
       // referência ANTES de fechar, senão a seleção nunca chega a
       // quem chamou (esse era o bug do filtro não aplicar nada).
