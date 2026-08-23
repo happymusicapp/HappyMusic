@@ -1066,6 +1066,13 @@ const App = (() => {
     });
 
     UI.el.collectionPreviewList.addEventListener('click', e => {
+      // Botão de menu (3 pontinhos) e de download ficam DENTRO da linha
+      // (.track-item), então um toque neles também "conta" como toque na
+      // linha — sem esse filtro, o modal fechava por baixo do menu antes
+      // dele terminar de abrir, e o menu perdia a referência de posição
+      // (o botão já não existia mais na tela), abrindo lá no canto
+      // superior esquerdo em vez de perto do dedo.
+      if (e.target.closest('[data-menu], [data-dl]')) return;
       if (e.target.closest('.track-item')) UI.hideCollectionPreview();
     });
 
