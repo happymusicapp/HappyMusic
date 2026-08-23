@@ -1838,6 +1838,16 @@ img    { display: block; }
 
 .filter-picker-box .modal-title { margin-bottom: var(--sp-3); }
 
+/* Dica só aparece no modo multi-seleção (filtro de Artista) — escondida
+   por padrão, .modalFilterPicker.filter-picker-multi que a revela. */
+.filter-picker-hint {
+  display: none;
+  margin: calc(var(--sp-3) * -1) 0 var(--sp-3);
+  font-size: 0.78rem;
+  color: var(--purple-soft);
+}
+.filter-picker-multi .filter-picker-hint { display: block; }
+
 .filter-picker-search-wrap {
   position: relative;
   display: flex;
