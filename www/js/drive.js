@@ -1212,9 +1212,8 @@ const Drive = (() => {
   // As capas personalizadas ficavam soltas na mesma pasta das músicas —
   // pra quem já tem muitas faixas isso deixa o Drive bagunçado. Como o
   // app acha a capa de cada faixa pelo ID salvo em `hm_cover_id` (não
-  // pela pasta em que ela está), dá pra mover as capas pra uma subpasta
-  // dedicada sem quebrar nada. Novas capas já sobem direto lá; capas
-  // antigas precisam ser migradas uma vez (ver migrateCoversToSubfolder).
+  // pela pasta em que ela está), as capas novas já sobem direto pra
+  // essa subpasta dedicada, sem depender de estarem juntas do áudio.
   let _coversFolderId = null;
 
   async function getOrCreateCoversFolder() {
@@ -1259,46 +1258,6 @@ const Drive = (() => {
     _coversFolderId = created.id;
     localStorage.setItem(KEY_COVERS_FOLDER_ID, _coversFolderId);
     return _coversFolderId;
-  }
-
-  // Move as capas que já estavam soltas na pasta principal (padrão
-  // antigo) para a subpasta "Capas". Roda uma vez só — as próximas
-  // capas já nascem no lugar certo. `onProgress(done, total)` é opcional.
-  async function migrateCoversToSubfolder(onProgress) {
-    const musicFolder = getFolderId();
-    const parentQ = musicFolder ? `'${musicFolder}' in parents and` : '';
-    const coversFolderId = await getOrCreateCoversFolder();
-
-    let stray = [];
-    let pageToken = null;
-    do {
-      const params = {
-        q: `${parentQ} name contains '.happymusic_capa_' and trashed=false`,
-        fields: 'nextPageToken,files(id,parents)',
-        pageSize: 200,
-        supportsAllDrives: true,
-        includeItemsFromAllDrives: true,
-        corpora: 'allDrives',
-      };
-      if (pageToken) params.pageToken = pageToken;
-      const data = await _get('https://www.googleapis.com/drive/v3/files', params);
-      stray = stray.concat((data.files || []).filter(f => !(f.parents || []).includes(coversFolderId)));
-      pageToken = data.nextPageToken || null;
-    } while (pageToken);
-
-    let done = 0;
-    for (const file of stray) {
-      const oldParents = (file.parents || []).join(',');
-      await _authFetch(
-        `https://www.googleapis.com/drive/v3/files/${file.id}` +
-        `?addParents=${coversFolderId}&removeParents=${encodeURIComponent(oldParents)}` +
-        '&supportsAllDrives=true&fields=id,parents',
-        { method: 'PATCH' }
-      );
-      done++;
-      onProgress && onProgress(done, stray.length);
-    }
-    return { moved: done, total: stray.length };
   }
 
   async function _uploadCoverImage(track, imageFile) {
@@ -1596,7 +1555,6 @@ const Drive = (() => {
     getFolderId,
     listTracks,
     getOrCreateCoversFolder,
-    migrateCoversToSubfolder,
     getCachedTracks,
     getOfflineTracks,
     fetchAudioUrl,
