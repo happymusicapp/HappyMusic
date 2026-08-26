@@ -233,6 +233,7 @@ img    { display: block; }
 
 .icon-btn:hover  { color: var(--white); background: var(--surface); }
 .icon-btn:active { background: var(--surface2); }
+.icon-btn:disabled { opacity: 0.4; pointer-events: none; }
 
 .icon-btn-sm { width: 32px; height: 32px; }
 
