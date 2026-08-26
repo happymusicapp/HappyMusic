@@ -1,8 +1,78 @@
-<?xml version='1.0' encoding='utf-8'?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android"
-xmlns:amazon="http://schemas.amazon.com/apk/res/android">
-<application  >
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-</application>
+    <application
+        android:name=".HappyMusicApplication"
+        android:allowBackup="true"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:supportsRtl="true"
+        android:theme="@style/AppTheme">
 
+        <activity
+            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|locale|smallestScreenSize|screenLayout|uiMode"
+            android:name=".MainActivity"
+            android:label="@string/title_activity_main"
+            android:theme="@style/AppTheme.NoActionBarLaunch"
+            android:launchMode="singleTask"
+            android:exported="true">
+
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+
+            <!-- App Links: quando o Google termina o login OAuth e redireciona
+                 de volta pra https://happymusic-crn.pages.dev/, o Android
+                 entrega essa URL pro app em vez de deixar aberta no navegador
+                 (mesmo mecanismo que já era usado pelo TWA — o assetlinks.json
+                 em .well-known/ já valida esse domínio pra este pacote). -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data
+                    android:scheme="https"
+                    android:host="happymusic-crn.pages.dev" />
+            </intent-filter>
+
+            <!-- "Abrir com" pra arquivos de áudio do próprio aparelho —
+                 gerenciador de arquivos, um MP3 recebido por WhatsApp, etc.
+                 Sem android:autoVerify aqui: isso é exclusivo de App Links
+                 de domínio (o filtro acima), não se aplica a mimeType.
+                 O app recebe o arquivo pelo mesmo mecanismo já usado pro
+                 retorno do login (NativeApp.onUrlOpen, em native-bridge.js
+                 / app.js), sem precisar de nenhum código nativo novo. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:mimeType="audio/*" />
+            </intent-filter>
+
+        </activity>
+
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths"></meta-data>
+        </provider>
+    </application>
+
+    <!-- Permissions -->
+
+    <uses-permission android:name="android.permission.INTERNET" />
+
+    <!-- Necessárias pro plugin de MediaSession manter o áudio tocando
+         com o app em segundo plano / tela bloqueada (Android 14+ exige
+         declarar o tipo do foreground service explicitamente). -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
 </manifest>
+
