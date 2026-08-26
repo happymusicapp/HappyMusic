@@ -431,13 +431,13 @@ const Player = (() => {
 
   audio.addEventListener('ended', () => {
     const track = getCurrentTrack();
-    if (track) _addToRecent(track);
+    if (track && !track.isExternal) _addToRecent(track);
     next();
   });
 
   audio.addEventListener('play', () => {
     const track = getCurrentTrack();
-    if (track) _addToRecent(track);
+    if (track && !track.isExternal) _addToRecent(track);
     // Voltou a tocar de verdade — zera os contadores de retomada
     // automática e de falhas seguidas (ver listeners 'pause'/'error').
     _autoResumeAttempts = 0;

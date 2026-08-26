@@ -923,16 +923,24 @@ const UI = (() => {
       el.playerArt.innerHTML = `<img src="${track.thumbnail}" alt="" />`;
     } else {
       el.playerArt.innerHTML = _musicIcon(24);
-      _queueCoverFetch(track, true);
+      // Faixa externa (aberta via "Abrir com", fora da biblioteca do
+      // Drive) não tem property nenhuma pra consultar — a única fonte
+      // de capa já foi tentada antes (tag ID3), não adianta buscar de novo.
+      if (!track.isExternal) _queueCoverFetch(track, true);
     }
 
-    // Favorito
-    const fav = Player.isFavorite(track.id);
-    el.btnFav.classList.toggle('active', fav);
+    // Favoritar e baixar offline não fazem sentido pra um arquivo
+    // externo — ele não está na biblioteca do Drive, então essas ações
+    // ficariam clicáveis sem nenhum efeito real. Escondidas nesse caso.
+    el.btnFav.classList.toggle('hidden', !!track.isExternal);
+    el.btnDownloadCurrent.classList.toggle('hidden', !!track.isExternal);
 
-    // Download offline
-    el.btnDownloadCurrent.dataset.dl = track.id;
-    _setDlBtnState(el.btnDownloadCurrent, _dlState(track.id));
+    if (!track.isExternal) {
+      const fav = Player.isFavorite(track.id);
+      el.btnFav.classList.toggle('active', fav);
+      el.btnDownloadCurrent.dataset.dl = track.id;
+      _setDlBtnState(el.btnDownloadCurrent, _dlState(track.id));
+    }
   }
 
   function setPlayState(playing) {

@@ -1047,6 +1047,55 @@ const Drive = (() => {
     });
   }
 
+  // Versão mais completa da leitura acima — além da capa, pega
+  // título/artista/álbum. Usada pra arquivo de áudio EXTERNO ao Drive
+  // (aberto via "Abrir com" do Android, ver registerExternalAudio),
+  // já que nesse caso não existe nenhuma property salva pra consultar —
+  // a única fonte de metadados é a tag ID3 embutida no próprio arquivo.
+  function readAudioTags(blob) {
+    return new Promise(resolve => {
+      if (typeof jsmediatags === 'undefined') { resolve(null); return; }
+      jsmediatags.read(blob, {
+        onSuccess: tag => {
+          const t = tag?.tags || {};
+          let picture = null;
+          if (t.picture && t.picture.data && t.picture.data.length) {
+            try {
+              let binary = '';
+              const bytes = t.picture.data;
+              const chunkSize = 0x8000;
+              for (let i = 0; i < bytes.length; i += chunkSize) {
+                binary += String.fromCharCode.apply(null, bytes.slice(i, i + chunkSize));
+              }
+              picture = `data:${t.picture.format};base64,${btoa(binary)}`;
+            } catch (e) { /* segue sem capa */ }
+          }
+          resolve({
+            title:  t.title  || null,
+            artist: t.artist || null,
+            album:  t.album  || null,
+            picture,
+          });
+        },
+        onError: () => resolve(null),
+      });
+    });
+  }
+
+  // ── ÁUDIO EXTERNO (aberto via "Abrir com" do Android, fora da
+  // biblioteca do Drive) ─────────────────────────
+  // Registra a URL já resolvida (Capacitor.convertFileSrc do content://
+  // recebido) no MESMO cache que fetchAudioUrl(id) consulta — assim o
+  // Player toca esse "id" fictício sem precisar de nenhum caminho
+  // especial no loadQueue/_play, e sem duplicar a lógica de preload.
+  // Efeito colateral aceitável: como esse cache é um LRU de 4 entradas
+  // (ver MAX_BLOB_CACHE), tocar 4+ faixas normais depois derruba essa
+  // entrada e o arquivo externo não toca de novo sozinho — tudo bem,
+  // é uma reprodução avulsa mesmo, não parte da biblioteca permanente.
+  function registerExternalAudio(id, url) {
+    _cacheBlob(id, url);
+  }
+
   // ── ENVIO DE MÚSICAS (upload resumable + tags) ─
   // Sobe o arquivo pro Drive já com gênero/artista/álbum/título
   // cadastrados como `properties`. Usa upload resumable — se a conexão
@@ -1585,6 +1634,8 @@ const Drive = (() => {
     handleCallback,
     restoreSession,
     isLoggedIn,
+    readAudioTags,
+    registerExternalAudio,
     logout,
     getUser,
     listFolders,

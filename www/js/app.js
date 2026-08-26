@@ -13,6 +13,55 @@ const App = (() => {
   const KEY_AUTO_DOWNLOAD = 'hm_auto_download';
   const GDRIVE_URL = 'https://drive.google.com/drive/my-drive';
 
+  // ── ABRIR ARQUIVO EXTERNO ("Abrir com" do Android) ──
+  // Toca um áudio que não faz parte da biblioteca do Drive — o usuário
+  // tocou num MP3 num gerenciador de arquivos (ou recebeu por WhatsApp
+  // etc.) e escolheu o HappyMusic pra abrir. Ver AndroidManifest.xml
+  // (intent-filter de audio/*) e NativeApp.onUrlOpen mais abaixo.
+  const EXTERNAL_ID_PREFIX = 'external:';
+  let _pendingExternalUri = null; // guardado se chegar antes do app terminar de iniciar
+  let _appStarted = false; // só true depois que _startApp() termina (login ok, faixas carregadas)
+
+  function _tryConsumePendingExternalAudio() {
+    if (!_pendingExternalUri || !_appStarted) return;
+    const uri = _pendingExternalUri;
+    _pendingExternalUri = null;
+    _handleExternalAudioOpen(uri);
+  }
+
+  async function _handleExternalAudioOpen(uri) {
+    if (!window.Capacitor?.convertFileSrc) return;
+
+    const src = window.Capacitor.convertFileSrc(uri);
+    const id = EXTERNAL_ID_PREFIX + Date.now();
+
+    let title = 'Música externa';
+    let artist = 'Desconhecido';
+    let album = '';
+    let thumbnail = null;
+
+    try {
+      const res = await fetch(src);
+      const blob = await res.blob();
+      const tags = await Drive.readAudioTags(blob);
+      if (tags) {
+        title     = tags.title     || title;
+        artist    = tags.artist    || artist;
+        album     = tags.album     || album;
+        thumbnail = tags.picture   || null;
+      }
+    } catch (err) {
+      console.warn('[App] não deu pra ler metadados do arquivo externo:', err);
+    }
+
+    Drive.registerExternalAudio(id, src);
+
+    const track = { id, title, artist, album, genre: '', thumbnail, isExternal: true };
+    Player.loadQueue([track], 0);
+    UI.showToast('Tocando arquivo do aparelho (fora da sua biblioteca)');
+  }
+
+
   // Abre o Google Drive já na conta logada no app (evita cair numa
   // conta diferente ou pedir login de novo) e sempre num navegador de
   // verdade — dentro do app nativo, window.open() na WebView embutida
@@ -98,6 +147,17 @@ const App = (() => {
     // numa aba de navegador externa, não dentro do app — ver drive.js).
     if (window.NativeApp && window.NativeApp.isNative) {
       window.NativeApp.onUrlOpen(async (url) => {
+        // Arquivo de áudio aberto via "Abrir com" do Android chega aqui
+        // como content:// (às vezes file://) — nada a ver com o retorno
+        // do login OAuth (que é sempre https://). Guarda e tenta tocar
+        // assim que o app terminar de iniciar (pode chegar antes do
+        // login terminar, numa abertura a frio).
+        if (url.startsWith('content://') || url.startsWith('file://')) {
+          _pendingExternalUri = url;
+          _tryConsumePendingExternalAudio();
+          return;
+        }
+
         if (!url.includes('code=') && !url.includes('error=')) return;
 
         window.NativeBrowser.close();
@@ -177,6 +237,9 @@ const App = (() => {
     _loadPlaylists();
     _loadMovies();
     _loadMoviePlaylists();
+
+    _appStarted = true;
+    _tryConsumePendingExternalAudio();
   }
 
   function _updateFolderLabel() {
