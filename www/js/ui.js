@@ -41,6 +41,7 @@ const UI = (() => {
     playerArtist:   $('player-artist'),
     btnFav:         $('btn-fav'),
     btnDownloadCurrent: $('btn-download-current'),
+    btnAddToLibrary:    $('btn-add-to-library'),
     seekBar:        $('seek-bar'),
     seekBarWrap:    $('seek-bar-wrap'),
     seekBarFillClip: $('seek-bar-fill-clip'),
@@ -931,9 +932,12 @@ const UI = (() => {
 
     // Favoritar e baixar offline não fazem sentido pra um arquivo
     // externo — ele não está na biblioteca do Drive, então essas ações
-    // ficariam clicáveis sem nenhum efeito real. Escondidas nesse caso.
+    // ficariam clicáveis sem nenhum efeito real. Escondidas nesse caso,
+    // e mostra em vez disso o botão de adicionar à biblioteca de verdade.
     el.btnFav.classList.toggle('hidden', !!track.isExternal);
     el.btnDownloadCurrent.classList.toggle('hidden', !!track.isExternal);
+    el.btnAddToLibrary.classList.toggle('hidden', !track.isExternal);
+    if (track.isExternal) el.btnAddToLibrary.disabled = false; // nova faixa externa, reabilita
 
     if (!track.isExternal) {
       const fav = Player.isFavorite(track.id);

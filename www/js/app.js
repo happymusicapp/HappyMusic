@@ -39,10 +39,11 @@ const App = (() => {
     let artist = 'Desconhecido';
     let album = '';
     let thumbnail = null;
+    let blob = null;
 
     try {
       const res = await fetch(src);
-      const blob = await res.blob();
+      blob = await res.blob();
       const tags = await Drive.readAudioTags(blob);
       if (tags) {
         title     = tags.title     || title;
@@ -56,9 +57,33 @@ const App = (() => {
 
     Drive.registerExternalAudio(id, src);
 
-    const track = { id, title, artist, album, genre: '', thumbnail, isExternal: true };
+    // Guarda o blob e os metadados já lidos no próprio objeto da faixa
+    // (nunca persistido em lugar nenhum, só em memória) — é o que o
+    // botão "Adicionar à biblioteca" usa depois, sem precisar buscar o
+    // arquivo de novo.
+    const track = {
+      id, title, artist, album, genre: '', thumbnail, isExternal: true,
+      __blob: blob, __title: title, __artist: artist, __album: album,
+    };
     Player.loadQueue([track], 0);
     UI.showToast('Tocando arquivo do aparelho (fora da sua biblioteca)');
+  }
+
+  // Deriva uma extensão de arquivo a partir do mimeType do Blob — o
+  // <audio>/fetch não nos dá o nome original do arquivo (só o Android
+  // sabe, e não expõe isso pelo content://), então sem isso o arquivo
+  // subiria pro Drive sem extensão nenhuma.
+  const AUDIO_EXT_BY_MIME = {
+    'audio/mpeg': 'mp3', 'audio/mp3': 'mp3',
+    'audio/mp4': 'm4a', 'audio/x-m4a': 'm4a',
+    'audio/aac': 'aac',
+    'audio/ogg': 'ogg', 'audio/opus': 'opus',
+    'audio/wav': 'wav', 'audio/x-wav': 'wav', 'audio/wave': 'wav',
+    'audio/flac': 'flac', 'audio/x-flac': 'flac',
+    'audio/webm': 'weba',
+  };
+  function _extFromMime(mime) {
+    return AUDIO_EXT_BY_MIME[(mime || '').toLowerCase()] || 'mp3';
   }
 
 
@@ -893,6 +918,40 @@ const App = (() => {
         const item = _uploadItems.find(i => i.localId === parseInt(retryBtn.dataset.retry, 10));
         if (item) _uploadOne(item);
       }
+    });
+
+    // Botão "Adicionar à biblioteca" no player, só visível pra faixa
+    // externa (ver _handleExternalAudioOpen). Reaproveita 100% o modal
+    // de upload que já existe: injeta um item pré-preenchido com o que
+    // foi lido da tag ID3 e deixa o usuário revisar antes de enviar.
+    UI.el.btnAddToLibrary.addEventListener('click', () => {
+      const track = Player.getCurrentTrack();
+      if (!track || !track.isExternal) return;
+
+      if (!track.__blob) {
+        UI.showToast('Não foi possível ler o arquivo pra enviar.');
+        return;
+      }
+
+      UI.el.btnAddToLibrary.disabled = true; // evita clique duplo enquanto essa faixa tocar
+
+      const ext = _extFromMime(track.__blob.type);
+      const baseName = track.__title && track.__title !== 'Música externa' ? track.__title : 'musica';
+      const file = new File([track.__blob], `${baseName}.${ext}`, { type: track.__blob.type || 'audio/mpeg' });
+
+      _uploadItems.push({
+        localId: ++_uploadCounter,
+        file,
+        title:  track.__title  || _filenameToTitle(file.name),
+        artist: track.__artist || '',
+        album:  track.__album  || '',
+        genre:  '',
+        status: 'pending',
+        progress: 0,
+        errorMsg: null,
+      });
+      _renderUploadList();
+      UI.showUploadModal();
     });
   }
 
