@@ -1645,6 +1645,14 @@ img    { display: block; }
   text-overflow: ellipsis;
 }
 
+/* Fica na própria linha (o texto é mais longo que os outros dois botões
+   pra dividirem espaço igual sem cortar) */
+.offline-custom {
+  display: block;
+  width: 100%;
+  margin-top: var(--sp-2);
+}
+
 .offline-clear {
   display: block;
   margin-top: var(--sp-3);
