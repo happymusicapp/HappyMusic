@@ -135,17 +135,47 @@ img    { display: block; }
   text-align: center;
 }
 
+/* Mesmo efeito de ondas pulsando do splash (.ring/.ring-pulse), só que
+   escalado pro logo maior da tela de login (100px vs 72px do splash) —
+   por isso um raio inicial/final próprio em vez de reaproveitar os
+   tamanhos exatos do splash, que ficariam desproporcionais aqui. */
+.login-orb {
+  position: relative;
+  width: 130px;
+  height: 130px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.login-orb .ring {
+  width: 150px;
+  height: 150px;
+  animation-name: login-ring-pulse;
+}
+
+.login-orb .ring-1 { animation-delay: 0s; }
+.login-orb .ring-2 { animation-delay: 0.6s; }
+.login-orb .ring-3 { animation-delay: 1.2s; }
+
+@keyframes login-ring-pulse {
+  0%   { width: 150px; height: 150px; opacity: 0.7; border-color: var(--purple-soft); }
+  100% { width: 340px; height: 340px; opacity: 0;   border-color: var(--purple); }
+}
+
 .login-logo {
   width: 100px;
   height: 100px;
-  border-radius: 28px;
-  box-shadow: 0 0 50px var(--purple-glow);
-  animation: pulse-glow 3.5s ease-in-out infinite;
-}
-
-@keyframes pulse-glow {
-  0%, 100% { box-shadow: 0 0 50px var(--purple-glow); }
-  50%       { box-shadow: 0 0 72px rgba(124,58,255,0.42); }
+  object-fit: contain;
+  position: relative;
+  z-index: 2;
+  /* drop-shadow em vez de box-shadow: a imagem agora é só o círculo
+     roxo com o "smiley", sem fundo quadrado — box-shadow desenharia o
+     brilho ao redor da caixa retangular invisível da imagem, não do
+     contorno circular visível. Reaproveita a mesma animação de brilho
+     pulsante do splash (splash-glow, já definida ali em cima). */
+  filter: drop-shadow(0 0 18px var(--purple-glow));
+  animation: splash-glow 2.2s ease-in-out infinite;
 }
 
 .login-title {
