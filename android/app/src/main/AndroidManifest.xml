@@ -37,6 +37,20 @@
                     android:host="happymusic-crn.pages.dev" />
             </intent-filter>
 
+            <!-- "Abrir com" pra arquivos de áudio do próprio aparelho —
+                 gerenciador de arquivos, um MP3 recebido por WhatsApp, etc.
+                 Sem android:autoVerify aqui: isso é exclusivo de App Links
+                 de domínio (o filtro acima), não se aplica a mimeType.
+                 O app recebe o arquivo pelo mesmo mecanismo já usado pro
+                 retorno do login (NativeApp.onUrlOpen, em native-bridge.js
+                 / app.js), sem precisar de nenhum código nativo novo. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:mimeType="audio/*" />
+            </intent-filter>
+
         </activity>
 
         <provider
