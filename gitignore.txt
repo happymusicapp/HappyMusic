@@ -1,0 +1,13 @@
+node_modules/
+output/
+*.keystore
+.DS_Store
+
+# Cópia do app sincronizada pelo `npx cap sync android` (roda a cada
+# build no GitHub Actions) — nunca deve ser commitada. Se você já tem
+# uma versão antiga commitada, apague manualmente esta pasta e os dois
+# arquivos json ao lado dela pelo GitHub (este .gitignore só evita que
+# voltem a ser commitados, não apaga o que já está lá).
+android/app/src/main/assets/public/
+android/app/src/main/assets/capacitor.config.json
+android/app/src/main/assets/capacitor.plugins.json
