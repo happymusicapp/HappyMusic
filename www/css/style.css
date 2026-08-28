@@ -158,9 +158,13 @@ img    { display: block; }
 .login-orb .ring-2 { animation-delay: 0.6s; }
 .login-orb .ring-3 { animation-delay: 1.2s; }
 
+/* Escala em vez de animar width/height diretamente — assim X e Y ficam
+   sempre amarrados na mesma proporção (não tem como um lado esticar
+   mais que o outro no meio da animação), e ainda reaproveita o
+   translate(-50%,-50%) de centralização que .ring já define. */
 @keyframes login-ring-pulse {
-  0%   { width: 150px; height: 150px; opacity: 0.7; border-color: var(--purple-soft); }
-  100% { width: 340px; height: 340px; opacity: 0;   border-color: var(--purple); }
+  0%   { transform: translate(-50%, -50%) scale(0.7);  opacity: 0.7; border-color: var(--purple-soft); }
+  100% { transform: translate(-50%, -50%) scale(1.65); opacity: 0;   border-color: var(--purple); }
 }
 
 .login-logo {
