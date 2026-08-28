@@ -135,10 +135,16 @@ img    { display: block; }
   text-align: center;
 }
 
-/* Mesmo efeito de ondas pulsando do splash (.ring/.ring-pulse), só que
-   escalado pro logo maior da tela de login (100px vs 72px do splash) —
-   por isso um raio inicial/final próprio em vez de reaproveitar os
-   tamanhos exatos do splash, que ficariam desproporcionais aqui. */
+/* Mesmo efeito de ondas pulsando do splash (.ring/.ring-pulse), mas com
+   classes 100% próprias (.login-ring, não .ring) — de propósito, sem
+   compartilhar NADA com as classes do splash. Antes eu tentava
+   "sobrescrever" .ring dentro de .login-orb via especificidade de CSS
+   (.login-orb .ring {...}), mas isso não bastou pra impedir que a
+   animação/tamanho originais do splash (ring-pulse, que anima width/
+   height direto) ainda vazassem pro anel do login em alguns aparelhos,
+   deixando ele achatado numa linha vertical fina em vez de um círculo.
+   Com classes totalmente separadas, essa interferência fica impossível
+   de acontecer de novo — não existe seletor em comum entre os dois. */
 .login-orb {
   position: relative;
   width: 130px;
@@ -148,20 +154,25 @@ img    { display: block; }
   justify-content: center;
 }
 
-.login-orb .ring {
+.login-ring {
+  position: absolute;
+  top: 50%;
+  left: 50%;
   width: 150px;
   height: 150px;
-  animation-name: login-ring-pulse;
+  border-radius: 50%;
+  border: 1.5px solid var(--purple-soft);
+  opacity: 0;
+  animation: login-ring-pulse 2.4s var(--ease) infinite;
 }
 
-.login-orb .ring-1 { animation-delay: 0s; }
-.login-orb .ring-2 { animation-delay: 0.6s; }
-.login-orb .ring-3 { animation-delay: 1.2s; }
+.login-ring-1 { animation-delay: 0s; }
+.login-ring-2 { animation-delay: 0.6s; }
+.login-ring-3 { animation-delay: 1.2s; }
 
-/* Escala em vez de animar width/height diretamente — assim X e Y ficam
-   sempre amarrados na mesma proporção (não tem como um lado esticar
-   mais que o outro no meio da animação), e ainda reaproveita o
-   translate(-50%,-50%) de centralização que .ring já define. */
+/* Escala em vez de animar width/height diretamente — X e Y ficam
+   sempre amarrados na mesma proporção, impossível um lado esticar mais
+   que o outro no meio da animação. */
 @keyframes login-ring-pulse {
   0%   { transform: translate(-50%, -50%) scale(0.7);  opacity: 0.7; border-color: var(--purple-soft); }
   100% { transform: translate(-50%, -50%) scale(1.65); opacity: 0;   border-color: var(--purple); }
