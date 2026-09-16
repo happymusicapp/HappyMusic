@@ -468,7 +468,7 @@ const Drive = (() => {
   // (_lastRefreshWasRevoked). Qualquer outra falha vira DRIVE_UNAVAILABLE,
   // que os chamadores tratam como "sem internet agora", sem tirar o
   // usuário da conta.
-  async function _authFetch(url, options = {}) {
+  async function _authFetch(url, options = {}, _retries = 2) {
     await _ensureValidToken();
 
     const _withAuth = () => ({
@@ -476,7 +476,26 @@ const Drive = (() => {
       headers: { ...(options.headers || {}), Authorization: `Bearer ${_token}` },
     });
 
-    let res = await fetch(url, _withAuth());
+    // fetch() só lança exceção (em vez de devolver uma resposta HTTP,
+    // mesmo que de erro) quando a requisição nem chegou a se completar de
+    // verdade — sinal fraco no carro, handoff entre torres de celular,
+    // troca WiFi↔dados no meio do download. É exatamente o tipo de falha
+    // passageira que acontece muito mais em dados móveis (variável,
+    // dirigindo) do que em WiFi (estável). Antes, qualquer uma dessas
+    // já derrubava a faixa de vez (e o player pulava pra próxima). Agora
+    // tenta de novo algumas vezes antes de desistir.
+    let res;
+    let attempt = 0;
+    while (true) {
+      try {
+        res = await fetch(url, _withAuth());
+        break;
+      } catch (networkErr) {
+        if (attempt >= _retries) throw networkErr;
+        attempt++;
+        await new Promise(r => setTimeout(r, 600 * attempt));
+      }
+    }
 
     if (res.status === 401) {
       const refreshed = await _refreshAccessToken();
