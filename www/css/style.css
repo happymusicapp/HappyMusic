@@ -259,6 +259,24 @@ img    { display: block; }
   letter-spacing: -0.02em;
 }
 
+/* Pulso bem discreto, letra a letra, no logotipo do header — cada letra
+   respira levemente fora de fase com a vizinha (efeito sutil, não deve
+   chamar atenção). Some pra quem prefere menos movimento na tela. */
+.header-title.logo-pulse .letter {
+  display: inline-block;
+  animation: hm-letter-pulse 3.6s ease-in-out infinite;
+  animation-delay: calc(var(--i) * 0.09s);
+}
+
+@keyframes hm-letter-pulse {
+  0%, 100% { transform: scale(1); }
+  50%      { transform: scale(1.06); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .header-title.logo-pulse .letter { animation: none; }
+}
+
 .header-right {
   display: flex;
   align-items: center;
