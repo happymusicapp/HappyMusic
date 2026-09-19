@@ -1136,6 +1136,20 @@ const App = (() => {
     UI.renderPlaylistTracks(_playlistTracks(playlist), _currentId());
   }
 
+  // Remove uma faixa da playlist atualmente aberta (via menu de 3 pontinhos).
+  // Só é chamada quando uma playlist de verdade está ativa (Favoritas usa
+  // o coração pra isso — ver opts.removable em UI.renderPlaylistTracks).
+  async function _removeTrackFromActivePlaylist(track) {
+    const playlist = _playlists.find(p => p.id === _activePlaylistId);
+    if (!playlist) return;
+    playlist.trackIds = playlist.trackIds.filter(id => id !== track.id);
+    UI.renderPlaylists(_playlists);
+    _renderActivePlaylistTracks();
+    _renderRecentCollections();
+    UI.showToast(`"${track.title}" removida da playlist`);
+    await _persistPlaylists();
+  }
+
   function _openPlaylist(id) {
     const playlist = _playlists.find(p => p.id === id);
     if (!playlist) return;
@@ -2160,6 +2174,7 @@ const App = (() => {
       onEdit: track => _openEditModal(track),
       onAddToPlaylist: track => _openAddToPlaylistModal(track),
       onDelete: track => _deleteTrack(track),
+      onRemoveFromPlaylist: track => _removeTrackFromActivePlaylist(track),
     });
 
     // Fecha modais novos ao clicar fora da caixa (mesmo padrão dos outros modais)

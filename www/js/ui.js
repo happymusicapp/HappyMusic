@@ -799,6 +799,12 @@ const UI = (() => {
     </svg>`;
   }
 
+  function _removeFromPlaylistIcon() {
+    return `<svg width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
+      <path d="M3 6h13M3 12h9M3 18h9"/><path d="M15 17h6"/>
+    </svg>`;
+  }
+
   function _favIcon(active, size = 17) {
     return `<svg width="${size}" height="${size}" fill="${active ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24" ${active ? 'style="color:var(--purple-soft)"' : ''}>
       <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
@@ -826,7 +832,7 @@ const UI = (() => {
   // ── MENU DE AÇÕES DA FAIXA (editar / add à playlist) ──
   // Popover simples e independente, sem framework — app.js registra o
   // que cada ação deve fazer via setTrackMenuHandlers.
-  let _trackMenuHandlers = { onEdit: null, onAddToPlaylist: null, onDelete: null };
+  let _trackMenuHandlers = { onEdit: null, onAddToPlaylist: null, onDelete: null, onRemoveFromPlaylist: null };
 
   function setTrackMenuHandlers(handlers) {
     _trackMenuHandlers = { ..._trackMenuHandlers, ...handlers };
@@ -840,7 +846,10 @@ const UI = (() => {
     if (!e.target.closest('.track-menu-popover') && !e.target.closest('[data-menu]')) _closeTrackMenu();
   }
 
-  function _openTrackMenu(trackId, anchorEl, tracks) {
+  // opts.removable: true quando o menu está sendo aberto dentro de uma
+  // playlist de verdade (não Favoritas) — só aí faz sentido "Remover da
+  // playlist", já que Favoritas usa o próprio coração pra isso.
+  function _openTrackMenu(trackId, anchorEl, tracks, opts = {}) {
     _closeTrackMenu();
     const track = tracks.find(t => t.id === trackId);
     if (!track) return;
@@ -853,6 +862,7 @@ const UI = (() => {
       <button data-action="favorite">${_favIcon(isFav)}<span>${isFav ? 'Remover dos favoritos' : 'Adicionar aos favoritos'}</span></button>
       <button data-action="edit">${_editIcon()}<span>Editar informações</span></button>
       <button data-action="playlist">${_addToPlaylistIcon()}<span>Adicionar à playlist</span></button>
+      ${opts.removable ? `<button data-action="remove-playlist">${_removeFromPlaylistIcon()}<span>Remover desta playlist</span></button>` : ''}
       <div class="track-menu-popover-divider"></div>
       <button data-action="delete" class="danger">${_trashIcon()}<span>Excluir do Drive</span></button>
     `;
@@ -894,6 +904,7 @@ const UI = (() => {
       _closeTrackMenu();
       if (action === 'edit') _trackMenuHandlers.onEdit?.(track);
       if (action === 'playlist') _trackMenuHandlers.onAddToPlaylist?.(track);
+      if (action === 'remove-playlist') _trackMenuHandlers.onRemoveFromPlaylist?.(track);
       if (action === 'delete') _trackMenuHandlers.onDelete?.(track);
       if (action === 'favorite') {
         const fav = Player.toggleFavorite(track.id);
@@ -1621,7 +1632,9 @@ const UI = (() => {
       return;
     }
     renderTrackList(el.playlistTracksList, tracks, currentId);
-    bindTrackListEvents(el.playlistTracksList, tracks);
+    // "Remover desta playlist" só faz sentido numa playlist de verdade —
+    // em Favoritas, o coração já cumpre esse papel.
+    bindTrackListEvents(el.playlistTracksList, tracks, { removable: !isFavorites });
   }
 
   // ── MODAL: NOVA PLAYLIST ───────────────────────
@@ -2445,13 +2458,17 @@ const UI = (() => {
   // única vez por container; só a referência de tracks é atualizada.
   const _trackListData = new WeakMap();
 
-  function bindTrackListEvents(container, tracks) {
+  const _trackListOpts = new WeakMap(); // container -> opts (ex.: { removable })
+
+  function bindTrackListEvents(container, tracks, opts = {}) {
     _trackListData.set(container, tracks);
+    _trackListOpts.set(container, opts);
     if (container.dataset.hmBound) return;
     container.dataset.hmBound = '1';
 
     container.addEventListener('click', e => {
       const currentTracks = _trackListData.get(container) || [];
+      const currentOpts = _trackListOpts.get(container) || {};
 
       const dlBtn = e.target.closest('[data-dl]');
       if (dlBtn) {
@@ -2463,7 +2480,7 @@ const UI = (() => {
       const menuBtn = e.target.closest('[data-menu]');
       if (menuBtn) {
         e.stopPropagation();
-        _openTrackMenu(menuBtn.dataset.menu, menuBtn, currentTracks);
+        _openTrackMenu(menuBtn.dataset.menu, menuBtn, currentTracks, currentOpts);
         return;
       }
 
