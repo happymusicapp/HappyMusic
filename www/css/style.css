@@ -2258,7 +2258,32 @@ img    { display: block; }
   white-space: nowrap;
 }
 
-.playlist-detail-actions { display: flex; gap: var(--sp-2); flex-wrap: wrap; margin-bottom: var(--sp-3); }
+.playlist-detail-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--sp-3);
+  margin-bottom: var(--sp-4);
+}
+.playlist-detail-actions .btn-outline { margin-top: 0; }
+
+/* "Tocar tudo": ação principal da playlist — largo, com o gradiente da
+   marca e brilho, pra ser a primeira coisa que o olho encontra. */
+.btn-play-all {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 54px;
+  padding: 0 var(--sp-5);
+  font-size: 1.05rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  box-shadow: 0 10px 28px rgba(124,58,255,0.5), inset 0 1px 0 rgba(255,255,255,0.22);
+}
+.btn-play-all svg { flex-shrink: 0; filter: drop-shadow(0 1px 2px rgba(0,0,0,0.25)); }
+.btn-play-all-count { font-size: 0.82rem; font-weight: 500; opacity: 0.85; }
 
 /* Card fixo de Favoritas no topo da grade de playlists */
 .playlist-card-art-fav { background: linear-gradient(135deg, #ff5c8a, #ff8fab); }
