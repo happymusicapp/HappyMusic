@@ -236,9 +236,11 @@
               </button>
             </div>
             <div class="playlist-detail-actions">
-              <button id="btn-playlist-play" class="btn-outline btn-small btn-icon-label">
-                <svg width="15" height="15" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
-                Tocar tudo
+              <!-- Ação principal da tela: botão grande com o gradiente da marca -->
+              <button id="btn-playlist-play" class="btn-primary btn-play-all">
+                <svg width="22" height="22" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>
+                <span>Tocar tudo</span>
+                <span id="btn-playlist-play-count" class="btn-play-all-count"></span>
               </button>
               <button id="btn-playlist-add-tracks" class="btn-outline btn-small btn-icon-label">
                 <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
@@ -652,7 +654,7 @@
     <div class="modal-box modal-box-wide filter-picker-box">
       <button id="btn-filter-picker-close" class="modal-close" aria-label="Fechar"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
       <h2 id="filter-picker-title" class="modal-title">Gênero</h2>
-      <p class="filter-picker-hint">Toque para selecionar mais de um artista</p>
+      <p id="filter-picker-hint" class="filter-picker-hint">Toque para selecionar mais de um artista</p>
       <div class="filter-picker-search-wrap">
         <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
         <input type="text" id="filter-picker-search" class="filter-picker-search" placeholder="Buscar..." />
@@ -786,6 +788,32 @@
       <button id="btn-add-tracks-picker-close" class="modal-close" aria-label="Fechar"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
       <h2 class="modal-title">Adicionar músicas</h2>
       <input id="add-tracks-picker-search" type="text" class="text-input" placeholder="Buscar na sua biblioteca…" style="margin-bottom:var(--sp-2);" />
+
+      <!-- Filtros: cada chip abre o mesmo seletor com busca da Biblioteca
+           (multi-seleção). Um estreita as opções do outro. -->
+      <div class="filter-chip-row add-tracks-filters">
+        <button type="button" id="add-picker-chip-genre" class="filter-chip" aria-label="Filtrar por gênero">
+          <svg class="filter-chip-icon" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="m20.59 13.41-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82Z"/><circle cx="7" cy="7" r="1.4" fill="currentColor" stroke="none"/></svg>
+          <span class="filter-chip-label">Gênero</span>
+          <svg class="filter-chip-caret" width="9" height="9" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg>
+        </button>
+        <button type="button" id="add-picker-chip-artist" class="filter-chip" aria-label="Filtrar por artista">
+          <svg class="filter-chip-icon" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2M12 19v4M8 23h8"/></svg>
+          <span class="filter-chip-label">Artista</span>
+          <svg class="filter-chip-caret" width="9" height="9" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg>
+        </button>
+      </div>
+      <div class="add-tracks-toolbar">
+        <div class="add-tracks-info">
+          <span id="add-tracks-picker-summary" class="add-tracks-summary"></span>
+          <button type="button" id="btn-add-tracks-clear-filters" class="filter-clear hidden">
+            <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg>
+            Limpar
+          </button>
+        </div>
+        <button type="button" id="btn-add-tracks-select-all" class="add-tracks-select-all">Marcar todas</button>
+      </div>
+
       <div id="add-tracks-picker-list" class="folder-list"></div>
       <button id="btn-add-tracks-picker-confirm" class="btn-primary" style="margin-top:var(--sp-3);">Concluir</button>
     </div>
