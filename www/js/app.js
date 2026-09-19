@@ -166,7 +166,7 @@ const App = (() => {
 
     // Estado inicial de conexão (faixa "Sem internet" + músicas não
     // baixadas esmaecidas). Os eventos online/offline mantêm em dia depois.
-    UI.setOnlineState(navigator.onLine);
+    UI.setOnlineState?.(navigator.onLine);
 
     // 1. Bind eventos fixos (player, nav, search)
     UI.bindPlayerEvents();
@@ -1261,7 +1261,7 @@ const App = (() => {
   }
 
   function _updateAddTracksToolbar() {
-    UI.setAddTracksPickerToolbar({
+    UI.setAddTracksPickerToolbar?.({
       shown: _pickerShown.length,
       total: Drive.getCachedTracks().length,
       genres: _pickerFilters.genre,
@@ -1311,7 +1311,7 @@ const App = (() => {
     UI.el.addTracksPickerSearch.addEventListener('input', () => _refreshAddTracksPicker());
 
     [['genre', UI.el.addPickerChipGenre], ['artist', UI.el.addPickerChipArtist]].forEach(([type, chip]) => {
-      chip.addEventListener('click', () => {
+      chip?.addEventListener('click', () => {
         UI.showFilterPicker(type, _pickerFilters[type], values => {
           _pickerFilters[type] = values;
           _refreshAddTracksPicker();
@@ -1319,14 +1319,14 @@ const App = (() => {
       });
     });
 
-    UI.el.btnAddTracksClearFilters.addEventListener('click', () => {
+    UI.el.btnAddTracksClearFilters?.addEventListener('click', () => {
       _pickerFilters = { genre: [], artist: [] };
       _refreshAddTracksPicker();
     });
 
     // Marca (ou desmarca) tudo o que está aparecendo — o atalho pra quando
     // o filtro já isolou o que a pessoa quer (ex.: todas do artista X).
-    UI.el.btnAddTracksSelectAll.addEventListener('click', () => {
+    UI.el.btnAddTracksSelectAll?.addEventListener('click', () => {
       const allSelected = _pickerShown.length > 0 && _pickerShown.every(t => _pickerSelectedIds.has(t.id));
       _pickerShown.forEach(t => allSelected ? _pickerSelectedIds.delete(t.id) : _pickerSelectedIds.add(t.id));
       UI.renderAddTracksPicker(_pickerShown, _pickerSelectedIds);
@@ -1349,9 +1349,15 @@ const App = (() => {
       const playlist = _playlists.find(p => p.id === _activePlaylistId);
       if (!playlist) { UI.hideAddTracksPickerModal(); return; }
       playlist.trackIds = [..._pickerSelectedIds];
-      UI.renderPlaylists(_playlists);
-      _renderActivePlaylistTracks();
+      // Fecha primeiro e protege o redesenho: um erro ao desenhar a tela
+      // nunca pode deixar o "Concluir" travado sem fechar nem salvar.
       UI.hideAddTracksPickerModal();
+      try {
+        UI.renderPlaylists(_playlists);
+        _renderActivePlaylistTracks();
+      } catch (err) {
+        console.error('[App] Falha ao redesenhar a playlist:', err);
+      }
       UI.showToast('Playlist atualizada');
       await _persistPlaylists();
     });
@@ -2218,11 +2224,11 @@ const App = (() => {
 
     // Erros de rede globais
     window.addEventListener('online', () => {
-      UI.setOnlineState(true);
+      UI.setOnlineState?.(true);
       UI.showToast('Conexão restaurada');
     });
     window.addEventListener('offline', () => {
-      UI.setOnlineState(false);
+      UI.setOnlineState?.(false);
       UI.showToast('Sem internet — só as músicas baixadas tocam', 3500);
     });
   }

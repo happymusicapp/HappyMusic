@@ -1110,6 +1110,7 @@ const UI = (() => {
   // o nome quando só 1 estiver selecionado, ou "2 artistas" etc quando
   // for mais de um.
   function _setChipMulti(chip, label, activeValues, placeholder) {
+    if (!chip) return;
     const values = activeValues || [];
     let text = placeholder;
     if (values.length === 1) text = values[0];
@@ -1603,10 +1604,15 @@ const UI = (() => {
 
   function renderPlaylistTracks(tracks, currentId = null, isFavorites = false) {
     // "Tocar tudo" só faz sentido com músicas na lista; mostra quantas são.
-    el.btnPlaylistPlay.classList.toggle('hidden', !tracks.length);
-    el.btnPlaylistPlayCount.textContent = tracks.length
-      ? `· ${tracks.length} ${tracks.length === 1 ? 'música' : 'músicas'}`
-      : '';
+    // (Tudo com ?. de propósito: se o index.html estiver desatualizado e
+    // faltar algum desses elementos, a LISTA da playlist tem que ser
+    // desenhada do mesmo jeito — nunca pode quebrar por causa de enfeite.)
+    el.btnPlaylistPlay?.classList.toggle('hidden', !tracks.length);
+    if (el.btnPlaylistPlayCount) {
+      el.btnPlaylistPlayCount.textContent = tracks.length
+        ? `· ${tracks.length} ${tracks.length === 1 ? 'música' : 'músicas'}`
+        : '';
+    }
 
     if (!tracks.length) {
       el.playlistTracksList.innerHTML = isFavorites
@@ -1696,15 +1702,19 @@ const UI = (() => {
     _setChipMulti(el.addPickerChipArtist, 'Artista', artists, 'Artista');
 
     const hasChipFilter = genres.length > 0 || artists.length > 0;
-    el.btnAddTracksClearFilters.classList.toggle('hidden', !hasChipFilter);
+    el.btnAddTracksClearFilters?.classList.toggle('hidden', !hasChipFilter);
 
     // Filtrado: "16 de 92" (curto, pra caber ao lado do "Limpar" em tela pequena)
-    el.addTracksPickerSummary.textContent = shown !== total
-      ? `${shown} de ${total}`
-      : `${total} ${total === 1 ? 'música' : 'músicas'}`;
+    if (el.addTracksPickerSummary) {
+      el.addTracksPickerSummary.textContent = shown !== total
+        ? `${shown} de ${total}`
+        : `${total} ${total === 1 ? 'música' : 'músicas'}`;
+    }
 
-    el.btnAddTracksSelectAll.classList.toggle('hidden', shown === 0);
-    el.btnAddTracksSelectAll.textContent = `${allShownSelected ? 'Desmarcar' : 'Marcar'} todas (${shown})`;
+    if (el.btnAddTracksSelectAll) {
+      el.btnAddTracksSelectAll.classList.toggle('hidden', shown === 0);
+      el.btnAddTracksSelectAll.textContent = `${allShownSelected ? 'Desmarcar' : 'Marcar'} todas (${shown})`;
+    }
 
     el.btnAddTracksPickerConfirm.textContent = selectedCount
       ? `Concluir · ${selectedCount} ${selectedCount === 1 ? 'selecionada' : 'selecionadas'}`
