@@ -1247,25 +1247,90 @@ const App = (() => {
 
   let _pickerSelectedIds = new Set();
 
+  // Filtros do seletor "Adicionar músicas" — independentes dos filtros da
+  // Biblioteca (mexer aqui não muda a lista lá, e vice-versa).
+  let _pickerFilters = { genre: [], artist: [] };
+  let _pickerShown = [];   // o que está aparecendo na lista agora (busca + filtros)
+
+  function _pickerVisibleTracks() {
+    const q = UI.el.addTracksPickerSearch.value.trim().toLowerCase();
+    const list = Drive.filterTracks(_pickerFilters);
+    return q
+      ? list.filter(t => t.title.toLowerCase().includes(q) || t.artist.toLowerCase().includes(q))
+      : list;
+  }
+
+  function _updateAddTracksToolbar() {
+    UI.setAddTracksPickerToolbar({
+      shown: _pickerShown.length,
+      total: Drive.getCachedTracks().length,
+      genres: _pickerFilters.genre,
+      artists: _pickerFilters.artist,
+      allShownSelected: _pickerShown.length > 0 && _pickerShown.every(t => _pickerSelectedIds.has(t.id)),
+      selectedCount: _pickerSelectedIds.size,
+    });
+  }
+
+  function _refreshAddTracksPicker() {
+    _pickerShown = _pickerVisibleTracks();
+    UI.renderAddTracksPicker(_pickerShown, _pickerSelectedIds);
+    _updateAddTracksToolbar();
+  }
+
+  // Opções de um filtro com a contagem de músicas de cada uma, levando em
+  // conta o OUTRO filtro (escolheu o gênero Rock → em Artista só aparecem
+  // artistas de Rock). Valores já selecionados ficam sempre na lista, pra
+  // dar pra desmarcar mesmo que o outro filtro os tenha zerado.
+  function _pickerFilterOptions(type) {
+    const other = type === 'genre' ? { artist: _pickerFilters.artist } : { genre: _pickerFilters.genre };
+    const counts = new Map();
+    Drive.filterTracks(other).forEach(t => {
+      const v = t[type];
+      if (v) counts.set(v, (counts.get(v) || 0) + 1);
+    });
+    _pickerFilters[type].forEach(v => { if (!counts.has(v)) counts.set(v, 0); });
+    return [...counts.entries()]
+      .sort((a, b) => a[0].localeCompare(b[0], 'pt-BR'))
+      .map(([value, n]) => ({ value, label: `${value} · ${n}` }));
+  }
+
   function _openAddTracksPicker() {
     if (_activePlaylistId === FAVORITES_ID) return;
     const playlist = _playlists.find(p => p.id === _activePlaylistId);
     if (!playlist) return;
     _pickerSelectedIds = new Set(playlist.trackIds);
+    _pickerFilters = { genre: [], artist: [] };
     UI.showAddTracksPickerModal(Drive.getCachedTracks(), _pickerSelectedIds);
+    _refreshAddTracksPicker();
   }
 
   function _bindAddTracksPickerEvents() {
     UI.el.btnPlaylistAddTracks.addEventListener('click', () => _openAddTracksPicker());
     UI.el.btnAddTracksPickerClose.addEventListener('click', () => UI.hideAddTracksPickerModal());
 
-    UI.el.addTracksPickerSearch.addEventListener('input', e => {
-      const q = e.target.value.trim().toLowerCase();
-      const all = Drive.getCachedTracks();
-      const filtered = q
-        ? all.filter(t => t.title.toLowerCase().includes(q) || t.artist.toLowerCase().includes(q))
-        : all;
-      UI.renderAddTracksPicker(filtered, _pickerSelectedIds);
+    UI.el.addTracksPickerSearch.addEventListener('input', () => _refreshAddTracksPicker());
+
+    [['genre', UI.el.addPickerChipGenre], ['artist', UI.el.addPickerChipArtist]].forEach(([type, chip]) => {
+      chip.addEventListener('click', () => {
+        UI.showFilterPicker(type, _pickerFilters[type], values => {
+          _pickerFilters[type] = values;
+          _refreshAddTracksPicker();
+        }, { multi: true, options: _pickerFilterOptions(type) });
+      });
+    });
+
+    UI.el.btnAddTracksClearFilters.addEventListener('click', () => {
+      _pickerFilters = { genre: [], artist: [] };
+      _refreshAddTracksPicker();
+    });
+
+    // Marca (ou desmarca) tudo o que está aparecendo — o atalho pra quando
+    // o filtro já isolou o que a pessoa quer (ex.: todas do artista X).
+    UI.el.btnAddTracksSelectAll.addEventListener('click', () => {
+      const allSelected = _pickerShown.length > 0 && _pickerShown.every(t => _pickerSelectedIds.has(t.id));
+      _pickerShown.forEach(t => allSelected ? _pickerSelectedIds.delete(t.id) : _pickerSelectedIds.add(t.id));
+      UI.renderAddTracksPicker(_pickerShown, _pickerSelectedIds);
+      _updateAddTracksToolbar();
     });
 
     UI.el.addTracksPickerList.addEventListener('click', e => {
@@ -1277,6 +1342,7 @@ const App = (() => {
       item.classList.toggle('selected');
       const cb = item.querySelector('input[type="checkbox"]');
       if (cb) cb.checked = item.classList.contains('selected');
+      _updateAddTracksToolbar();
     });
 
     UI.el.btnAddTracksPickerConfirm.addEventListener('click', async () => {

@@ -120,6 +120,7 @@ const UI = (() => {
     modalFilterPicker:   $('modal-filter-picker'),
     btnFilterPickerClose: $('btn-filter-picker-close'),
     filterPickerTitle:  $('filter-picker-title'),
+    filterPickerHint:   $('filter-picker-hint'),
     filterPickerSearch: $('filter-picker-search'),
     filterPickerList:   $('filter-picker-list'),
 
@@ -209,6 +210,11 @@ const UI = (() => {
     modalAddTracksToPlaylist:  $('modal-add-tracks-to-playlist'),
     addTracksPickerSearch:     $('add-tracks-picker-search'),
     addTracksPickerList:       $('add-tracks-picker-list'),
+    addPickerChipGenre:        $('add-picker-chip-genre'),
+    addPickerChipArtist:       $('add-picker-chip-artist'),
+    addTracksPickerSummary:    $('add-tracks-picker-summary'),
+    btnAddTracksClearFilters:  $('btn-add-tracks-clear-filters'),
+    btnAddTracksSelectAll:     $('btn-add-tracks-select-all'),
     btnAddTracksPickerConfirm: $('btn-add-tracks-picker-confirm'),
     btnAddTracksPickerClose:   $('btn-add-tracks-picker-close'),
 
@@ -1241,8 +1247,12 @@ const UI = (() => {
   // "Fulano - Beltrano"): activeValues é um array, cada toque
   // liga/desliga um valor sem fechar o modal, e onSelect(arrayAtual) é
   // chamado a cada mudança. O usuário fecha manualmente quando terminar.
-  function showFilterPicker(type, activeValue, onSelect, { multi = false } = {}) {
-    const options = _filterData[type + 's'] || [];
+  //
+  // { options }: lista própria de opções (strings ou {value, label}) em
+  // vez da lista geral da biblioteca — usado pelo seletor "Adicionar
+  // músicas", que mostra só o que sobra depois do outro filtro, com contagem.
+  function showFilterPicker(type, activeValue, onSelect, { multi = false, options: customOptions = null } = {}) {
+    const options = customOptions || _filterData[type + 's'] || [];
     const showAllRow = type !== 'moviecollection'; // coleções já tem "Todos os vídeos" na própria lista
     _pickerAllOptions = options;
     _pickerOnSelect = onSelect;
@@ -1251,6 +1261,9 @@ const UI = (() => {
     _pickerMultiValues = multi ? [...(activeValue || [])] : [];
 
     el.filterPickerTitle.textContent = FILTER_TITLES[type] || '';
+    if (el.filterPickerHint) {
+      el.filterPickerHint.textContent = `Toque para selecionar mais de um ${(FILTER_TITLES[type] || '').toLowerCase()}`;
+    }
     el.filterPickerSearch.value = '';
     _renderPickerList(options, multi ? _pickerMultiValues : activeValue, '', showAllRow);
 
@@ -1654,7 +1667,8 @@ const UI = (() => {
     el.addTracksPickerSearch.value = '';
     renderAddTracksPicker(tracks, selectedIds);
     el.modalAddTracksToPlaylist.classList.remove('hidden');
-    el.addTracksPickerSearch.focus();
+    // sem foco automático na busca: o teclado cobriria os filtros e a lista
+    el.addTracksPickerList.scrollTop = 0;
   }
   function hideAddTracksPickerModal() {
     el.modalAddTracksToPlaylist.classList.add('hidden');
@@ -1673,6 +1687,28 @@ const UI = (() => {
         </span>
       </div>
     `).join('');
+  }
+
+  // Barra de filtros do seletor "Adicionar músicas": rótulos dos chips,
+  // contagem, "Limpar", "Selecionar todas" e o total no botão "Concluir".
+  function setAddTracksPickerToolbar({ shown, total, genres = [], artists = [], allShownSelected = false, selectedCount = 0 }) {
+    _setChipMulti(el.addPickerChipGenre,  'Gênero',  genres,  'Gênero');
+    _setChipMulti(el.addPickerChipArtist, 'Artista', artists, 'Artista');
+
+    const hasChipFilter = genres.length > 0 || artists.length > 0;
+    el.btnAddTracksClearFilters.classList.toggle('hidden', !hasChipFilter);
+
+    // Filtrado: "16 de 92" (curto, pra caber ao lado do "Limpar" em tela pequena)
+    el.addTracksPickerSummary.textContent = shown !== total
+      ? `${shown} de ${total}`
+      : `${total} ${total === 1 ? 'música' : 'músicas'}`;
+
+    el.btnAddTracksSelectAll.classList.toggle('hidden', shown === 0);
+    el.btnAddTracksSelectAll.textContent = `${allShownSelected ? 'Desmarcar' : 'Marcar'} todas (${shown})`;
+
+    el.btnAddTracksPickerConfirm.textContent = selectedCount
+      ? `Concluir · ${selectedCount} ${selectedCount === 1 ? 'selecionada' : 'selecionadas'}`
+      : 'Concluir';
   }
 
   // ── VÍDEOS ──────────────────────────────────────
@@ -2606,6 +2642,7 @@ const UI = (() => {
     showAddTracksPickerModal,
     hideAddTracksPickerModal,
     renderAddTracksPicker,
+    setAddTracksPickerToolbar,
 
     // Vídeos
     renderMovieGrid,
