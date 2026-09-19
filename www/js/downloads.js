@@ -28,6 +28,12 @@ const Downloads = (() => {
 
   let _swReady = false;
 
+  // Vira true depois da primeira conferência do que está de fato baixado
+  // (refreshCachedIds). Antes disso _cached ainda pode estar vazio só
+  // porque a leitura não terminou — o player usa isso pra não dizer
+  // "essa música não foi baixada" cedo demais (ver player.js).
+  let _synced = false;
+
   // ── EVENTOS ────────────────────────────────────
   function onChange(fn) { _listeners.add(fn); return () => _listeners.delete(fn); }
   function _notify(id, state) { _listeners.forEach(fn => { try { fn(id, state); } catch {} }); }
@@ -57,6 +63,13 @@ const Downloads = (() => {
   // faixas já estão baixadas — corrige o estado local caso algo tenha
   // sido descartado por fora do app (ex.: limite de espaço do sistema).
   function refreshCachedIds() {
+    return _refreshCachedIdsNow().then(
+      ids => { _synced = true; return ids; },
+      err => { _synced = true; throw err; }
+    );
+  }
+
+  function _refreshCachedIdsNow() {
     if (_native()) {
       return window.NativeFS.listDownloadedIds().then(ids => {
         _cached.clear();
@@ -88,6 +101,7 @@ const Downloads = (() => {
     });
   }
 
+  function isSynced()        { return _synced; }
   function isDownloaded(id)  { return _cached.has(id); }
   function isDownloading(id) { return _downloading.has(id); }
 
@@ -238,6 +252,7 @@ const Downloads = (() => {
   return {
     onChange,
     refreshCachedIds,
+    isSynced,
     isDownloaded,
     isDownloading,
     downloadTrack,

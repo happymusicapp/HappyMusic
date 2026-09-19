@@ -164,6 +164,10 @@ const App = (() => {
     if (_initialized) return;
     _initialized = true;
 
+    // Estado inicial de conexão (faixa "Sem internet" + músicas não
+    // baixadas esmaecidas). Os eventos online/offline mantêm em dia depois.
+    UI.setOnlineState(navigator.onLine);
+
     // 1. Bind eventos fixos (player, nav, search)
     UI.bindPlayerEvents();
     _bindAppEvents();
@@ -1228,7 +1232,9 @@ const App = (() => {
         ? Player.getFavorites()
         : _playlistTracks(_playlists.find(p => p.id === _activePlaylistId) || { trackIds: [] });
       if (!tracks.length) { UI.showToast('Essa playlist ainda está vazia.'); return; }
-      Player.loadQueue(tracks, 0);
+      // Botão "tocar a lista": sem internet, começa pela primeira música
+      // baixada em vez de recusar (o usuário não escolheu uma faixa específica).
+      Player.loadQueue(tracks, 0, { skipUnavailable: true });
     });
 
     // Mantém a tela de Favoritas (se aberta) e a contagem no card sincronizadas
@@ -2145,8 +2151,14 @@ const App = (() => {
     });
 
     // Erros de rede globais
-    window.addEventListener('online',  () => UI.showToast('Conexão restaurada'));
-    window.addEventListener('offline', () => UI.showToast('Sem conexão com a internet'));
+    window.addEventListener('online', () => {
+      UI.setOnlineState(true);
+      UI.showToast('Conexão restaurada');
+    });
+    window.addEventListener('offline', () => {
+      UI.setOnlineState(false);
+      UI.showToast('Sem internet — só as músicas baixadas tocam', 3500);
+    });
   }
 
   // ── EXPORT ────────────────────────────────────

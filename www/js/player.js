@@ -27,17 +27,52 @@ const Player = (() => {
     onTrackSkipped:null,  // (failedTrack, err) => {} — disparado a cada faixa pulada automaticamente por erro (ver _handlePlaybackFailure)
     onOfflineSkip: null,  // (track) => {} — disparado ao pular pra próxima faixa baixada, sem internet
     onAllOffline:  null,  // () => {} — disparado quando, offline, nenhuma faixa da fila está baixada
+    onOfflineBlocked: null, // (track, info) => {} — o usuário ESCOLHEU uma faixa que não toca sem internet; nada foi trocado (ver _blockIfUnavailableOffline / _abortExplicit)
     onAutoContinue: null, // (tracks) => {} — disparado ao completar a fila sozinho (modo rádio)
   };
 
   // ── FILA ──────────────────────────────────────
-  function loadQueue(tracks, startIndex = 0) {
+  // opts.skipUnavailable: usar em botões do tipo "tocar esta lista/playlist"
+  // (o usuário não escolheu uma faixa específica). Sem internet, começa
+  // pela primeira faixa baixada em vez de recusar.
+  // Sem essa opção (toque numa faixa específica da lista), a faixa
+  // escolhida é a que toca — ou, se não puder tocar, avisa e NÃO troca
+  // por outra (era isso que deixava o usuário sem entender nada).
+  // Retorna true se a fila foi carregada, false se foi recusada.
+  function loadQueue(tracks, startIndex = 0, opts = {}) {
+    let start = startIndex;
+    let skippedTo = null;
+
+    if (_isOffline() && tracks.length) {
+      if (opts.skipUnavailable) {
+        const found = _firstPlayableIndex(tracks, start);
+        if (found === -1) {
+          _listeners.onAllOffline?.();
+          return false;
+        }
+        if (found !== start) skippedTo = tracks[found];
+        start = found;
+      } else if (_blockIfUnavailableOffline(tracks[start])) {
+        return false;
+      }
+    }
+
+    // Foto do estado atual, pra desfazer se a faixa escolhida falhar por
+    // conexão (sinal fraco / wifi sem internet — casos em que
+    // navigator.onLine ainda diz "true"): ver _abortExplicit.
+    const snapshot = _snapshot();
+
     _originalQueue = [...tracks];
-    _queue         = _shuffle ? _shuffled(tracks, startIndex) : [...tracks];
-    _index         = _shuffle ? 0 : startIndex;
+    _queue         = _shuffle ? _shuffled(tracks, start) : [...tracks];
+    _index         = _shuffle ? 0 : start;
     _preloadedTrackId = null;
     _loadedTrackId = null;
-    _play();
+    _play(0, { explicit: true, snapshot });
+
+    // Depois do _play() de propósito: o onLoading dele mostra "Carregando…"
+    // e este aviso (mais importante) tem que ser o que fica na tela.
+    if (skippedTo) _listeners.onOfflineSkip?.(skippedTo);
+    return true;
   }
 
   // Prepara a fila e a faixa atual SEM iniciar a reprodução — usado só
@@ -98,10 +133,115 @@ const Player = (() => {
   // ── ELEMENTO DE ÁUDIO (acesso bruto ao <audio>, se precisar) ──
   function getAudioElement() { return audio; }
 
+  // ── CONEXÃO / O QUE TOCA SEM INTERNET ───────────
+  // navigator.onLine só vira "false" quando o aparelho SABE que está sem
+  // rede (modo avião, wifi e dados desligados). Sinal fraco no carro ou
+  // wifi sem internet continuam "true" — esses casos são pegos na hora
+  // de carregar a faixa (ver _isConnectivityError).
+  function _isOffline() {
+    return typeof navigator !== 'undefined' && navigator.onLine === false;
+  }
+
+  // Há prova concreta de que a faixa toca sem internet? (baixada no
+  // aparelho, já carregada na memória nesta sessão, ou arquivo externo
+  // aberto direto do celular)
+  function _isKnownPlayableOffline(track) {
+    if (!track) return false;
+    if (track.isExternal) return true;
+    if (typeof Drive !== 'undefined' && Drive.hasAudioInMemory?.(track.id)) return true;
+    return typeof Downloads !== 'undefined' && Downloads.isDownloaded(track.id);
+  }
+
+  // Versão que decide se BLOQUEIA: enquanto o app ainda não terminou de
+  // conferir o que está baixado (primeiros instantes após abrir), não dá
+  // pra afirmar que a faixa "não foi baixada" — então não bloqueia, deixa
+  // tentar (se falhar por conexão, _abortExplicit avisa do mesmo jeito).
+  function _isPlayableOffline(track) {
+    if (typeof Downloads !== 'undefined' && Downloads.isSynced && !Downloads.isSynced()) return true;
+    return _isKnownPlayableOffline(track);
+  }
+
+  // Erro de rede (e não um problema da faixa em si, tipo 403/404).
+  // Dois formatos: fetch() lançando TypeError sem rede ("Failed to fetch",
+  // "Load failed"...) ou o Service Worker respondendo 503 "Áudio
+  // indisponível offline" (sw.js) — o que chega aqui como "HTTP 503".
+  function _isConnectivityError(err) {
+    if (!err) return false;
+    const msg = String(err.message || '');
+    if (err instanceof TypeError) return /fetch|network|load failed/i.test(msg);
+    return msg === 'DRIVE_UNAVAILABLE' || /^HTTP (502|503|504)$/.test(msg);
+  }
+
+  // Primeira faixa que toca offline a partir de startIndex (dando a volta
+  // na lista). -1 se nenhuma.
+  function _firstPlayableIndex(tracks, startIndex) {
+    for (let n = 0; n < tracks.length; n++) {
+      const i = (startIndex + n) % tracks.length;
+      if (_isPlayableOffline(tracks[i])) return i;
+    }
+    return -1;
+  }
+
+  // Próxima faixa da fila que toca offline, andando de `from` na direção
+  // `dir` (+1 / -1). Só dá a volta na fila com repeat 'all'. -1 se acabou.
+  function _seekPlayable(from, dir) {
+    const len = _queue.length;
+    for (let n = 0; n < len; n++) {
+      let i = from + dir * n;
+      if (i < 0 || i >= len) {
+        if (_repeat !== 'all') return -1;
+        i = ((i % len) + len) % len;
+      }
+      if (_isPlayableOffline(_queue[i])) return i;
+    }
+    return -1;
+  }
+
+  // Usuário escolheu uma faixa específica que não toca sem internet.
+  // Não mexe em NADA (fila, índice, o que está tocando continua tocando)
+  // e só avisa. Retorna true se bloqueou.
+  function _blockIfUnavailableOffline(track) {
+    if (!track || !_isOffline() || _isPlayableOffline(track)) return false;
+    _listeners.onOfflineBlocked?.(track, {
+      reason: 'offline', restore: null, wasPlaying: !audio.paused,
+    });
+    return true;
+  }
+
+  // Foto do estado da fila, pra poder desfazer uma escolha que falhou.
+  function _snapshot() {
+    return {
+      queue: _queue, originalQueue: _originalQueue, index: _index,
+      loadedTrackId: _loadedTrackId, preloadedTrackId: _preloadedTrackId,
+    };
+  }
+
+  // A faixa escolhida falhou por conexão. Volta a fila pro que era antes
+  // (o <audio> nem foi tocado ainda — só troca de src quando a busca da
+  // faixa dá certo, então o que já estava tocando segue tocando) e avisa
+  // a UI pra voltar o player ao normal + mostrar o motivo.
+  function _abortExplicit(track, snap) {
+    let restore = null;
+    if (snap && snap.queue.length) {
+      _queue = snap.queue;
+      _originalQueue = snap.originalQueue;
+      _index = snap.index;
+      _loadedTrackId = snap.loadedTrackId;
+      _preloadedTrackId = snap.preloadedTrackId;
+      restore = getCurrentTrack();
+    }
+    _listeners.onOfflineBlocked?.(track, {
+      reason: 'network', restore, wasPlaying: !audio.paused,
+    });
+  }
+
   // ── PLAY / PAUSE ──────────────────────────────
   let _loadToken = 0; // evita race condition ao trocar de faixa rápido
 
-  async function _play(_skipAttempts = 0) {
+  // _ctx = { explicit, snapshot } quando quem chamou foi uma ESCOLHA do
+  // usuário (toque na lista, botão play numa faixa ainda não carregada...).
+  // Nesse caso, falha de conexão não pode virar "toca outra faixa": ver catch.
+  async function _play(_skipAttempts = 0, _ctx = null) {
     const track = getCurrentTrack();
     if (!track) return;
 
@@ -142,7 +282,21 @@ const Player = (() => {
     } catch (err) {
       if (myLoad !== _loadToken) return; // já trocou de faixa, ignora erro
       console.error('[Player] Erro ao reproduzir:', err);
-      _listeners.onTrackSkipped?.(track, err);
+
+      const connectivity = _isConnectivityError(err);
+
+      // O usuário escolheu ESTA faixa e a conexão falhou: não troca por
+      // outra (ele não entenderia por que tocou uma música diferente).
+      // Desfaz o que a escolha mexeu, deixa o que já tocava tocando e avisa.
+      if (_skipAttempts === 0 && _ctx?.explicit && connectivity) {
+        _abortExplicit(track, _ctx.snapshot);
+        return;
+      }
+
+      // Falha de conexão é anunciada pelo aviso de "pulou pra faixa baixada"
+      // (em _handlePlaybackFailure) — não faz sentido um toast "não foi
+      // possível tocar X (Failed to fetch)" logo antes dele.
+      if (!connectivity && !_isOffline()) _listeners.onTrackSkipped?.(track, err);
       _handlePlaybackFailure(err, _skipAttempts);
     }
   }
@@ -190,7 +344,12 @@ const Player = (() => {
       return;
     }
 
-    const offline = typeof navigator !== 'undefined' && navigator.onLine === false;
+    // Sem rede de verdade (navigator.onLine === false) OU sinal fraco / wifi
+    // sem internet (onLine continua "true", mas o fetch falhou por
+    // conexão): nos dois casos não adianta tentar faixa por faixa — cada
+    // uma gastaria segundos de retentativa em silêncio. Vai direto pra
+    // próxima já baixada.
+    const offline = _isOffline() || _isConnectivityError(err);
 
     if (offline) {
       const nextIndex = _findNextDownloadedIndex(_index);
@@ -217,7 +376,7 @@ const Player = (() => {
     for (let i = 1; i <= _queue.length; i++) {
       const idx = (fromIndex + i) % _queue.length;
       const t = _queue[idx];
-      if (t && Downloads.isDownloaded(t.id)) return idx;
+      if (t && _isKnownPlayableOffline(t)) return idx;
     }
     return -1;
   }
@@ -234,7 +393,8 @@ const Player = (() => {
     if (!track) return;
 
     if (_loadedTrackId !== track.id) {
-      _play();
+      if (_blockIfUnavailableOffline(track)) return;
+      _play(0, { explicit: true, snapshot: _snapshot() });
       return;
     }
 
@@ -282,7 +442,10 @@ const Player = (() => {
   function _pickAutoContinueTracks(referenceTrack, excludeIds, count = 15) {
     if (typeof Drive === 'undefined' || typeof Drive.getCachedTracks !== 'function') return [];
 
-    const all = Drive.getCachedTracks() || [];
+    let all = Drive.getCachedTracks() || [];
+    // Sem internet, só continua com faixas que tocam offline — senão a
+    // "rádio" sugeriria músicas que vão falhar.
+    if (_isOffline()) all = all.filter(_isPlayableOffline);
     if (!all.length) return [];
 
     const exclude = new Set(excludeIds);
@@ -315,26 +478,42 @@ const Player = (() => {
       return;
     }
 
-    if (_index < _queue.length - 1) {
-      _index++;
-    } else if (_repeat === 'all') {
-      _index = 0;
-    } else {
-      // Fim da fila sem repeat: em vez de parar, tenta continuar
-      // sozinho com faixas do mesmo estilo (ver _pickAutoContinueTracks).
+    const offline = _isOffline();
+
+    let target = _index + 1;
+    if (target >= _queue.length) target = (_repeat === 'all') ? 0 : -1;
+    const immediate = target;
+
+    // Sem internet: pula direto as faixas não baixadas, sem nem tentar
+    // carregá-las (antes, o player mostrava a faixa seguinte, esperava a
+    // falha e só então pulava — parecia "trocar música sozinho").
+    if (offline && target !== -1) target = _seekPlayable(target, +1);
+
+    if (target === -1) {
+      // Fim da fila sem repeat (ou nada baixado mais à frente): em vez de
+      // parar, tenta continuar sozinho com faixas do mesmo estilo (ver
+      // _pickAutoContinueTracks).
       const extra = _pickAutoContinueTracks(getCurrentTrack(), _queue.map(t => t.id));
       if (extra.length) {
+        const firstNew = _queue.length;
         _queue         = [..._queue, ...extra];
         _originalQueue = [..._originalQueue, ...extra];
-        _index++;
+        _index         = firstNew;
         _listeners.onAutoContinue?.(extra);
       } else {
         _listeners.onEnd?.();
         return;
       }
+    } else {
+      _index = target;
     }
 
     _play();
+
+    // Depois do _play() pra o aviso não ser coberto pelo "Carregando…".
+    if (offline && target !== -1 && target !== immediate) {
+      _listeners.onOfflineSkip?.(getCurrentTrack());
+    }
   }
 
   function prev() {
@@ -346,20 +525,39 @@ const Player = (() => {
       return;
     }
 
+    let target = _index;
     if (_index > 0) {
-      _index--;
+      target = _index - 1;
     } else if (_repeat === 'all') {
-      _index = _queue.length - 1;
+      target = _queue.length - 1;
     }
 
+    // Sem internet: volta pra faixa anterior QUE ESTÁ BAIXADA. Se não
+    // houver nenhuma, reinicia a atual (que já está tocando, então toca).
+    let skipped = false;
+    if (_isOffline() && target !== _index) {
+      const found = _seekPlayable(target, -1);
+      if (found === -1) {
+        target = _index;
+      } else {
+        skipped = found !== target;
+        target = found;
+      }
+    }
+
+    _index = target;
     _play();
+
+    if (skipped) _listeners.onOfflineSkip?.(getCurrentTrack());
   }
 
   // Pula para uma faixa específica da fila pelo índice
   function jumpTo(index) {
     if (index < 0 || index >= _queue.length) return;
+    if (_blockIfUnavailableOffline(_queue[index])) return;
+    const snapshot = _snapshot();
     _index = index;
-    _play();
+    _play(0, { explicit: true, snapshot });
   }
 
   // ── SEEK ──────────────────────────────────────

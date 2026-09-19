@@ -905,6 +905,12 @@ const Drive = (() => {
     return objectUrl;
   }
 
+  // A faixa já está carregada na memória (tocou nesta sessão, ou é um
+  // arquivo externo aberto do aparelho)? Então toca de novo mesmo sem
+  // internet, sem precisar estar "baixada" — o player usa isso pra não
+  // recusar uma faixa que na prática toca (ver player.js).
+  function hasAudioInMemory(fileId) { return _blobCache.has(fileId); }
+
   // Dados pra baixar o áudio direto pro disco nativo (Filesystem.downloadFile),
   // sem passar pelo fetch()/blob do JS. Garante que o token está válido
   // antes (o download nativo não sabe renovar token sozinho).
@@ -1665,6 +1671,7 @@ const Drive = (() => {
     getCachedTracks,
     getOfflineTracks,
     fetchAudioUrl,
+    hasAudioInMemory,
     revokeAudioUrl,
     getAudioDownloadInfo,
     searchTracks,

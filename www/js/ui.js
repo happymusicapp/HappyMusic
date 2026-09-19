@@ -67,6 +67,7 @@ const UI = (() => {
     folderCurrentLabel: $('folder-current-label'),
 
     // Offline / downloads
+    offlineBanner:        $('offline-banner'),
     offlineStatus:        $('offline-status'),
     offlineProgressWrap:  $('offline-progress-wrap'),
     offlineProgressFill:  $('offline-progress-fill'),
@@ -278,6 +279,31 @@ const UI = (() => {
   // ── TOAST ──────────────────────────────────────
   let _toastTimer = null;
 
+  // Nome da música encurtado pra caber num aviso curto.
+  function _shortTitle(title, max = 32) {
+    const t = String(title || '').trim();
+    return t.length > max ? t.slice(0, max - 1).trimEnd() + '…' : t;
+  }
+
+  // Balança a linha da faixa que foi recusada — liga o aviso (toast) à
+  // música em que o usuário tocou.
+  function _shakeTrackRows(trackId) {
+    document.querySelectorAll(`.track-item[data-id="${trackId}"]`).forEach(row => {
+      row.classList.remove('shake');
+      void row.offsetWidth; // reinicia a animação se tocar de novo na mesma linha
+      row.classList.add('shake');
+      setTimeout(() => row.classList.remove('shake'), 600);
+    });
+  }
+
+  // Estado de conexão: mostra a faixa "Sem internet" fixa no topo e liga a
+  // classe que esmaece as músicas não baixadas (ver style.css). Chamado por
+  // app.js no início e a cada evento online/offline do navegador.
+  function setOnlineState(online) {
+    document.body.classList.toggle('is-offline', !online);
+    el.offlineBanner?.classList.toggle('hidden', !!online);
+  }
+
   function showToast(msg, duration = 2800) {
     el.toast.textContent = msg;
     el.toast.classList.add('show');
@@ -442,6 +468,10 @@ const UI = (() => {
         const tid = btn.dataset.dl;
         if (tid) _setDlBtnState(btn, _dlState(tid));
       });
+      // Todas as linhas (inclui "Tocadas recentemente", que não tem botão de download)
+      document.querySelectorAll('.track-item[data-id]').forEach(row => {
+        row.classList.toggle('is-downloaded', Downloads.isDownloaded(row.dataset.id));
+      });
       return;
     }
     if (state === 'error') {
@@ -450,6 +480,9 @@ const UI = (() => {
       return;
     }
     document.querySelectorAll(`[data-dl="${id}"]`).forEach(btn => _setDlBtnState(btn, state));
+    document.querySelectorAll(`.track-item[data-id="${id}"]`).forEach(row => {
+      row.classList.toggle('is-downloaded', state === 'downloaded');
+    });
   }
 
   // Força reavaliação de todos os botões de download visíveis
@@ -588,7 +621,7 @@ const UI = (() => {
     el.recentShelf.classList.remove('hidden');
 
     el.recentList.innerHTML = tracks.map(track => `
-      <div class="track-item recent-track-item" data-id="${track.id}" role="button" tabindex="0" aria-label="${_escape(track.title)} — ${_escape(track.artist)}">
+      <div class="track-item recent-track-item ${_dlState(track.id) === 'downloaded' ? 'is-downloaded' : ''}" data-id="${track.id}" role="button" tabindex="0" aria-label="${_escape(track.title)} — ${_escape(track.artist)}">
         <div class="track-art">
           ${track.thumbnail
             ? `<img src="${track.thumbnail}" alt="" loading="lazy" />`
@@ -629,7 +662,7 @@ const UI = (() => {
   // ── TRACK LIST ─────────────────────────────────
   function _trackItemHtml(track, i, currentId) {
     return `
-      <div class="track-item ${track.id === currentId ? 'playing' : ''}"
+      <div class="track-item ${track.id === currentId ? 'playing' : ''} ${_dlState(track.id) === 'downloaded' ? 'is-downloaded' : ''}"
            data-id="${track.id}"
            data-index="${i}"
            role="button"
@@ -2307,13 +2340,39 @@ const UI = (() => {
     });
 
     // Sem internet: pulou automaticamente pra próxima faixa já baixada
+    // (só acontece em next/prev/fim da faixa/tocar playlist — quando o
+    // usuário toca numa faixa específica NÃO troca, ver onOfflineBlocked)
     Player.on('onOfflineSkip', track => {
-      showToast(`Sem internet — tocando "${track.title}" (baixada)`, 2500);
+      showToast(`Sem internet — pulando as não baixadas. Tocando "${_shortTitle(track.title)}"`, 3500);
+    });
+
+    // O usuário escolheu uma faixa que não toca sem internet. O player NÃO
+    // troca por outra: só explica o motivo, e o que já estava tocando
+    // continua tocando (ver _blockIfUnavailableOffline / _abortExplicit em player.js).
+    Player.on('onOfflineBlocked', (track, info = {}) => {
+      // Falha de conexão no meio do carregamento: o onLoading já tinha
+      // trocado título/capa do player pra faixa que falhou — desfaz.
+      if (info.reason === 'network') {
+        if (info.restore) {
+          updatePlayerTrack(info.restore);
+          setPlayingTrack(info.restore.id);
+        }
+        setPlayState(!!info.wasPlaying);
+      }
+
+      const nome = _shortTitle(track.title);
+      showToast(
+        info.reason === 'offline'
+          ? `Sem internet — "${nome}" não foi baixada. Só as baixadas tocam offline.`
+          : `Sem conexão — não deu pra carregar "${nome}". Só as baixadas tocam offline.`,
+        4000
+      );
+      _shakeTrackRows(track.id);
     });
 
     // Sem internet e nenhuma faixa da fila está baixada: não tem pra onde pular
     Player.on('onAllOffline', () => {
-      showToast('Sem internet e nenhuma música da fila está baixada.', 3000);
+      showToast('Sem internet e nenhuma música dessa lista está baixada.', 3500);
       setPlayState(false);
     });
 
@@ -2486,6 +2545,7 @@ const UI = (() => {
     bindRecentEvents,
     refreshDownloadBadges,
     setOfflineSummary,
+    setOnlineState,
     updateDownloadAllButton,
     setDownloadBatchUI,
 
