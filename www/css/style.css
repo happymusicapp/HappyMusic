@@ -2778,3 +2778,49 @@ body.is-offline .track-item:not(.is-downloaded):not(.playing):not(.skeleton):not
 @media (prefers-reduced-motion: reduce) {
   .track-item.shake { animation: none; }
 }
+
+
+/* ═══════════════════════════════════════════════
+   SELETOR "ADICIONAR MÚSICAS" (playlist) — filtros
+═══════════════════════════════════════════════ */
+/* O seletor de valores (Gênero/Artista) abre POR CIMA do modal de adicionar
+   músicas; os dois são .modal-overlay (z-index 500) e o seletor vem antes
+   no HTML, então sem isso ele ficava escondido atrás. */
+#modal-filter-picker { z-index: 520; }
+
+.add-tracks-filters { flex-wrap: nowrap; margin-bottom: var(--sp-2); }
+
+.add-tracks-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;            /* tela estreita: o botão de marcar desce pra outra linha */
+  gap: var(--sp-1) var(--sp-3);
+  margin-bottom: var(--sp-2);
+  text-align: left;
+}
+.add-tracks-info {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-width: 0;
+}
+.add-tracks-summary {
+  font-size: 0.76rem;
+  color: var(--grey);
+  white-space: nowrap;
+}
+.add-tracks-select-all {
+  margin-left: auto;          /* sempre alinhado à direita, na mesma linha ou na de baixo */
+  flex-shrink: 0;
+  padding: 4px 2px;
+  font-size: 0.76rem;
+  font-weight: 600;
+  color: var(--purple-soft);
+  white-space: nowrap;
+}
+.add-tracks-select-all:active { opacity: 0.7; }
+
+/* Lista mais alta que os 280px padrão: acompanha a altura da tela
+   (com os filtros ocupando espaço em cima, sem passar da tela pequena). */
+#add-tracks-picker-list { max-height: min(42vh, 360px); }
