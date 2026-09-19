@@ -190,6 +190,7 @@ const UI = (() => {
     btnPlaylistBack:      $('btn-playlist-back'),
     btnPlaylistDelete:    $('btn-playlist-delete'),
     btnPlaylistPlay:      $('btn-playlist-play'),
+    btnPlaylistPlayCount: $('btn-playlist-play-count'),
     btnPlaylistAddTracks: $('btn-playlist-add-tracks'),
     playlistTracksList:   $('playlist-tracks-list'),
 
@@ -1588,6 +1589,12 @@ const UI = (() => {
   }
 
   function renderPlaylistTracks(tracks, currentId = null, isFavorites = false) {
+    // "Tocar tudo" só faz sentido com músicas na lista; mostra quantas são.
+    el.btnPlaylistPlay.classList.toggle('hidden', !tracks.length);
+    el.btnPlaylistPlayCount.textContent = tracks.length
+      ? `· ${tracks.length} ${tracks.length === 1 ? 'música' : 'músicas'}`
+      : '';
+
     if (!tracks.length) {
       el.playlistTracksList.innerHTML = isFavorites
         ? `<p class="empty-hint">Você ainda não tem favoritas.<br>Toque no ❤ do menu de qualquer faixa para adicionar.</p>`
