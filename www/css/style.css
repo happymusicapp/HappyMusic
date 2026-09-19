@@ -1148,13 +1148,20 @@ img    { display: block; }
   font-size: 0.85rem;
   font-weight: 500;
   padding: var(--sp-3) var(--sp-5);
-  border-radius: var(--radius-full);
+  border-radius: 22px;
   border: 1px solid var(--border);
   box-shadow: 0 8px 28px rgba(0,0,0,0.4), 0 0 0 rgba(124,58,255,0);
   opacity: 0;
   pointer-events: none;
   transition: opacity 0.25s var(--ease), transform 0.25s var(--ease), box-shadow 0.25s var(--ease);
-  white-space: nowrap;
+  /* Antes: white-space: nowrap. Avisos mais longos (ex.: "Sem internet —
+     ... não foi baixada") ficavam mais largos que a tela e eram cortados
+     nas duas pontas. Agora quebram linha dentro da largura da tela. */
+  width: max-content;
+  max-width: min(calc(100vw - 32px), 420px);
+  text-align: center;
+  line-height: 1.35;
+  white-space: normal;
   z-index: 200;
 }
 
@@ -2685,4 +2692,64 @@ img    { display: block; }
   accent-color: var(--purple);
   width: 17px;
   height: 17px;
+}
+
+
+/* ═══════════════════════════════════════════════
+   MODO OFFLINE
+   - faixa fixa "Sem internet" logo abaixo do header
+   - músicas não baixadas esmaecidas (continuam tocáveis pelo toque:
+     o toque explica por que não tocam — ver player.js / onOfflineBlocked)
+═══════════════════════════════════════════════ */
+:root { --offline-banner-h: 30px; }
+
+.offline-banner {
+  position: fixed;
+  top: var(--header-h);
+  left: 0; right: 0;
+  height: var(--offline-banner-h);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-2);
+  padding: 0 var(--sp-4);
+  background: linear-gradient(90deg, rgba(91,31,214,0.55), rgba(124,58,255,0.35));
+  border-bottom: 1px solid var(--border);
+  color: var(--white);
+  font-size: 0.76rem;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  z-index: 99; /* logo abaixo do header (100) */
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+.offline-banner svg { flex-shrink: 0; color: var(--purple-soft); }
+.offline-banner span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* empurra o conteúdo pra faixa não cobrir a primeira linha */
+body.is-offline .main-content {
+  padding-top: calc(var(--header-h) + var(--offline-banner-h) + var(--sp-2));
+}
+
+/* música não baixada + sem internet = não vai tocar */
+.track-item { transition: background var(--transition), opacity 0.2s var(--ease); }
+
+body.is-offline .track-item:not(.is-downloaded):not(.playing):not(.skeleton):not(.movie-row) {
+  opacity: 0.4;
+}
+body.is-offline .track-item:not(.is-downloaded):not(.playing):not(.skeleton):not(.movie-row) .track-art {
+  filter: grayscale(0.85);
+}
+
+/* linha recusada balança pra ligar o aviso à música tocada */
+@keyframes hm-shake {
+  0%, 100% { transform: translateX(0); }
+  20%      { transform: translateX(-7px); }
+  40%      { transform: translateX(6px); }
+  60%      { transform: translateX(-4px); }
+  80%      { transform: translateX(3px); }
+}
+.track-item.shake { animation: hm-shake 0.45s var(--ease); }
+@media (prefers-reduced-motion: reduce) {
+  .track-item.shake { animation: none; }
 }
