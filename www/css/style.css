@@ -549,7 +549,7 @@ img    { display: block; }
 .recent-collection-chip:active .recent-collection-chip-art { transform: scale(0.96); }
 /* Favoritas: mesmo preto, só o ícone de coração fica rosa pra continuar
    reconhecível de cara. */
-.recent-collection-chip-art.is-fav { color: #ff5c8a; }
+.recent-collection-chip-art.is-fav { color: var(--purple-soft); }
 
 /* Capa em colagem 2x2 (playlists/favoritas com faixas com capa) —
    preenche o quadrado do card por cima do fundo em gradiente. */
@@ -1122,10 +1122,10 @@ img    { display: block; }
 
 /* Variante de perigo (excluir, remover) — mesmo formato, cor de alerta */
 .btn-primary.btn-danger {
-  background: linear-gradient(135deg, #e0344c, #ff5c7a);
-  box-shadow: 0 6px 18px rgba(224,52,76,0.35);
+  background: linear-gradient(135deg, var(--purple-deep), var(--purple));
+  box-shadow: 0 6px 18px rgba(124,58,255,0.35);
 }
-.btn-primary.btn-danger:hover { box-shadow: 0 8px 24px rgba(224,52,76,0.5); }
+.btn-primary.btn-danger:hover { box-shadow: 0 8px 24px rgba(124,58,255,0.5); }
 
 /* ── TOAST ─────────────────────────────────── */
 .toast {
@@ -1967,10 +1967,10 @@ img    { display: block; }
 
 .track-menu-popover-divider { height: 1px; background: var(--border); margin: 4px 0; }
 
-.track-menu-popover button.danger { color: #FF6B6B; }
-.track-menu-popover button.danger svg { color: #FF6B6B; }
-.track-menu-popover button.danger:hover { background: rgba(255,107,107,0.1); }
-.track-menu-popover button.danger:hover svg { color: #FF6B6B; }
+.track-menu-popover button.danger { color: var(--purple-soft); }
+.track-menu-popover button.danger svg { color: var(--purple-soft); }
+.track-menu-popover button.danger:hover { background: rgba(124,58,255,0.12); }
+.track-menu-popover button.danger:hover svg { color: var(--purple-soft); }
 
 /* ═══════════════════════════════════════════════
    CAMPOS DE TEXTO (upload / edição de metadados)
@@ -2111,7 +2111,7 @@ img    { display: block; }
 .btn-play-all-count { font-size: 0.82rem; font-weight: 500; opacity: 0.85; }
 
 /* Card fixo de Favoritas no topo da grade de playlists */
-.playlist-card-art-fav { background: linear-gradient(135deg, #ff5c8a, #ff8fab); }
+.playlist-card-art-fav { background: var(--gradient-brand); }
 
 /* Itens do seletor de músicas (modal "Adicionar músicas") */
 .track-picker-item input[type="checkbox"] {
@@ -2814,9 +2814,9 @@ label.set-row:active { background: var(--surface2); }
 
 .set-row-static { min-height: 52px; }
 
-/* Ação destrutiva */
-.set-row-danger .set-row-label { color: #FF6B6B; }
-.set-row-danger .set-row-icon { background: rgba(255,107,107,0.12); color: #FF6B6B; }
+/* Ação destrutiva (sem vermelho: o app inteiro fica na paleta roxa;
+   a proteção contra toque sem querer é o diálogo de confirmação) */
+.set-row-danger .set-row-label { color: var(--purple-soft); }
 
 /* Lote rodando: a linha vira "Cancelar" */
 .set-row.btn-cancel { background: rgba(124,58,255,0.12); }
@@ -2904,14 +2904,14 @@ label.set-row:active { background: var(--surface2); }
   height: 50px;
   margin-top: var(--sp-5);
   border-radius: var(--radius-full);
-  border: 1px solid rgba(255,107,107,0.32);
-  background: rgba(255,107,107,0.06);
-  color: #FF6B6B;
+  border: 1px solid rgba(160,108,255,0.38);
+  background: rgba(124,58,255,0.10);
+  color: var(--purple-soft);
   font-size: 0.92rem;
   font-weight: 600;
   transition: background var(--transition), transform var(--transition);
 }
-.set-logout:active { background: rgba(255,107,107,0.14); transform: scale(0.98); }
+.set-logout:active { background: rgba(124,58,255,0.22); transform: scale(0.98); }
 
 /* Avatar do header ganha destaque enquanto o perfil está aberto */
 #btn-user.active .avatar { border-color: var(--purple-soft); }
@@ -3094,27 +3094,54 @@ label.set-row:active { background: var(--surface2); }
   box-shadow: 0 0 10px rgba(124,58,255,0.45);
 }
 
-/* Pastas */
-.folder-list { display: flex; flex-direction: column; gap: var(--sp-2); }
+/* Lista/itens selecionáveis usados em vários modais (Gerenciar músicas,
+   Adicionar à playlist…): visual original, com rolagem própria — sem o
+   max-height/overflow a lista passava por cima do botão "Concluir". */
+.folder-list {
+  max-height: 280px;
+  overflow-y: auto;
+  margin-bottom: var(--sp-2);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+
 .folder-item {
   display: flex;
   align-items: center;
   gap: var(--sp-3);
+  padding: var(--sp-3);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-soft);
+  cursor: pointer;
+  text-align: left;
+  font-size: 0.88rem;
+  color: var(--grey-soft);
+  transition: background var(--transition), border-color var(--transition);
+}
+.folder-item:hover { background: var(--surface); border-color: var(--border); }
+.folder-item.selected { border-color: var(--purple); color: var(--white); background: rgba(124,58,255,0.1); }
+.folder-item svg { flex-shrink: 0; color: var(--purple-soft); }
+
+/* Sheet "Pasta de músicas": cartões maiores com ícone e seleção em rádio.
+   Tudo escopado em #folder-list pra não afetar os outros modais. */
+#folder-list { max-height: none; overflow: visible; margin-bottom: 0; }
+#folder-list .folder-item {
   width: 100%;
   min-height: 60px;
   padding: var(--sp-2) var(--sp-3);
   border-radius: var(--radius-md);
   border: 1px solid var(--border);
   background: var(--surface);
-  text-align: left;
-  transition: background var(--transition), border-color var(--transition);
 }
-.folder-item:active { background: var(--surface2); }
-.folder-item.selected {
+#folder-list .folder-item:hover { background: var(--surface); border-color: var(--border); }
+#folder-list .folder-item:active { background: var(--surface2); }
+#folder-list .folder-item.selected {
   border-color: var(--purple);
   background: rgba(124,58,255,0.10);
   box-shadow: 0 0 18px rgba(124,58,255,0.16);
 }
+#folder-list .folder-item svg { color: inherit; }
 .folder-item-icon {
   flex-shrink: 0;
   width: 38px; height: 38px;
@@ -3123,7 +3150,7 @@ label.set-row:active { background: var(--surface2); }
   background: rgba(124,58,255,0.14);
   color: var(--purple-soft);
 }
-.folder-item.selected .folder-item-icon { background: var(--gradient-brand); color: #fff; }
+#folder-list .folder-item.selected .folder-item-icon { background: var(--gradient-brand); color: #fff; }
 .folder-item-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
 .folder-item-name {
   font-size: 0.92rem; font-weight: 500; color: var(--white);
@@ -3138,7 +3165,7 @@ label.set-row:active { background: var(--surface2); }
   display: flex; align-items: center; justify-content: center;
   color: transparent;
 }
-.folder-item.selected .folder-item-radio {
+#folder-list .folder-item.selected .folder-item-radio {
   border-color: var(--purple-soft);
   background: var(--purple-soft);
   color: var(--bg);
@@ -3216,7 +3243,7 @@ label.set-row:active { background: var(--surface2); }
 }
 .upload-item.open { border-color: rgba(160,108,255,0.38); }
 .upload-item-done { opacity: 0.7; }
-.upload-item-error { border-color: rgba(255,107,107,0.45); }
+.upload-item-error { border-color: var(--purple-soft); }
 
 .upload-item-head {
   display: flex;
@@ -3235,7 +3262,7 @@ label.set-row:active { background: var(--surface2); }
   color: var(--purple-soft);
 }
 .upload-item-done .upload-item-icon { background: var(--gradient-brand); color: #fff; }
-.upload-item-error .upload-item-icon { background: rgba(255,107,107,0.14); color: #FF6B6B; }
+.upload-item-error .upload-item-icon { background: rgba(124,58,255,0.22); color: var(--purple-soft); }
 .upload-item-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .upload-item-title {
   font-size: 0.9rem; font-weight: 600; color: var(--white);
@@ -3251,7 +3278,7 @@ label.set-row:active { background: var(--surface2); }
   font-size: 0.75rem; font-weight: 600;
   color: var(--purple-soft);
 }
-.upload-item-error .upload-item-state { color: #FF6B6B; }
+.upload-item-error .upload-item-state { color: var(--purple-soft); }
 .upload-item-caret { color: var(--grey-dark); transition: transform var(--transition); }
 .upload-item.open .upload-item-caret { transform: rotate(180deg); }
 
@@ -3260,8 +3287,8 @@ label.set-row:active { background: var(--surface2); }
 .upload-item .upload-field { margin-bottom: var(--sp-2); }
 .upload-item .text-input { background: var(--bg-elevated); }
 .upload-item-foot { display: flex; justify-content: flex-end; }
-.upload-item-remove { color: #FF6B6B; font-size: 0.8rem; padding: 6px 2px; }
-.upload-item-remove:hover { color: #FF6B6B; opacity: 0.8; }
+.upload-item-remove { color: var(--grey); font-size: 0.8rem; padding: 6px 2px; }
+.upload-item-remove:hover { color: var(--white); }
 
 .upload-item-progress { padding: 0 var(--sp-3) var(--sp-3); }
 .upload-item-progress .dl-progress-bar { margin-bottom: 0; }
