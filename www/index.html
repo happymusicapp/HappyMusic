@@ -371,60 +371,130 @@
         </div>
       </div>
 
-      <!-- VIEW: PERFIL -->
+      <!-- VIEW: PERFIL E AJUSTES -->
       <section id="view-profile" class="view">
-        <div class="profile-wrap">
-          <img id="profile-avatar" src="data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Ccircle cx='20' cy='20' r='20' fill='%232a1d4d'/%3E%3Ccircle cx='20' cy='16' r='7' fill='%23A06CFF'/%3E%3Cpath d='M6 36c1.5-8.5 8.5-13 14-13s12.5 4.5 14 13' fill='%23A06CFF'/%3E%3C/svg%3E" alt="Foto de perfil" class="profile-avatar" />
-          <h2 id="profile-name" class="profile-name"></h2>
-          <p id="profile-email" class="profile-email"></p>
+        <div class="settings">
 
-          <div class="profile-section">
-            <h3 class="profile-section-title">Pasta de músicas</h3>
-            <p class="profile-section-hint" id="folder-current-label">Buscando em todo o Drive</p>
-            <button id="btn-choose-folder" class="btn-outline btn-small">Escolher pasta</button>
+          <!-- Barra de topo: voltar + título -->
+          <div class="settings-topbar">
+            <button id="btn-profile-back" class="icon-btn" aria-label="Voltar">
+              <svg width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></svg>
+            </button>
+            <h2 class="settings-heading">Perfil e ajustes</h2>
           </div>
 
-          <div class="profile-section">
-            <h3 class="profile-section-title">Adicionar músicas</h3>
-            <p class="profile-section-hint">Envie pelo app com gênero, artista, álbum e título já cadastrados — ou adicione direto pelo Google Drive.</p>
-            <input type="file" id="input-upload-files" accept="audio/*" multiple hidden />
-            <div class="offline-actions">
-              <button id="btn-upload-open" class="btn-primary btn-small">Enviar músicas</button>
-              <button id="btn-open-drive" class="btn-outline btn-small">Abrir Google Drive</button>
+          <!-- Cartão do usuário -->
+          <div class="settings-hero">
+            <img id="profile-avatar" src="data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Ccircle cx='20' cy='20' r='20' fill='%232a1d4d'/%3E%3Ccircle cx='20' cy='16' r='7' fill='%23A06CFF'/%3E%3Cpath d='M6 36c1.5-8.5 8.5-13 14-13s12.5 4.5 14 13' fill='%23A06CFF'/%3E%3C/svg%3E" alt="Foto de perfil" class="profile-avatar" />
+            <div class="settings-hero-text">
+              <h3 id="profile-name" class="profile-name"></h3>
+              <p id="profile-email" class="profile-email"></p>
+              <span class="settings-chip"><span class="settings-chip-dot"></span>Google Drive conectado</span>
             </div>
           </div>
 
-          <div class="profile-section">
-            <h3 class="profile-section-title">Modo offline</h3>
-            <p class="profile-section-hint" id="offline-status">Carregando…</p>
+          <!-- Números da biblioteca -->
+          <div class="settings-stats" aria-label="Resumo da biblioteca">
+            <div class="settings-stat"><strong id="stat-tracks">—</strong><span>músicas</span></div>
+            <div class="settings-stat"><strong id="stat-downloaded">—</strong><span>offline</span></div>
+            <div class="settings-stat"><strong id="stat-size">—</strong><span>no aparelho</span></div>
+          </div>
 
-            <label class="auto-download-toggle">
-              <input type="checkbox" id="chk-auto-download" />
-              Baixar novas músicas automaticamente
+          <!-- BIBLIOTECA -->
+          <h3 class="set-group-label">Biblioteca</h3>
+          <div class="set-card">
+            <button id="btn-choose-folder" class="set-row" type="button">
+              <span class="set-row-icon"><svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg></span>
+              <span class="set-row-text">
+                <span class="set-row-label">Pasta de músicas</span>
+                <span id="folder-current-label" class="set-row-sub">Todo o Drive</span>
+              </span>
+              <svg class="set-row-chev" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></svg>
+            </button>
+          </div>
+
+          <!-- ADICIONAR MÚSICAS -->
+          <h3 class="set-group-label">Adicionar músicas</h3>
+          <div class="set-card">
+            <input type="file" id="input-upload-files" accept="audio/*" multiple hidden />
+            <button id="btn-upload-open" class="set-row" type="button">
+              <span class="set-row-icon accent"><svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m17 8-5-5-5 5"/><path d="M12 3v12"/></svg></span>
+              <span class="set-row-text">
+                <span class="set-row-label">Enviar do aparelho</span>
+                <span class="set-row-sub">Escolha os arquivos e cadastre artista, álbum e gênero</span>
+              </span>
+              <svg class="set-row-chev" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></svg>
+            </button>
+            <button id="btn-open-drive" class="set-row" type="button">
+              <span class="set-row-icon"><svg width="19" height="19" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><path d="M15 3h6v6"/><path d="M10 14 21 3"/></svg></span>
+              <span class="set-row-text">
+                <span class="set-row-label">Abrir Google Drive</span>
+                <span class="set-row-sub">Suba pelo site e depois atualize a lista na Biblioteca</span>
+              </span>
+              <svg class="set-row-chev" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></svg>
+            </button>
+          </div>
+
+          <!-- MODO OFFLINE -->
+          <h3 class="set-group-label">Modo offline</h3>
+          <div id="offline-card" class="set-card">
+            <div class="set-summary">
+              <p id="offline-status" class="set-summary-text">Carregando…</p>
+
+              <!-- Barra fixa: quanto da biblioteca já está baixado -->
+              <div class="set-meter" id="offline-meter" aria-hidden="true">
+                <div id="offline-meter-fill" class="set-meter-fill"></div>
+              </div>
+
+              <!-- Barra do lote em andamento (substitui a fixa enquanto baixa) -->
+              <div id="offline-progress-wrap" class="dl-progress hidden">
+                <div class="dl-progress-bar">
+                  <div id="offline-progress-fill" class="dl-progress-fill"></div>
+                </div>
+                <span id="offline-progress-text" class="set-summary-progress">0 / 0</span>
+              </div>
+            </div>
+
+            <label class="set-row set-row-toggle" for="chk-auto-download">
+              <span class="set-row-icon"><svg width="19" height="19" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 4v6h-6"/></svg></span>
+              <span class="set-row-text">
+                <span class="set-row-label">Baixar novas automaticamente</span>
+                <span class="set-row-sub">Só com internet e espaço livre no aparelho</span>
+              </span>
+              <input type="checkbox" id="chk-auto-download" class="switch-input" role="switch" />
+              <span class="switch" aria-hidden="true"></span>
             </label>
 
-            <div id="offline-progress-wrap" class="dl-progress hidden">
-              <div class="dl-progress-bar">
-                <div id="offline-progress-fill" class="dl-progress-fill"></div>
-              </div>
-              <span id="offline-progress-text" class="profile-section-hint">0 / 0</span>
-            </div>
-
-            <div class="offline-actions">
-              <button id="btn-download-all" class="btn-outline btn-small">Baixar tudo</button>
-              <button id="btn-download-favorites" class="btn-outline btn-small">Baixar favoritas</button>
-            </div>
-            <button id="btn-download-custom" class="btn-outline btn-small offline-custom">Baixar por categoria</button>
-            <button id="btn-clear-downloads" class="text-btn offline-clear">Limpar downloads</button>
+            <button id="btn-download-all" class="set-row" type="button">
+              <span class="set-row-icon"><svg width="19" height="19" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/><path d="M12 15V3"/></svg></span>
+              <span class="set-row-text"><span class="set-row-label">Baixar tudo</span></span>
+            </button>
+            <button id="btn-download-favorites" class="set-row" type="button">
+              <span class="set-row-icon"><svg width="19" height="19" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg></span>
+              <span class="set-row-text"><span class="set-row-label">Baixar favoritas</span></span>
+            </button>
+            <button id="btn-download-custom" class="set-row" type="button">
+              <span class="set-row-icon"><svg width="19" height="19" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M3 6h13M3 12h9M3 18h9"/><path d="M18 14v6M15 17h6"/></svg></span>
+              <span class="set-row-text"><span class="set-row-label">Escolher o que baixar</span><span class="set-row-sub">Por playlist, artista, álbum ou gênero</span></span>
+              <svg class="set-row-chev" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></svg>
+            </button>
+            <button id="btn-clear-downloads" class="set-row set-row-danger" type="button">
+              <span class="set-row-icon"><svg width="19" height="19" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg></span>
+              <span class="set-row-text"><span class="set-row-label">Remover downloads</span><span class="set-row-sub">Libera espaço; as músicas continuam no Drive</span></span>
+            </button>
           </div>
 
-          <div class="profile-section">
-            <h3 class="profile-section-title">Sobre</h3>
-            <p class="profile-section-hint">HappyMusic · v2.0.0</p>
-            <p class="profile-section-hint">Desenvolvido por Pedro Maia</p>
+          <!-- SOBRE -->
+          <h3 class="set-group-label">Sobre</h3>
+          <div class="set-card">
+            <div class="set-row set-row-static"><span class="set-row-text"><span class="set-row-label">Versão</span></span><span class="set-row-value">2.0.0</span></div>
+            <div class="set-row set-row-static"><span class="set-row-text"><span class="set-row-label">Desenvolvido por</span></span><span class="set-row-value">Pedro Maia</span></div>
           </div>
 
-          <button id="btn-logout" class="btn-outline">Sair</button>
+          <button id="btn-logout" class="set-logout" type="button">
+            <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="m16 17 5-5-5-5"/><path d="M21 12H9"/></svg>
+            Sair da conta
+          </button>
         </div>
       </section>
 
@@ -561,15 +631,27 @@
     </div>
   </div>
 
-  <!-- MODAL: ESCOLHER PASTA -->
-  <div id="modal-folder" class="modal-overlay hidden">
-    <div class="modal-box">
-      <button id="btn-folder-close" class="modal-close" aria-label="Cancelar"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
-      <h2 class="modal-title">Escolher pasta</h2>
-      <p class="modal-text">Selecione de qual pasta do seu Drive o HappyMusic deve buscar músicas.</p>
-      <div id="folder-list" class="folder-list">
-        <div class="track-item skeleton" style="min-height:48px; border-radius:8px;"></div>
-        <div class="track-item skeleton" style="min-height:48px; border-radius:8px;"></div>
+  <!-- SHEET: PASTA DE MÚSICAS -->
+  <div id="modal-folder" class="modal-overlay sheet-overlay hidden">
+    <div class="modal-box sheet" role="dialog" aria-modal="true" aria-labelledby="folder-sheet-title">
+      <div class="sheet-grabber" aria-hidden="true"></div>
+      <div class="sheet-header">
+        <div class="sheet-header-text">
+          <h2 id="folder-sheet-title" class="sheet-title">Pasta de músicas</h2>
+          <p class="sheet-sub">De onde o HappyMusic deve buscar suas músicas</p>
+        </div>
+        <button id="btn-folder-close" class="modal-close sheet-close" aria-label="Fechar"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+      </div>
+      <div class="sheet-body">
+        <div id="folder-search-wrap" class="filter-picker-search-wrap hidden">
+          <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+          <input type="text" id="folder-search" class="filter-picker-search" placeholder="Buscar pasta..." autocomplete="off" />
+        </div>
+        <div id="folder-list" class="folder-list">
+          <div class="track-item skeleton" style="min-height:56px; border-radius:12px;"></div>
+          <div class="track-item skeleton" style="min-height:56px; border-radius:12px;"></div>
+          <div class="track-item skeleton" style="min-height:56px; border-radius:12px;"></div>
+        </div>
       </div>
     </div>
   </div>
@@ -663,59 +745,93 @@
     </div>
   </div>
 
-  <!-- MODAL: BAIXAR POR CATEGORIA (playlist/artista/álbum/gênero) -->
-  <div id="modal-download-picker" class="modal-overlay hidden">
-    <div class="modal-box modal-box-wide filter-picker-box">
-      <button id="btn-download-picker-close" class="modal-close" aria-label="Fechar"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
-      <button id="btn-download-picker-back" class="modal-back hidden" aria-label="Voltar"><svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></svg></button>
-      <h2 id="download-picker-title" class="modal-title">Baixar músicas</h2>
-      <p class="filter-picker-hint" id="download-picker-hint">Escolha o que baixar</p>
-
-      <!-- Etapa 1: categoria -->
-      <div id="download-picker-categories" class="download-picker-categories">
-        <button type="button" class="download-picker-category" data-category="playlist">
-          <span>Playlist</span>
-          <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></svg>
-        </button>
-        <button type="button" class="download-picker-category" data-category="artist">
-          <span>Artista</span>
-          <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></svg>
-        </button>
-        <button type="button" class="download-picker-category" data-category="album">
-          <span>Álbum</span>
-          <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></svg>
-        </button>
-        <button type="button" class="download-picker-category" data-category="genre">
-          <span>Gênero</span>
-          <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></svg>
-        </button>
+  <!-- SHEET: ESCOLHER O QUE BAIXAR (playlist / artista / álbum / gênero) -->
+  <div id="modal-download-picker" class="modal-overlay sheet-overlay hidden">
+    <div class="modal-box sheet sheet-tall" role="dialog" aria-modal="true" aria-labelledby="download-picker-title">
+      <div class="sheet-grabber" aria-hidden="true"></div>
+      <div class="sheet-header">
+        <div class="sheet-header-text">
+          <h2 id="download-picker-title" class="sheet-title">Escolher o que baixar</h2>
+          <p id="download-picker-hint" class="sheet-sub">Marque quantos itens quiser, de qualquer aba</p>
+        </div>
+        <button id="btn-download-picker-close" class="modal-close sheet-close" aria-label="Fechar"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
       </div>
 
-      <!-- Etapa 2: valores da categoria escolhida -->
-      <div id="download-picker-values-wrap" class="hidden">
+      <div class="sheet-tabs-wrap">
+        <div id="download-picker-categories" class="seg" role="tablist">
+          <button type="button" class="seg-btn" role="tab" data-category="playlist">Playlists<span class="seg-badge hidden"></span></button>
+          <button type="button" class="seg-btn" role="tab" data-category="artist">Artistas<span class="seg-badge hidden"></span></button>
+          <button type="button" class="seg-btn" role="tab" data-category="album">Álbuns<span class="seg-badge hidden"></span></button>
+          <button type="button" class="seg-btn" role="tab" data-category="genre">Gêneros<span class="seg-badge hidden"></span></button>
+        </div>
+      </div>
+
+      <div id="download-picker-values-wrap" class="sheet-body">
         <div class="filter-picker-search-wrap">
           <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
-          <input type="text" id="download-picker-search" class="filter-picker-search" placeholder="Buscar..." />
+          <input type="text" id="download-picker-search" class="filter-picker-search" placeholder="Buscar..." autocomplete="off" />
         </div>
-        <div id="download-picker-values" class="filter-picker-list"></div>
-        <button id="btn-download-picker-confirm" class="btn-primary btn-small download-picker-confirm">Baixar selecionadas</button>
+        <div id="download-picker-values" class="pick-list"></div>
+      </div>
+
+      <div class="sheet-footer">
+        <p id="download-picker-summary" class="sheet-summary">Nada selecionado</p>
+        <button id="btn-download-picker-confirm" class="btn-primary" disabled>Baixar</button>
       </div>
     </div>
   </div>
 
-  <!-- MODAL: ENVIAR MÚSICAS -->
-  <div id="modal-upload" class="modal-overlay hidden">
-    <div class="modal-box modal-box-wide">
-      <button id="btn-upload-close" class="modal-close" aria-label="Fechar"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
-      <h2 class="modal-title">Enviar músicas</h2>
-      <p class="modal-text">Só arquivos de áudio são aceitos. Preencha os dados de cada faixa antes de enviar — isso fica salvo no arquivo do Drive, então nunca mais se perde.</p>
-      <div id="upload-list" class="upload-list"></div>
-      <div class="upload-actions">
-        <button id="btn-upload-add-more" class="btn-outline btn-small btn-icon-label">
-          <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
-          Adicionar arquivos
-        </button>
-        <button id="btn-upload-send-all" class="btn-primary btn-small" disabled>Enviar tudo</button>
+  <!-- SHEET: ENVIAR MÚSICAS -->
+  <div id="modal-upload" class="modal-overlay sheet-overlay hidden">
+    <div class="modal-box sheet sheet-tall" role="dialog" aria-modal="true" aria-labelledby="upload-sheet-title">
+      <div class="sheet-grabber" aria-hidden="true"></div>
+      <div class="sheet-header">
+        <div class="sheet-header-text">
+          <h2 id="upload-sheet-title" class="sheet-title">Enviar músicas</h2>
+          <p class="sheet-sub">Os dados ficam gravados no arquivo, dentro do seu Drive</p>
+        </div>
+        <button id="btn-upload-close" class="modal-close sheet-close" aria-label="Fechar"><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+      </div>
+
+      <div class="sheet-body">
+        <!-- Dados em comum: preenche vários arquivos de uma vez (ex.: um álbum inteiro) -->
+        <div id="upload-bulk" class="upload-bulk collapsed hidden">
+          <button id="btn-upload-bulk-toggle" class="upload-bulk-head" type="button" aria-expanded="false">
+            <span class="upload-bulk-title">
+              <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="m9 11 3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+              Preencher para todas
+            </span>
+            <svg class="upload-bulk-caret" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg>
+          </button>
+          <div class="upload-bulk-body">
+            <div class="upload-field-row">
+              <div class="upload-field"><label for="upload-bulk-artist">Artista</label><input id="upload-bulk-artist" type="text" class="text-input" autocomplete="off" /></div>
+              <div class="upload-field"><label for="upload-bulk-album">Álbum</label><input id="upload-bulk-album" type="text" class="text-input" autocomplete="off" /></div>
+            </div>
+            <div class="upload-field">
+              <label for="upload-bulk-genre">Gênero</label>
+              <div class="genre-suggest-wrap">
+                <input id="upload-bulk-genre" type="text" class="text-input" autocomplete="off" placeholder="Ex: MPB" />
+                <div id="upload-bulk-genre-list" class="genre-suggest-list hidden"></div>
+              </div>
+            </div>
+            <button id="btn-upload-bulk-apply" class="btn-outline btn-small" type="button">Aplicar às faixas pendentes</button>
+            <p class="upload-bulk-hint">Só campos preenchidos são aplicados; o título de cada faixa não muda.</p>
+          </div>
+        </div>
+
+        <div id="upload-list" class="upload-list"></div>
+      </div>
+
+      <div class="sheet-footer">
+        <p id="upload-summary" class="sheet-summary"></p>
+        <div class="upload-actions">
+          <button id="btn-upload-add-more" class="btn-outline btn-small btn-icon-label" type="button">
+            <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+            Adicionar
+          </button>
+          <button id="btn-upload-send-all" class="btn-primary btn-small" type="button" disabled>Enviar</button>
+        </div>
       </div>
     </div>
   </div>
