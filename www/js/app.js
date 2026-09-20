@@ -419,6 +419,7 @@ const App = (() => {
     if (_batchRunning) return; // o progresso do lote já cobre o status nesse momento
 
     if (!_tracks.length) {
+      UI.setLibraryStats({ total: 0 });
       UI.setOfflineSummary('Carregue suas músicas pra poder baixá-las para ouvir offline.');
       return;
     }
@@ -432,6 +433,7 @@ const App = (() => {
       }
     });
 
+    UI.setLibraryStats({ total: _tracks.length, downloaded: count, bytes });
     UI.updateDownloadAllButton(count, _tracks.length);
 
     if (!count) {
@@ -741,56 +743,149 @@ const App = (() => {
       .replace(/"/g, '&quot;');
   }
 
+  const _ICON_NOTE = `<svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>`;
+  const _ICON_UPLOAD_BIG = `<svg width="26" height="26" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m17 8-5-5-5 5"/><path d="M12 3v12"/></svg>`;
+  const _ICON_CARET = `<svg class="upload-item-caret" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg>`;
+  const _ICON_WARN = `<svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg>`;
+
+  const _isActiveUpload = i => i.status === 'pending' || i.status === 'error';
+
+  function _uploadItemTitle(item) {
+    return item.title.trim() || _filenameToTitle(item.file.name);
+  }
+
+  function _uploadItemMeta(item) {
+    const parts = [item.artist.trim() || 'Sem artista'];
+    if (item.album.trim()) parts.push(item.album.trim());
+    parts.push(UI.fmtBytes(item.file.size));
+    return parts.join(' · ');
+  }
+
+  function _uploadItemHtml(item) {
+    const st = item.status;
+    const canToggle = st === 'pending' || st === 'error';
+    const icon = st === 'done' ? UI.checkIcon(20) : st === 'error' ? _ICON_WARN : _ICON_NOTE;
+    const state =
+      st === 'uploading' ? `<span class="upload-item-pct">${item.progress}%</span>` :
+      st === 'done'      ? 'Enviada' :
+      st === 'error'     ? 'Falhou' : '';
+
+    return `
+      <div class="upload-item upload-item-${st} ${canToggle && item.expanded ? 'open' : ''}" data-upload-id="${item.localId}">
+        <button type="button" class="upload-item-head" ${canToggle ? `data-toggle="${item.localId}"` : 'disabled'}>
+          <span class="upload-item-icon">${icon}</span>
+          <span class="upload-item-main">
+            <span class="upload-item-title">${_escHtml(_uploadItemTitle(item))}</span>
+            <span class="upload-item-meta">${_escHtml(_uploadItemMeta(item))}</span>
+          </span>
+          <span class="upload-item-state">${state}${st === 'pending' ? _ICON_CARET : ''}</span>
+        </button>
+
+        ${canToggle ? `
+          <div class="upload-item-form">
+            <div class="upload-field">
+              <label>Título</label>
+              <input type="text" class="text-input" data-field="title" data-id="${item.localId}" value="${_escHtml(item.title)}" autocomplete="off" />
+            </div>
+            <div class="upload-field-row">
+              <div class="upload-field">
+                <label>Artista</label>
+                <input type="text" class="text-input" data-field="artist" data-id="${item.localId}" value="${_escHtml(item.artist)}" placeholder="Desconhecido" autocomplete="off" />
+              </div>
+              <div class="upload-field">
+                <label>Álbum</label>
+                <input type="text" class="text-input" data-field="album" data-id="${item.localId}" value="${_escHtml(item.album)}" autocomplete="off" />
+              </div>
+            </div>
+            <div class="upload-field">
+              <label>Gênero</label>
+              <div class="genre-suggest-wrap">
+                <input type="text" class="text-input" data-field="genre" data-id="${item.localId}" value="${_escHtml(item.genre)}" placeholder="Ex: MPB" autocomplete="off" />
+                <div class="genre-suggest-list hidden"></div>
+              </div>
+            </div>
+            <div class="upload-item-foot">
+              <button type="button" class="text-btn upload-item-remove" data-remove="${item.localId}">Remover da fila</button>
+            </div>
+          </div>` : ''}
+
+        ${st === 'uploading' ? `
+          <div class="upload-item-progress">
+            <div class="dl-progress-bar"><div class="dl-progress-fill" style="width:${item.progress}%"></div></div>
+          </div>` : ''}
+
+        ${st === 'error' ? `
+          <p class="upload-item-msg">${_escHtml(item.errorMsg || 'Falha ao enviar.')}</p>
+          <div class="upload-item-retry"><button type="button" class="btn-outline btn-small" data-retry="${item.localId}">Tentar novamente</button></div>
+        ` : ''}
+      </div>`;
+  }
+
   function _renderUploadList() {
-    const genreOptions = _knownGenres().map(g => `<option value="${g}"></option>`).join('');
+    if (!_uploadItems.length) {
+      UI.el.uploadList.innerHTML = `
+        <div class="upload-empty">
+          <span class="upload-empty-icon">${_ICON_UPLOAD_BIG}</span>
+          <strong>Nenhum arquivo escolhido</strong>
+          <span>MP3, M4A, WAV, FLAC… Antes de enviar, você cadastra artista, álbum e gênero de cada música.</span>
+          <button type="button" class="btn-primary btn-small" data-pick-files>Escolher arquivos</button>
+        </div>`;
+    } else {
+      UI.el.uploadList.innerHTML = _uploadItems.map(_uploadItemHtml).join('');
+
+      // Sugestões de gênero próprias (o <datalist> nativo aparece fora
+      // do lugar no WebView do Android — mesmo motivo do resto do app)
+      UI.el.uploadList.querySelectorAll('input[data-field="genre"]').forEach(input => {
+        UI.attachGenreSuggest(input, input.parentElement.querySelector('.genre-suggest-list'), _knownGenres);
+      });
+    }
+    _updateUploadFooter();
+  }
+
+  // Rodapé (resumo + botão principal) e painel "Preencher para todas"
+  function _updateUploadFooter() {
+    const active    = _uploadItems.filter(_isActiveUpload);
+    const uploading = _uploadItems.filter(i => i.status === 'uploading');
+    const done      = _uploadItems.filter(i => i.status === 'done');
+    const btn = UI.el.btnUploadSendAll;
+    btn.dataset.mode = '';
+
+    UI.el.uploadBulk.classList.toggle('hidden', active.length < 2);
 
     if (!_uploadItems.length) {
-      UI.el.uploadList.innerHTML = `<p class="empty-hint">Nenhum arquivo selecionado ainda.</p>`;
-      UI.el.btnUploadSendAll.disabled = true;
+      UI.el.uploadSummary.textContent = '';
+      btn.textContent = 'Enviar';
+      btn.disabled = true;
       return;
     }
 
-    UI.el.uploadList.innerHTML = _uploadItems.map(item => `
-      <div class="upload-item upload-item-${item.status}" data-upload-id="${item.localId}">
-        <div class="upload-item-head">
-          <span class="upload-item-filename">${_escHtml(item.file.name)}</span>
-          ${item.status === 'done' ? `<span class="upload-item-badge">${UI.checkIcon(13)} Enviada</span>` : ''}
-          ${item.status !== 'uploading' ? `<button class="text-btn upload-item-remove" data-remove="${item.localId}">Remover</button>` : ''}
-        </div>
+    if (_uploadRunning || uploading.length) {
+      UI.el.uploadSummary.textContent = `Enviando… ${done.length} de ${_uploadItems.length} concluída${done.length === 1 ? '' : 's'}`;
+      btn.textContent = 'Enviando…';
+      btn.disabled = true;
+      return;
+    }
 
-        ${item.status !== 'done' ? `
-          <div class="upload-field">
-            <label>Título</label>
-            <input type="text" class="text-input" data-field="title" data-id="${item.localId}" value="${_escHtml(item.title)}" />
-          </div>
-          <div class="upload-field">
-            <label>Artista</label>
-            <input type="text" class="text-input" data-field="artist" data-id="${item.localId}" value="${_escHtml(item.artist)}" placeholder="Desconhecido" />
-          </div>
-          <div class="upload-field">
-            <label>Álbum</label>
-            <input type="text" class="text-input" data-field="album" data-id="${item.localId}" value="${_escHtml(item.album)}" />
-          </div>
-          <div class="upload-field">
-            <label>Gênero</label>
-            <input type="text" class="text-input" data-field="genre" data-id="${item.localId}" value="${_escHtml(item.genre)}" list="upload-genre-suggestions" />
-          </div>
-        ` : ''}
+    if (!active.length) {
+      UI.el.uploadSummary.textContent = `${done.length} música${done.length === 1 ? ' enviada' : 's enviadas'} pro seu Drive`;
+      btn.textContent = 'Concluir';
+      btn.dataset.mode = 'done';
+      btn.disabled = false;
+      return;
+    }
 
-        ${item.status === 'uploading' ? `
-          <div class="dl-progress">
-            <div class="dl-progress-bar"><div class="dl-progress-fill" style="width:${item.progress}%"></div></div>
-            <span class="profile-section-hint" style="margin:0;">${item.progress}%</span>
-          </div>` : ''}
+    const bytes = active.reduce((sum, i) => sum + (i.file.size || 0), 0);
+    UI.el.uploadSummary.textContent =
+      `${active.length} arquivo${active.length === 1 ? '' : 's'} · ${UI.fmtBytes(bytes)}`;
+    btn.textContent = active.length === 1 ? 'Enviar música' : `Enviar ${active.length} músicas`;
+    btn.disabled = false;
+  }
 
-        ${item.status === 'error' ? `
-          <p class="upload-item-error">${_escHtml(item.errorMsg || 'Falha ao enviar.')}</p>
-          <button class="btn-outline btn-small" data-retry="${item.localId}">Tentar novamente</button>
-        ` : ''}
-      </div>
-    `).join('') + `<datalist id="upload-genre-suggestions">${genreOptions}</datalist>`;
-
-    UI.el.btnUploadSendAll.disabled = !_uploadItems.some(i => i.status === 'pending' || i.status === 'error');
+  function _refreshUploadItemHead(item) {
+    const row = UI.el.uploadList.querySelector(`[data-upload-id="${item.localId}"]`);
+    if (!row) return;
+    row.querySelector('.upload-item-title').textContent = _uploadItemTitle(item);
+    row.querySelector('.upload-item-meta').textContent  = _uploadItemMeta(item);
   }
 
   function _addFilesToUploadQueue(fileList) {
@@ -807,6 +902,7 @@ const App = (() => {
         status: 'pending', // pending | uploading | done | error
         progress: 0,
         errorMsg: null,
+        expanded: false,
       });
     });
     if (rejected) {
@@ -814,6 +910,11 @@ const App = (() => {
         ? '1 arquivo ignorado: não é um áudio suportado.'
         : `${rejected} arquivos ignorados: não são áudios suportados.`);
     }
+
+    // Um arquivo só: já abre pra preencher. Vários: tudo fechado (lista curta)
+    // e o "Preencher para todas" resolve o que for comum.
+    const pending = _uploadItems.filter(i => i.status === 'pending');
+    pending.forEach(i => { i.expanded = pending.length === 1; });
     _renderUploadList();
   }
 
@@ -832,10 +933,12 @@ const App = (() => {
       }, {
         onProgress: (loaded, total) => {
           item.progress = total ? Math.round((loaded / total) * 100) : 0;
-          const row = document.querySelector(`[data-upload-id="${item.localId}"] .dl-progress-fill`);
-          const pctLabel = document.querySelector(`[data-upload-id="${item.localId}"] .dl-progress .profile-section-hint`);
-          if (row) row.style.width = item.progress + '%';
-          if (pctLabel) pctLabel.textContent = item.progress + '%';
+          const row = UI.el.uploadList.querySelector(`[data-upload-id="${item.localId}"]`);
+          if (!row) return;
+          const fill = row.querySelector('.dl-progress-fill');
+          const pct  = row.querySelector('.upload-item-pct');
+          if (fill) fill.style.width = item.progress + '%';
+          if (pct)  pct.textContent = item.progress + '%';
         },
       });
 
@@ -865,8 +968,9 @@ const App = (() => {
   async function _uploadAllPending() {
     if (_uploadRunning) return;
     _uploadRunning = true;
+    _updateUploadFooter();
 
-    const pending = () => _uploadItems.filter(i => i.status === 'pending' || i.status === 'error');
+    const pending = () => _uploadItems.filter(i => i.status === 'pending');
     async function worker() {
       let next;
       while ((next = pending()[0])) {
@@ -876,30 +980,71 @@ const App = (() => {
     await Promise.all(Array(UPLOAD_CONCURRENCY).fill(0).map(worker));
 
     _uploadRunning = false;
+    _renderUploadList();
     _updateOfflineSummary();
   }
 
+  // Fecha a sheet de envio (bloqueia enquanto envia) e limpa os concluídos
+  function _closeUploadSheet() {
+    if (_uploadRunning) {
+      UI.showToast('Aguarde o envio terminar antes de fechar.');
+      return;
+    }
+    UI.hideUploadModal();
+    _uploadItems = _uploadItems.filter(i => i.status !== 'done');
+  }
+
   function _bindUploadEvents() {
+    // "Enviar do aparelho": vai direto pro seletor de arquivos. A sheet
+    // abre quando há arquivos escolhidos (ou se sobrou fila de antes).
     UI.el.btnUploadOpen.addEventListener('click', () => {
-      UI.showUploadModal();
-      _renderUploadList();
+      if (_uploadItems.length) {
+        UI.showUploadModal();
+        _renderUploadList();
+      } else {
+        UI.el.inputUploadFiles.click();
+      }
     });
 
     UI.el.inputUploadFiles.addEventListener('change', e => {
-      if (e.target.files?.length) _addFilesToUploadQueue(e.target.files);
+      if (e.target.files?.length) {
+        _addFilesToUploadQueue(e.target.files);
+        UI.showUploadModal();
+      }
       e.target.value = ''; // permite selecionar o mesmo arquivo de novo depois
     });
 
     UI.el.btnUploadAddMore.addEventListener('click', () => UI.el.inputUploadFiles.click());
-    UI.el.btnUploadSendAll.addEventListener('click', () => _uploadAllPending());
+    UI.el.btnUploadSendAll.addEventListener('click', () => {
+      if (UI.el.btnUploadSendAll.dataset.mode === 'done') _closeUploadSheet();
+      else _uploadAllPending();
+    });
+    UI.el.btnUploadClose.addEventListener('click', _closeUploadSheet);
 
-    UI.el.btnUploadClose.addEventListener('click', () => {
-      if (_uploadRunning) {
-        UI.showToast('Aguarde o envio terminar antes de fechar.');
+    // "Preencher para todas": só aplica os campos preenchidos, nas faixas ainda não enviadas
+    UI.el.btnUploadBulkToggle.addEventListener('click', () => {
+      const collapsed = UI.el.uploadBulk.classList.toggle('collapsed');
+      UI.el.btnUploadBulkToggle.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+    });
+    UI.attachGenreSuggest(UI.el.uploadBulkGenre, UI.el.uploadBulkGenreList, _knownGenres);
+    UI.el.btnUploadBulkApply.addEventListener('click', () => {
+      const vals = {
+        artist: UI.el.uploadBulkArtist.value.trim(),
+        album:  UI.el.uploadBulkAlbum.value.trim(),
+        genre:  UI.el.uploadBulkGenre.value.trim(),
+      };
+      if (!vals.artist && !vals.album && !vals.genre) {
+        UI.showToast('Preencha artista, álbum ou gênero primeiro.');
         return;
       }
-      UI.hideUploadModal();
-      _uploadItems = _uploadItems.filter(i => i.status !== 'done'); // limpa concluídos
+      const targets = _uploadItems.filter(_isActiveUpload);
+      targets.forEach(item => {
+        Object.entries(vals).forEach(([field, value]) => { if (value) item[field] = value; });
+      });
+      _renderUploadList();
+      UI.el.uploadBulk.classList.add('collapsed');
+      UI.el.btnUploadBulkToggle.setAttribute('aria-expanded', 'false');
+      UI.showToast(`Aplicado a ${targets.length} faixa${targets.length === 1 ? '' : 's'}`);
     });
 
     UI.el.uploadList.addEventListener('input', e => {
@@ -908,9 +1053,31 @@ const App = (() => {
       const item = _uploadItems.find(i => i.localId === parseInt(input.dataset.id, 10));
       if (!item) return;
       item[input.dataset.field] = input.value;
+      _refreshUploadItemHead(item);
     });
 
     UI.el.uploadList.addEventListener('click', e => {
+      if (e.target.closest('[data-pick-files]')) {
+        UI.el.inputUploadFiles.click();
+        return;
+      }
+
+      const toggle = e.target.closest('[data-toggle]');
+      if (toggle) {
+        const id = parseInt(toggle.dataset.toggle, 10);
+        const item = _uploadItems.find(i => i.localId === id);
+        if (!item) return;
+        const willOpen = !item.expanded;
+        // Um aberto por vez: mantém a lista curta no celular
+        _uploadItems.forEach(i => { i.expanded = false; });
+        item.expanded = willOpen;
+        UI.el.uploadList.querySelectorAll('.upload-item').forEach(row => {
+          row.classList.toggle('open', willOpen && row.dataset.uploadId === String(id));
+        });
+        if (willOpen) toggle.closest('.upload-item').scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+        return;
+      }
+
       const removeBtn = e.target.closest('[data-remove]');
       if (removeBtn) {
         _uploadItems = _uploadItems.filter(i => i.localId !== parseInt(removeBtn.dataset.remove, 10));
@@ -953,6 +1120,7 @@ const App = (() => {
         status: 'pending',
         progress: 0,
         errorMsg: null,
+        expanded: true,
       });
       _renderUploadList();
       UI.showUploadModal();
@@ -2004,14 +2172,33 @@ const App = (() => {
   function _bindSearchResultsClose() { /* nada a fazer — mantido só pra não quebrar a chamada abaixo */ }
 
   // ── SELEÇÃO DE PASTA ───────────────────────────
-  function _bindFolderListClick(folders) {
-    UI.el.folderList.dataset.bound = '1';
+  async function _openFolderSheet() {
+    UI.showFolderModal();
+    UI.showFolderLoading();
+    try {
+      const folders = await Drive.listFolders();
+      UI.renderFolderList(folders, Drive.getFolderId());
+    } catch (err) {
+      console.error('[App] Erro ao listar pastas:', err);
+      UI.renderFolderError(_openFolderSheet);
+    }
+  }
+
+  // Um único listener na lista (delegação): o nome da pasta vem do próprio
+  // item tocado, então continua certo mesmo se a lista for recarregada.
+  function _bindFolderListClick() {
     UI.el.folderList.addEventListener('click', async e => {
       const item = e.target.closest('.folder-item');
       if (!item) return;
 
       const id = item.dataset.id || null;
-      const name = id ? (folders.find(f => f.id === id)?.name || null) : null;
+      const name = id ? (item.dataset.name || null) : null;
+
+      // Tocou na pasta que já está ativa: só fecha
+      if ((id || null) === (Drive.getFolderId() || null)) {
+        UI.hideFolderModal();
+        return;
+      }
 
       Drive.setFolderId(id);
       if (name) {
@@ -2028,17 +2215,145 @@ const App = (() => {
     });
   }
 
+  // ── PERFIL / AJUSTES ───────────────────────────
+  // O perfil é uma tela "por cima" das abas: abrir empilha uma entrada no
+  // histórico, pra o botão físico/gesto de voltar do Android fechar o
+  // perfil em vez de sair do app (mesmo esquema do player de vídeo).
+  let _viewBeforeProfile = 'home';
+  let _profileHistoryPushed = false;
+  let _swallowNextPop = false;
+
+  function _openProfile() {
+    if (UI.getCurrentView() === 'profile') return;
+    _viewBeforeProfile = UI.getCurrentView();
+    UI.showView('profile');
+    history.pushState({ hmOverlay: 'profile' }, '');
+    _profileHistoryPushed = true;
+  }
+
+  function _closeProfile({ fromPopState = false } = {}) {
+    if (UI.getCurrentView() !== 'profile') return;
+    UI.showView(_viewBeforeProfile || 'home');
+    if (_profileHistoryPushed) {
+      _profileHistoryPushed = false;
+      if (!fromPopState) history.back();
+    }
+  }
+
+  function _toggleProfile() {
+    if (UI.getCurrentView() === 'profile') _closeProfile();
+    else _openProfile();
+  }
+
+  // Saiu do perfil por outro caminho (aba de baixo): descarta a entrada
+  // de histórico à toa, senão o primeiro "voltar" não faria nada visível.
+  function _dropProfileHistory() {
+    if (!_profileHistoryPushed) return;
+    _profileHistoryPushed = false;
+    _swallowNextPop = true;
+    history.back();
+  }
+
+  // "Voltar" com um modal/sheet aberto por cima do perfil fecha o modal
+  // (não o perfil). Retorna true se havia algo a fechar.
+  function _closeTopModalFromBack() {
+    const open = [...document.querySelectorAll('.modal-overlay:not(.hidden)')];
+    const top = open[open.length - 1];
+    if (!top) return false;
+    const btn = top.querySelector('.modal-close, #btn-confirm-cancel, .text-btn.modal-skip');
+    if (btn) { btn.click(); return true; }
+    top.click(); // clique no fundo — mesmo caminho de "tocar fora"
+    return true;
+  }
+
+  function _bindProfileNavigation() {
+    UI.el.btnUser.addEventListener('click', _toggleProfile);
+    UI.el.btnProfileBack.addEventListener('click', () => _closeProfile());
+
+    UI.el.navBtns.forEach(btn => btn.addEventListener('click', _dropProfileHistory));
+
+    window.addEventListener('popstate', () => {
+      if (_swallowNextPop) { _swallowNextPop = false; return; }
+      if (!_profileHistoryPushed || UI.getCurrentView() !== 'profile') return;
+
+      if (_closeTopModalFromBack()) {
+        // O navegador já consumiu a entrada: recoloca pra o perfil continuar "por baixo"
+        history.pushState({ hmOverlay: 'profile' }, '');
+        return;
+      }
+      _closeProfile({ fromPopState: true });
+    });
+  }
+
+  // ── ESCOLHER O QUE BAIXAR: dados e resolução ────
+  function _countBy(field) {
+    const map = new Map();
+    _tracks.forEach(t => {
+      const v = t[field];
+      if (v) map.set(v, (map.get(v) || 0) + 1);
+    });
+    return map;
+  }
+
+  function _buildDownloadCategories() {
+    const artistCount = _countBy('artist');
+    const albumCount  = _countBy('album');
+    const genreCount  = _countBy('genre');
+    const favs = Player.getFavorites();
+
+    return {
+      playlist: [
+        { value: FAVORITES_ID, label: 'Favoritas', count: favs.length },
+        ..._playlists.map(p => ({ value: p.id, label: p.name, count: p.trackIds.length })),
+      ],
+      artist: Drive.getKnownArtists().map(a => ({ value: a, label: a, count: artistCount.get(a) || 0 })),
+      album:  Drive.getKnownAlbums().map(a => ({ value: a, label: a, count: albumCount.get(a) || 0 })),
+      genre:  Drive.getKnownGenres().map(g => ({ value: g, label: g, count: genreCount.get(g) || 0 })),
+    };
+  }
+
+  // selections: { playlist: [ids], artist: [nomes], album: [...], genre: [...] }
+  function _resolveDownloadSelection(selections) {
+    let tracks = [];
+
+    (selections.playlist || []).forEach(v => {
+      if (v === FAVORITES_ID) tracks = tracks.concat(Player.getFavorites());
+      else {
+        const pl = _playlists.find(p => p.id === v);
+        if (pl) tracks = tracks.concat(_playlistTracks(pl));
+      }
+    });
+    ['artist', 'album', 'genre'].forEach(cat => {
+      if (selections[cat]?.length) tracks = tracks.concat(Drive.filterTracks({ [cat]: selections[cat] }));
+    });
+
+    // Uma faixa pode aparecer em mais de uma seleção (ex.: 2 playlists
+    // que compartilham música) — conta e baixa só uma vez.
+    const seen = new Set();
+    return tracks.filter(t => { if (!t?.id || seen.has(t.id)) return false; seen.add(t.id); return true; });
+  }
+
   // ── EVENTOS DA APP ─────────────────────────────
   function _bindAppEvents() {
 
     // Login
     UI.el.btnLogin.addEventListener('click', () => Drive.login());
 
-    // Logout
-    UI.el.btnLogout.addEventListener('click', () => {
+    // Perfil: abrir/fechar, voltar (inclui botão físico do Android)
+    _bindProfileNavigation();
+
+    // Logout (com confirmação: é um toque fácil de dar sem querer)
+    UI.el.btnLogout.addEventListener('click', async () => {
+      const ok = await UI.confirmDialog(
+        'Você vai precisar entrar com o Google de novo. Suas músicas continuam no Drive.',
+        { title: 'Sair da conta?', okLabel: 'Sair', danger: false }
+      );
+      if (!ok) return;
+      _dropProfileHistory();
       Drive.logout();
       Player.pause();
       _tracks = [];
+      UI.showView('home');
       UI.showLogin();
       UI.showToast('Até logo!');
     });
@@ -2061,17 +2376,8 @@ const App = (() => {
     UI.el.btnOpenDrive.addEventListener('click', _openGoogleDrive);
 
     // Perfil: escolher pasta
-    UI.el.btnChooseFolder.addEventListener('click', async () => {
-      UI.showFolderModal();
-      try {
-        const folders = await Drive.listFolders();
-        UI.renderFolderList(folders, Drive.getFolderId());
-        UI.el.folderList.dataset.bound !== '1' && _bindFolderListClick(folders);
-      } catch (err) {
-        console.error('[App] Erro ao listar pastas:', err);
-        UI.el.folderList.innerHTML = `<p class="empty-hint">Não foi possível listar as pastas.</p>`;
-      }
-    });
+    UI.el.btnChooseFolder.addEventListener('click', _openFolderSheet);
+    _bindFolderListClick();
     UI.el.btnFolderClose.addEventListener('click', () => UI.hideFolderModal());
     UI.el.modalFolder.addEventListener('click', e => {
       if (e.target === UI.el.modalFolder) UI.hideFolderModal();
@@ -2092,43 +2398,27 @@ const App = (() => {
       _runDownloadBatch(Player.getFavorites(), 'fav');
     });
 
-    // Baixar por categoria (playlist/artista/álbum/gênero) — Perfil →
-    // Modo offline. Monta as opções na hora de abrir (pra já refletir
-    // playlists/favoritas atuais) e resolve a seleção em faixas só
-    // quando o usuário confirma.
+    // Escolher o que baixar (playlist/artista/álbum/gênero) — Perfil →
+    // Modo offline. As opções são montadas na hora de abrir (pra já
+    // refletir playlists/favoritas atuais); a seleção só vira lista de
+    // faixas quando o usuário confirma.
     UI.el.btnDownloadCustom.addEventListener('click', () => {
-      const categoriesData = {
-        playlist: [
-          { value: FAVORITES_ID, label: `Favoritas (${Player.getFavorites().length})` },
-          ..._playlists.map(p => ({ value: p.id, label: `${p.name} (${p.trackIds.length})` })),
-        ],
-        artist: Drive.getKnownArtists().map(a => ({ value: a, label: a })),
-        album:  Drive.getKnownAlbums().map(a => ({ value: a, label: a })),
-        genre:  Drive.getKnownGenres().map(g => ({ value: g, label: g })),
-      };
+      // Com um lote desse tipo rodando, a linha vira "Cancelar download"
+      if (_batchRunning) { _runDownloadBatch([], 'custom'); return; }
 
-      UI.showDownloadPicker(categoriesData, (category, values) => {
-        let tracks = [];
-
-        if (category === 'playlist') {
-          values.forEach(v => {
-            if (v === FAVORITES_ID) tracks = tracks.concat(Player.getFavorites());
-            else {
-              const pl = _playlists.find(p => p.id === v);
-              if (pl) tracks = tracks.concat(_playlistTracks(pl));
-            }
-          });
-        } else {
-          // artist/album/genre: filterTracks já aceita array direto
-          tracks = Drive.filterTracks({ [category]: values });
-        }
-
-        // Uma faixa pode aparecer em mais de uma seleção (ex.: 2 playlists
-        // que compartilham música) — baixa só uma vez.
-        const seen = new Set();
-        tracks = tracks.filter(t => { if (seen.has(t.id)) return false; seen.add(t.id); return true; });
-
+      UI.showDownloadPicker(_buildDownloadCategories(), selections => {
+        const tracks = _resolveDownloadSelection(selections);
         _runDownloadBatch(tracks, 'custom');
+      }, {
+        countTracks: selections => {
+          const tracks  = _resolveDownloadSelection(selections);
+          const pending = tracks.filter(t => !Downloads.isDownloaded(t.id));
+          return {
+            total:   tracks.length,
+            pending: pending.length,
+            bytes:   pending.reduce((sum, t) => sum + (t.size || 0), 0),
+          };
+        },
       });
     });
 
@@ -2182,8 +2472,7 @@ const App = (() => {
       modal.addEventListener('click', e => {
         if (e.target !== modal) return;
         if (modal === UI.el.modalUpload) {
-          if (_uploadRunning) { UI.showToast('Aguarde o envio terminar antes de fechar.'); return; }
-          UI.hideUploadModal();
+          _closeUploadSheet();
         } else if (modal === UI.el.modalTrackEdit) UI.hideTrackEditModal();
         else if (modal === UI.el.modalNewPlaylist) UI.hideNewPlaylistModal();
         else if (modal === UI.el.modalAddToPlaylist) _closeAddToPlaylistModal();

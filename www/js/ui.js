@@ -65,10 +65,16 @@ const UI = (() => {
     btnOpenDrive:   $('btn-open-drive'),
     btnChooseFolder:$('btn-choose-folder'),
     folderCurrentLabel: $('folder-current-label'),
+    btnProfileBack: $('btn-profile-back'),
+    statTracks:     $('stat-tracks'),
+    statDownloaded: $('stat-downloaded'),
+    statSize:       $('stat-size'),
 
     // Offline / downloads
     offlineBanner:        $('offline-banner'),
+    offlineCard:          $('offline-card'),
     offlineStatus:        $('offline-status'),
+    offlineMeterFill:     $('offline-meter-fill'),
     offlineProgressWrap:  $('offline-progress-wrap'),
     offlineProgressFill:  $('offline-progress-fill'),
     offlineProgressText:  $('offline-progress-text'),
@@ -86,6 +92,8 @@ const UI = (() => {
     // Seletor de pasta
     modalFolder:    $('modal-folder'),
     folderList:     $('folder-list'),
+    folderSearchWrap: $('folder-search-wrap'),
+    folderSearch:     $('folder-search'),
     btnFolderClose: $('btn-folder-close'),
 
     // Nav
@@ -127,7 +135,7 @@ const UI = (() => {
     // Baixar por categoria (playlist/artista/álbum/gênero)
     modalDownloadPicker:      $('modal-download-picker'),
     btnDownloadPickerClose:   $('btn-download-picker-close'),
-    btnDownloadPickerBack:    $('btn-download-picker-back'),
+    downloadPickerSummary:    $('download-picker-summary'),
     downloadPickerTitle:      $('download-picker-title'),
     downloadPickerHint:       $('download-picker-hint'),
     downloadPickerCategories: $('download-picker-categories'),
@@ -161,6 +169,14 @@ const UI = (() => {
     btnUploadAddMore: $('btn-upload-add-more'),
     btnUploadSendAll: $('btn-upload-send-all'),
     btnUploadClose:   $('btn-upload-close'),
+    uploadSummary:    $('upload-summary'),
+    uploadBulk:            $('upload-bulk'),
+    btnUploadBulkToggle:   $('btn-upload-bulk-toggle'),
+    btnUploadBulkApply:    $('btn-upload-bulk-apply'),
+    uploadBulkArtist:      $('upload-bulk-artist'),
+    uploadBulkAlbum:       $('upload-bulk-album'),
+    uploadBulkGenre:       $('upload-bulk-genre'),
+    uploadBulkGenreList:   $('upload-bulk-genre-list'),
 
     // Editar faixa
     modalTrackEdit:  $('modal-track-edit'),
@@ -342,6 +358,7 @@ const UI = (() => {
     });
 
     _currentView = name;
+    el.btnUser?.classList.toggle('active', name === 'profile');
 
     // Scroll pro topo ao trocar de view
     el.mainContent.scrollTo({ top: 0, behavior: 'smooth' });
@@ -1070,34 +1087,79 @@ const UI = (() => {
   }
 
   function _folderIcon() {
-    return `<svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+    return `<svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
       <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
     </svg>`;
   }
 
-  function renderFolderList(folders, currentFolderId) {
-    const allDriveItem = `
-      <div class="folder-item ${!currentFolderId ? 'selected' : ''}" data-id="">
-        ${_folderIcon()} Todo o Drive (padrão)
+  function _driveIcon() {
+    return `<svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
+      <path d="M22 12H2"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/>
+    </svg>`;
+  }
+
+  function _folderRow({ id, name, sub, selected, icon }) {
+    return `
+      <button type="button" class="folder-item ${selected ? 'selected' : ''}" data-id="${_escape(id)}" data-name="${_escape(name)}" role="radio" aria-checked="${selected ? 'true' : 'false'}">
+        <span class="folder-item-icon">${icon}</span>
+        <span class="folder-item-text">
+          <span class="folder-item-name">${_escape(name)}</span>
+          ${sub ? `<span class="folder-item-sub">${sub}</span>` : ''}
+        </span>
+        <span class="folder-item-radio">${_checkIcon(13)}</span>
+      </button>`;
+  }
+
+  function showFolderLoading() {
+    el.folderSearchWrap.classList.add('hidden');
+    el.folderList.innerHTML = `
+      <div class="track-item skeleton" style="min-height:60px; border-radius:16px;"></div>
+      <div class="track-item skeleton" style="min-height:60px; border-radius:16px;"></div>
+      <div class="track-item skeleton" style="min-height:60px; border-radius:16px;"></div>`;
+  }
+
+  function renderFolderError(onRetry) {
+    el.folderSearchWrap.classList.add('hidden');
+    el.folderList.innerHTML = `
+      <div class="folder-empty">
+        Não foi possível listar as pastas do seu Drive.<br>Confira a conexão e tente de novo.
+        <br><button type="button" class="btn-outline btn-small" data-folder-retry>Tentar novamente</button>
       </div>`;
+    el.folderList.querySelector('[data-folder-retry]')?.addEventListener('click', onRetry);
+  }
+
+  function renderFolderList(folders, currentFolderId) {
+    const allDriveItem = _folderRow({
+      id: '', name: 'Todo o Drive',
+      sub: 'Busca músicas em qualquer pasta (padrão)',
+      selected: !currentFolderId, icon: _driveIcon(),
+    });
+
+    // Com muitas pastas, aparece a busca
+    el.folderSearch.value = '';
+    el.folderSearchWrap.classList.toggle('hidden', folders.length < 8);
 
     if (!folders.length) {
       el.folderList.innerHTML = allDriveItem + `
-        <p class="empty-hint">Nenhuma pasta encontrada na raiz do seu Drive.</p>`;
+        <p class="folder-empty">Nenhuma pasta encontrada na raiz do seu Drive.</p>`;
       return;
     }
 
-    el.folderList.innerHTML = allDriveItem + folders.map(f => `
-      <div class="folder-item ${f.id === currentFolderId ? 'selected' : ''}" data-id="${f.id}">
-        ${_folderIcon()} ${_escape(f.name)}
-      </div>
-    `).join('');
+    el.folderList.innerHTML = allDriveItem + folders.map(f => _folderRow({
+      id: f.id, name: f.name, selected: f.id === currentFolderId, icon: _folderIcon(),
+    })).join('');
   }
 
+  el.folderSearch?.addEventListener('input', () => {
+    const q = el.folderSearch.value.trim().toLowerCase();
+    el.folderList.querySelectorAll('.folder-item').forEach(row => {
+      const isAll = row.dataset.id === '';
+      row.classList.toggle('hidden', !!q && !isAll && !row.dataset.name.toLowerCase().includes(q));
+    });
+  });
+
   function updateFolderLabel(name) {
-    el.folderCurrentLabel.textContent = name
-      ? `Buscando em: ${name}`
-      : 'Buscando em todo o Drive';
+    el.folderCurrentLabel.textContent = name || 'Todo o Drive';
   }
 
   // ── BARRA DE FILTROS (gênero / artista / álbum / vídeo) ────
@@ -1333,41 +1395,70 @@ const UI = (() => {
   }
   _bindFilterPickerEvents();
 
-  // ── BAIXAR POR CATEGORIA (playlist/artista/álbum/gênero) ──
-  // Modal de duas etapas: escolhe a categoria, depois marca um ou mais
-  // valores dentro dela (multi-seleção nas 4), e confirma o download.
-  // `categoriesData` é { playlist: [{value,label}], artist: [...], ... },
-  // fornecido por quem chama (app.js) porque só ele tem acesso a
-  // playlists/faixas. onConfirm(category, selectedValues) roda o download.
-  const _dlPickerCategoryLabels = { playlist: 'Playlist', artist: 'Artista', album: 'Álbum', genre: 'Gênero' };
+  // ── ESCOLHER O QUE BAIXAR (playlist/artista/álbum/gênero) ──
+  // Sheet de tela única: abas por categoria, lista marcável com busca e
+  // um rodapé que diz quantas músicas isso vai baixar ANTES de confirmar.
+  // A seleção vale entre abas (dá pra marcar uma playlist + um artista).
+  //
+  // `categoriesData`: { playlist: [{value,label,count}], artist: [...], ... }
+  //   (fornecido por app.js, que tem acesso a playlists/faixas)
+  // `onConfirm(selections)`: selections = { playlist: [ids], artist: [nomes], ... }
+  // `countTracks(selections)`: → { total, pending, bytes } pro resumo do rodapé
+  const _DL_CATEGORIES = ['playlist', 'artist', 'album', 'genre'];
   let _dlPickerData = {};
   let _dlPickerOnConfirm = null;
+  let _dlPickerCount = null;
   let _dlPickerCategory = null;
-  let _dlPickerSelected = [];
+  let _dlPickerSel = {};
 
-  function showDownloadPicker(categoriesData, onConfirm) {
+  const _plural = (n, one, many) => (n === 1 ? one : many);
+
+  function _dlSelections() {
+    const out = {};
+    _DL_CATEGORIES.forEach(c => { if (_dlPickerSel[c]?.length) out[c] = [..._dlPickerSel[c]]; });
+    return out;
+  }
+
+  function showDownloadPicker(categoriesData, onConfirm, { countTracks } = {}) {
     _dlPickerData = categoriesData || {};
     _dlPickerOnConfirm = onConfirm;
-    _dlPickerCategory = null;
-    _dlPickerSelected = [];
+    _dlPickerCount = countTracks || null;
+    _dlPickerSel = { playlist: [], artist: [], album: [], genre: [] };
 
-    el.downloadPickerCategories.classList.remove('hidden');
-    el.downloadPickerValuesWrap.classList.add('hidden');
-    el.btnDownloadPickerBack.classList.add('hidden');
-    el.downloadPickerTitle.textContent = 'Baixar músicas';
-    el.downloadPickerHint.textContent = 'Escolha o que baixar';
+    el.downloadPickerCategories.querySelectorAll('.seg-btn').forEach(btn => {
+      btn.disabled = !(_dlPickerData[btn.dataset.category] || []).length;
+    });
+
+    const first = _DL_CATEGORIES.find(c => (_dlPickerData[c] || []).length);
+    if (!first) { showToast('Ainda não há nada pra escolher aqui.'); return; }
+
     el.modalDownloadPicker.classList.remove('hidden');
+    _setDlCategory(first);
   }
 
   function hideDownloadPicker() {
     el.modalDownloadPicker.classList.add('hidden');
     _dlPickerOnConfirm = null;
+    _dlPickerCount = null;
+  }
+
+  function _setDlCategory(cat) {
+    _dlPickerCategory = cat;
+    el.downloadPickerCategories.querySelectorAll('.seg-btn').forEach(btn => {
+      const on = btn.dataset.category === cat;
+      btn.classList.toggle('active', on);
+      btn.setAttribute('aria-selected', on ? 'true' : 'false');
+    });
+    el.downloadPickerSearch.value = '';
+    _renderDownloadValues('');
+    _updateDownloadFooter();
   }
 
   function _renderDownloadValues(query) {
     const items = _dlPickerData[_dlPickerCategory] || [];
     const q = (query || '').trim().toLowerCase();
     const filtered = q ? items.filter(o => o.label.toLowerCase().includes(q)) : items;
+    const selected = _dlPickerSel[_dlPickerCategory] || [];
 
     if (!filtered.length) {
       el.downloadPickerValues.innerHTML = `<p class="filter-picker-empty">Nada encontrado.</p>`;
@@ -1375,49 +1466,63 @@ const UI = (() => {
     }
 
     el.downloadPickerValues.innerHTML = filtered.map(item => `
-      <button type="button" class="filter-picker-item ${_dlPickerSelected.includes(item.value) ? 'active' : ''}" data-value="${_escape(item.value)}">
-        <span>${_escape(item.label)}</span>
-        <svg class="picker-check" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg>
+      <button type="button" class="pick-row ${selected.includes(item.value) ? 'active' : ''}" data-value="${_escape(item.value)}" role="checkbox" aria-checked="${selected.includes(item.value) ? 'true' : 'false'}">
+        <span class="pick-box">${_checkIcon(14)}</span>
+        <span class="pick-label">${_escape(item.label)}</span>
+        ${item.count != null ? `<span class="pick-count">${item.count}</span>` : ''}
       </button>`).join('');
   }
 
-  function _openDownloadCategory(cat) {
-    if (!_dlPickerData[cat] || !_dlPickerData[cat].length) {
-      showToast('Nada aqui ainda.');
+  function _updateDownloadFooter() {
+    // Selo com a contagem em cada aba
+    el.downloadPickerCategories.querySelectorAll('.seg-btn').forEach(btn => {
+      const n = (_dlPickerSel[btn.dataset.category] || []).length;
+      const badge = btn.querySelector('.seg-badge');
+      badge.textContent = n;
+      badge.classList.toggle('hidden', !n);
+    });
+
+    const sel = _dlSelections();
+    const nItems = Object.values(sel).reduce((n, a) => n + a.length, 0);
+    const btn = el.btnDownloadPickerConfirm;
+
+    if (!nItems) {
+      el.downloadPickerSummary.textContent = 'Nada selecionado';
+      btn.textContent = 'Selecione o que baixar';
+      btn.disabled = true;
       return;
     }
-    _dlPickerCategory = cat;
-    _dlPickerSelected = [];
-    el.downloadPickerCategories.classList.add('hidden');
-    el.downloadPickerValuesWrap.classList.remove('hidden');
-    el.btnDownloadPickerBack.classList.remove('hidden');
-    el.downloadPickerTitle.textContent = _dlPickerCategoryLabels[cat] || '';
-    el.downloadPickerHint.textContent = 'Toque para selecionar mais de um · depois toque em Baixar';
-    el.downloadPickerSearch.value = '';
-    _renderDownloadValues('');
-  }
 
-  function _backToDownloadCategories() {
-    _dlPickerCategory = null;
-    _dlPickerSelected = [];
-    el.downloadPickerCategories.classList.remove('hidden');
-    el.downloadPickerValuesWrap.classList.add('hidden');
-    el.btnDownloadPickerBack.classList.add('hidden');
-    el.downloadPickerTitle.textContent = 'Baixar músicas';
-    el.downloadPickerHint.textContent = 'Escolha o que baixar';
+    const c = _dlPickerCount ? _dlPickerCount(sel) : null;
+    if (!c) {
+      el.downloadPickerSummary.textContent = `${nItems} ${_plural(nItems, 'item marcado', 'itens marcados')}`;
+      btn.textContent = 'Baixar';
+      btn.disabled = false;
+      return;
+    }
+
+    const size = c.bytes ? ` · ≈ ${_fmtBytes(c.bytes)}` : '';
+    el.downloadPickerSummary.textContent =
+      `${c.total} ${_plural(c.total, 'música', 'músicas')} · ${c.pending} ${_plural(c.pending, 'nova', 'novas')}${size}`;
+    if (!c.pending) {
+      btn.textContent = 'Tudo isso já está baixado';
+      btn.disabled = true;
+    } else {
+      btn.textContent = `Baixar ${c.pending} ${_plural(c.pending, 'música', 'músicas')}`;
+      btn.disabled = false;
+    }
   }
 
   function _bindDownloadPickerEvents() {
     el.btnDownloadPickerClose?.addEventListener('click', hideDownloadPicker);
-    el.btnDownloadPickerBack?.addEventListener('click', _backToDownloadCategories);
     el.modalDownloadPicker?.addEventListener('click', e => {
       if (e.target === el.modalDownloadPicker) hideDownloadPicker();
     });
 
     el.downloadPickerCategories?.addEventListener('click', e => {
-      const btn = e.target.closest('.download-picker-category');
-      if (!btn) return;
-      _openDownloadCategory(btn.dataset.category);
+      const btn = e.target.closest('.seg-btn');
+      if (!btn || btn.disabled) return;
+      _setDlCategory(btn.dataset.category);
     });
 
     el.downloadPickerSearch?.addEventListener('input', () => {
@@ -1425,22 +1530,23 @@ const UI = (() => {
     });
 
     el.downloadPickerValues?.addEventListener('click', e => {
-      const item = e.target.closest('.filter-picker-item');
-      if (!item) return;
-      const value = item.dataset.value;
-      const idx = _dlPickerSelected.indexOf(value);
-      if (idx === -1) _dlPickerSelected.push(value);
-      else _dlPickerSelected.splice(idx, 1);
-      _renderDownloadValues(el.downloadPickerSearch.value);
+      const row = e.target.closest('.pick-row');
+      if (!row) return;
+      const list = _dlPickerSel[_dlPickerCategory];
+      const idx = list.indexOf(row.dataset.value);
+      if (idx === -1) list.push(row.dataset.value);
+      else list.splice(idx, 1);
+      row.classList.toggle('active', idx === -1);
+      row.setAttribute('aria-checked', idx === -1 ? 'true' : 'false');
+      _updateDownloadFooter();
     });
 
     el.btnDownloadPickerConfirm?.addEventListener('click', () => {
-      if (!_dlPickerSelected.length) { showToast('Selecione pelo menos um item.'); return; }
+      const sel = _dlSelections();
+      if (!Object.keys(sel).length) return;
       const onConfirm = _dlPickerOnConfirm;
-      const category = _dlPickerCategory;
-      const values = [..._dlPickerSelected];
       hideDownloadPicker();
-      onConfirm?.(category, values);
+      onConfirm?.(sel);
     });
   }
   _bindDownloadPickerEvents();
@@ -2198,7 +2304,7 @@ const UI = (() => {
     // (botão salvar, outros campos) quando não cabia no espaço restante.
     function reposition() {
       const wrap = listEl.closest('.genre-suggest-wrap') || input.parentElement;
-      const modal = input.closest('.modal-box');
+      const modal = input.closest('.sheet-body') || input.closest('.modal-box');
       const boundBottom = modal ? modal.getBoundingClientRect().bottom : window.innerHeight;
       const rect = input.getBoundingClientRect();
       const spaceBelow = boundBottom - rect.bottom;
@@ -2245,7 +2351,7 @@ const UI = (() => {
     // Se o modal tiver scroll e o usuário rolar com a lista aberta,
     // reposiciona (ou fecha, se saiu muito da área visível) em vez de
     // deixar a lista flutuando fora do lugar.
-    const scrollHost = input.closest('.modal-box');
+    const scrollHost = input.closest('.sheet-body') || input.closest('.modal-box');
     scrollHost?.addEventListener('scroll', () => {
       if (!listEl.classList.contains('hidden')) reposition();
     }, { passive: true });
@@ -2259,6 +2365,16 @@ const UI = (() => {
       input.dispatchEvent(new Event('input', { bubbles: true }));
     });
   }
+
+  // Tocar em qualquer lugar fora do campo fecha a lista de sugestões (tocar
+  // num texto ou botão comum não tira o foco do input no WebView, então só o
+  // blur não basta — a lista ficava por cima do botão de baixo). Um único
+  // listener global serve pra todas as listas, inclusive as recriadas.
+  document.addEventListener('pointerdown', e => {
+    document.querySelectorAll('.genre-suggest-list:not(.hidden)').forEach(list => {
+      if (!list.parentElement.contains(e.target)) list.classList.add('hidden');
+    });
+  }, true);
 
   _attachGenreSuggest(el.editFieldGenre,  el.editFieldGenreList,  () => _musicKnownGenres);
   _attachGenreSuggest(el.bulkGenreField,  el.bulkGenreFieldList,  () => _musicKnownGenres);
@@ -2369,8 +2485,8 @@ const UI = (() => {
       btn.addEventListener('click', () => showLibraryTab(btn.dataset.libTab));
     });
 
-    // Avatar → perfil
-    el.btnUser.addEventListener('click', () => showView('profile'));
+    // Avatar → perfil: ligado em app.js (_toggleProfile), porque precisa
+    // mexer no histórico pro botão "voltar" do Android.
 
     // Player callbacks
     Player.onPlay(track => {
@@ -2538,6 +2654,31 @@ const UI = (() => {
     el.offlineStatus.textContent = text;
   }
 
+  function _fmtBytes(bytes) {
+    if (!bytes) return '0 MB';
+    if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))} KB`;
+    if (bytes < 1024 * 1024 * 1024) return `${Math.round(bytes / (1024 * 1024))} MB`;
+    return `${(bytes / (1024 * 1024 * 1024)).toFixed(1).replace('.', ',')} GB`;
+  }
+
+  // Números do topo do perfil + barra fixa "quanto já está baixado"
+  function setLibraryStats({ total = 0, downloaded = 0, bytes = 0 } = {}) {
+    el.statTracks.textContent     = total ? String(total) : '—';
+    el.statDownloaded.textContent = total ? String(downloaded) : '—';
+    el.statSize.textContent       = total ? _fmtBytes(bytes) : '—';
+    el.offlineMeterFill.style.width = total ? `${Math.round((downloaded / total) * 100)}%` : '0%';
+  }
+
+  // Os botões do Modo offline são linhas com ícone + texto; só o rótulo muda
+  // (trocar o textContent do botão inteiro apagaria o ícone).
+  function _setRowLabel(btn, text) {
+    const label = btn.querySelector('.set-row-label');
+    (label || btn).textContent = text;
+  }
+  function _rowLabel(btn) {
+    return (btn.querySelector('.set-row-label') || btn).textContent;
+  }
+
   // Ajusta o botão "Baixar tudo" conforme quanto já foi baixado:
   // nada baixado → "Baixar tudo"; parte baixada → "Baixar restante";
   // tudo já baixado → o botão some (não tem mais o que baixar).
@@ -2549,30 +2690,32 @@ const UI = (() => {
     const label = downloadedCount > 0 ? 'Baixar restante' : 'Baixar tudo';
     el.btnDownloadAll.dataset.idleLabel = label;
     if (!el.btnDownloadAll.classList.contains('btn-cancel')) {
-      el.btnDownloadAll.textContent = label;
+      _setRowLabel(el.btnDownloadAll, label);
     }
   }
 
-  // which: 'all' | 'fav' | null — controla qual botão vira "Cancelar"
+  // which: 'all' | 'fav' | 'custom' | null — controla qual linha vira "Cancelar"
   function setDownloadBatchUI(running, done = 0, total = 0, which = null) {
     el.btnDownloadAll.disabled       = running && which !== 'all';
     el.btnDownloadFavorites.disabled = running && which !== 'fav';
     el.btnDownloadCustom.disabled    = running && which !== 'custom';
+    el.btnClearDownloads.disabled    = !!running;
 
-    if (which === 'all') el.btnDownloadAll.textContent = running ? 'Cancelar' : el.btnDownloadAll.dataset.idleLabel || 'Baixar tudo';
-    el.btnDownloadFavorites.textContent = (running && which === 'fav') ? 'Cancelar' : 'Baixar favoritas';
-    el.btnDownloadCustom.dataset.idleLabel = el.btnDownloadCustom.dataset.idleLabel || el.btnDownloadCustom.textContent;
-    el.btnDownloadCustom.textContent = (running && which === 'custom') ? 'Cancelar' : el.btnDownloadCustom.dataset.idleLabel;
+    if (which === 'all') _setRowLabel(el.btnDownloadAll, running ? 'Cancelar download' : el.btnDownloadAll.dataset.idleLabel || 'Baixar tudo');
+    _setRowLabel(el.btnDownloadFavorites, (running && which === 'fav') ? 'Cancelar download' : 'Baixar favoritas');
+    el.btnDownloadCustom.dataset.idleLabel = el.btnDownloadCustom.dataset.idleLabel || _rowLabel(el.btnDownloadCustom);
+    _setRowLabel(el.btnDownloadCustom, (running && which === 'custom') ? 'Cancelar download' : el.btnDownloadCustom.dataset.idleLabel);
 
     el.btnDownloadAll.classList.toggle('btn-cancel', running && which === 'all');
     el.btnDownloadFavorites.classList.toggle('btn-cancel', running && which === 'fav');
     el.btnDownloadCustom.classList.toggle('btn-cancel', running && which === 'custom');
 
+    el.offlineCard.classList.toggle('is-batch', !!running);
     if (running) {
       el.offlineProgressWrap.classList.remove('hidden');
       const pct = total ? Math.round((done / total) * 100) : 0;
       el.offlineProgressFill.style.width = pct + '%';
-      el.offlineProgressText.textContent = `${done} / ${total}`;
+      el.offlineProgressText.textContent = `Baixando ${done} de ${total}`;
     } else {
       el.offlineProgressWrap.classList.add('hidden');
     }
@@ -2629,6 +2772,11 @@ const UI = (() => {
     showFilterPicker,    hideFilterPicker,
     setFilterSummary,
     showDownloadPicker,
+    setLibraryStats,
+    showFolderLoading,
+    renderFolderError,
+    attachGenreSuggest: _attachGenreSuggest,
+    fmtBytes: _fmtBytes,
     hideDownloadPicker,
 
     // Menu da faixa
