@@ -1227,7 +1227,9 @@ const UI = (() => {
       el.collectionPreviewList.innerHTML = `<p class="empty-hint">Nada por aqui ainda.</p>`;
     } else {
       renderTrackList(el.collectionPreviewList, tracks, currentTrackId);
-      bindTrackListEvents(el.collectionPreviewList, tracks);
+      // loop: true — mesma playlist/Favoritas por trás dessa prévia, então
+      // ao acabar a lista continua girando nela (ver Player._queueLoops).
+      bindTrackListEvents(el.collectionPreviewList, tracks, { loop: true });
     }
     el.modalCollectionPreview.classList.remove('hidden');
   }
@@ -1740,7 +1742,9 @@ const UI = (() => {
     renderTrackList(el.playlistTracksList, tracks, currentId);
     // "Remover desta playlist" só faz sentido numa playlist de verdade —
     // em Favoritas, o coração já cumpre esse papel.
-    bindTrackListEvents(el.playlistTracksList, tracks, { removable: !isFavorites });
+    // loop: true — ao tocar uma faixa daqui e a lista acabar, continua
+    // girando nela mesma em vez de emendar músicas de fora (modo rádio).
+    bindTrackListEvents(el.playlistTracksList, tracks, { removable: !isFavorites, loop: true });
   }
 
   // ── MODAL: NOVA PLAYLIST ───────────────────────
@@ -2620,7 +2624,7 @@ const UI = (() => {
 
       const index = parseInt(item.dataset.index, 10);
       if (isNaN(index)) return;
-      Player.loadQueue(currentTracks, index);
+      Player.loadQueue(currentTracks, index, { loop: !!currentOpts.loop });
     });
 
     container.addEventListener('keydown', e => {

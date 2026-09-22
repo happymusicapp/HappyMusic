@@ -672,14 +672,19 @@ const App = (() => {
 
     if (!_tracks.length) return; // trata vazio lá em cima, em _loadTracks
 
+    const active = [_filters.genre, (_filters.artist && _filters.artist.length ? 1 : ''), _filters.album].filter(Boolean).length;
+
     if (!list.length) {
       UI.el.allTracksList.innerHTML = `<p class="empty-hint">Nenhuma música com esse filtro.</p>`;
     } else {
       UI.renderTrackListIncremental(UI.el.allTracksList, list, _currentId(), UI.el.mainContent);
-      UI.bindTrackListEvents(UI.el.allTracksList, list);
+      // loop: true só com filtro (artista/gênero/álbum) ativo — nesse caso
+      // é uma seleção fechada, então ao acabar continua girando nela mesma
+      // em vez de emendar músicas de fora (modo rádio). Sem filtro (lista
+      // inteira da biblioteca) mantém o comportamento de rádio de sempre.
+      UI.bindTrackListEvents(UI.el.allTracksList, list, { loop: active > 0 });
     }
 
-    const active = [_filters.genre, (_filters.artist && _filters.artist.length ? 1 : ''), _filters.album].filter(Boolean).length;
     UI.setFilterSummary(active ? `${list.length} de ${_tracks.length} músicas com o filtro atual` : null);
 
     if (UI.isSelectMode(UI.el.allTracksList)) _updateSelectionUI();
@@ -1416,7 +1421,9 @@ const App = (() => {
       if (!tracks.length) { UI.showToast('Essa playlist ainda está vazia.'); return; }
       // Botão "tocar a lista": sem internet, começa pela primeira música
       // baixada em vez de recusar (o usuário não escolheu uma faixa específica).
-      Player.loadQueue(tracks, 0, { skipUnavailable: true });
+      // loop: true — ao acabar a playlist, continua tocando ela mesma
+      // (dá a volta), em vez de entrar no modo rádio com músicas de fora.
+      Player.loadQueue(tracks, 0, { skipUnavailable: true, loop: true });
     });
 
     // Mantém a tela de Favoritas (se aberta) e a contagem no card sincronizadas

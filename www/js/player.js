@@ -14,6 +14,12 @@ const Player = (() => {
   let _index        = -1;   // índice atual na fila
   let _shuffle      = false;
   let _repeat       = 'none'; // 'none' | 'all' | 'one'
+
+  // Fila "fechada" (playlist, ou biblioteca com filtro de artista/gênero/
+  // álbum aplicado): ao terminar, dá a volta e continua tocando as MESMAS
+  // faixas, em vez de cair no modo rádio (_pickAutoContinueTracks) e
+  // trazer músicas de fora dali. Setado via opts.loop em loadQueue().
+  let _queueLoops   = false;
   let _favorites    = new Set(JSON.parse(localStorage.getItem('hm_favorites') || '[]'));
 
   // ── CALLBACKS (registrados pelo ui.js / app.js) ──
@@ -65,6 +71,7 @@ const Player = (() => {
     _originalQueue = [...tracks];
     _queue         = _shuffle ? _shuffled(tracks, start) : [...tracks];
     _index         = _shuffle ? 0 : start;
+    _queueLoops    = !!opts.loop;
     _preloadedTrackId = null;
     _loadedTrackId = null;
     _play(0, { explicit: true, snapshot });
@@ -189,7 +196,7 @@ const Player = (() => {
     for (let n = 0; n < len; n++) {
       let i = from + dir * n;
       if (i < 0 || i >= len) {
-        if (_repeat !== 'all') return -1;
+        if (_repeat !== 'all' && !_queueLoops) return -1;
         i = ((i % len) + len) % len;
       }
       if (_isPlayableOffline(_queue[i])) return i;
@@ -307,7 +314,7 @@ const Player = (() => {
     if (!_queue.length) return -1;
     if (_repeat === 'one') return _index;
     if (_index < _queue.length - 1) return _index + 1;
-    if (_repeat === 'all') return 0;
+    if (_repeat === 'all' || _queueLoops) return 0;
     return -1; // fim da fila, sem repeat
   }
 
@@ -405,11 +412,16 @@ const Player = (() => {
         _listeners.onError?.(err);
       });
   }
-  function pause() {
+  // opts.keepFocus: usado só pela pausa por perda de foco de áudio (ver
+  // hmAudioFocusLoss abaixo) — abandonar o foco ali faria o Android
+  // esquecer que a gente quer ele de volta, e nunca mais avisaria do
+  // hmAudioFocusGain quando a ligação/áudio terminar.
+  function pause(opts = {}) {
     _userPaused = true;
     audio.pause();
     if (window.NativeMedia) NativeMedia.setPlaybackState('paused');
     else if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'paused';
+    if (!opts.keepFocus) window.NativeAudioFocus?.abandon();
     _listeners.onPause?.();
   }
 
@@ -426,6 +438,33 @@ const Player = (() => {
   if (window.NativeApp && window.NativeApp.isNative) {
     window.addEventListener('hmAudioBecomingNoisy', () => {
       if (!audio.paused) pause();
+    });
+  }
+
+  // Foco de áudio perdido de verdade (ligação chegando, WhatsApp
+  // gravando/enviando um áudio, ou outro app pedindo pra tocar som) —
+  // ver AudioFocusPlugin.java (nativo) e native-bridge.js. Fica mudo
+  // igual o Spotify faz: ao contrário da "pausa inesperada" tratada
+  // acima (pensada pra distrações rápidas tipo o GPS falando, que tenta
+  // retomar sozinha por conta própria), aqui NÃO tentamos voltar a
+  // tocar por conta própria — só quando o sistema avisa que o foco
+  // voltou de verdade (hmAudioFocusGain), o que só acontece quando a
+  // ligação/o áudio termina.
+  let _pausedByFocusLoss = false;
+
+  if (window.NativeApp && window.NativeApp.isNative) {
+    window.addEventListener('hmAudioFocusLoss', () => {
+      if (!audio.paused) {
+        _pausedByFocusLoss = true;
+        pause({ keepFocus: true });
+      }
+    });
+
+    window.addEventListener('hmAudioFocusGain', () => {
+      if (_pausedByFocusLoss) {
+        _pausedByFocusLoss = false;
+        play();
+      }
     });
   }
 
@@ -481,7 +520,7 @@ const Player = (() => {
     const offline = _isOffline();
 
     let target = _index + 1;
-    if (target >= _queue.length) target = (_repeat === 'all') ? 0 : -1;
+    if (target >= _queue.length) target = (_repeat === 'all' || _queueLoops) ? 0 : -1;
     const immediate = target;
 
     // Sem internet: pula direto as faixas não baixadas, sem nem tentar
@@ -528,7 +567,7 @@ const Player = (() => {
     let target = _index;
     if (_index > 0) {
       target = _index - 1;
-    } else if (_repeat === 'all') {
+    } else if (_repeat === 'all' || _queueLoops) {
       target = _queue.length - 1;
     }
 
@@ -650,6 +689,11 @@ const Player = (() => {
     // automática e de falhas seguidas (ver listeners 'pause'/'error').
     _autoResumeAttempts = 0;
     _errorSkipStreak = 0;
+    // Garante o foco de áudio pedido (ver hmAudioFocusLoss/Gain acima) —
+    // é o que faz o Android nos avisar de ligação/áudio do WhatsApp.
+    // Idempotente do lado nativo, então chamar de novo a cada play() não
+    // tem custo.
+    window.NativeAudioFocus?.request();
   });
 
   // Conta falhas seguidas do elemento <audio> (evento 'error', disparado

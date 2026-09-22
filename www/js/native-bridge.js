@@ -82,6 +82,48 @@
 
   global.NativeMedia = NativeMedia;
 
+  // ── Foco de áudio (mudo em ligação / áudio do WhatsApp) ────────
+  // Ver AudioFocusPlugin.java: pede o foco de áudio do sistema enquanto
+  // a música toca, e reencaminha os avisos nativos de perda/devolução
+  // de foco como eventos de window, no mesmo estilo do
+  // 'hmAudioBecomingNoisy' já usado pra fone/Bluetooth desconectado —
+  // é isso que player.js escuta pra ficar mudo e voltar a tocar sozinho.
+  const audioFocusPlugin = isNative && global.Capacitor.Plugins
+    ? global.Capacitor.Plugins.AudioFocus
+    : null;
+
+  const NativeAudioFocus = {
+    isNative: !!audioFocusPlugin,
+
+    async request() {
+      if (!audioFocusPlugin) return;
+      try { await audioFocusPlugin.request(); }
+      catch (err) { console.warn('[NativeAudioFocus] request falhou:', err); }
+    },
+
+    async abandon() {
+      if (!audioFocusPlugin) return;
+      try { await audioFocusPlugin.abandon(); }
+      catch (err) { console.warn('[NativeAudioFocus] abandon falhou:', err); }
+    },
+  };
+
+  if (audioFocusPlugin) {
+    audioFocusPlugin.addListener('focusChange', ({ reason }) => {
+      if (reason === 'gain') {
+        global.dispatchEvent(new CustomEvent('hmAudioFocusGain'));
+      } else {
+        // 'loss', 'loss_transient' ou 'loss_transient_can_duck' — nos
+        // três casos o pedido é "fica mudo" (ligação chegando, áudio do
+        // WhatsApp sendo gravado/enviado, ou outro app querendo tocar
+        // som): nada de continuar tocando por cima.
+        global.dispatchEvent(new CustomEvent('hmAudioFocusLoss', { detail: { reason } }));
+      }
+    });
+  }
+
+  global.NativeAudioFocus = NativeAudioFocus;
+
   // ── Navegador externo (login do Google) ────────
   // O Google bloqueia login OAuth feito dentro de uma WebView embutida
   // (é assim que o app roda no Capacitor) — por política de segurança
