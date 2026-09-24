@@ -383,16 +383,33 @@ const App = (() => {
   // usuário é bloqueado pelo navegador mesmo).
   function _primeLastPlayed() {
     try {
+      // Se a versão instantânea já não deixou nada tocando, isso só
+      // troca a fila internamente (sem UI piscar) — se por acaso já
+      // estiver tocando algo (usuário foi rápido), não mexe em nada.
+      if (Player.getCurrentTrack() && Player.isPlaying()) return;
+
+      // Prioridade 1: estado salvo (ver Player.restoreResumeState) —
+      // reconstrói a MESMA fila (playlist ou filtro por artista/gênero/
+      // álbum, se era o caso) e o ponto exato onde a música ficou,
+      // sobrevivendo a uma recriação do processo em segundo plano
+      // (ligação, WhatsApp, ou só o Android liberando memória). Sem
+      // isso, reabrir o app sempre caía de volta na biblioteca inteira
+      // a partir do início da última faixa.
+      const restored = Player.restoreResumeState(_tracks);
+      if (restored) {
+        UI.updatePlayerTrack(restored);
+        UI.setPlayState(false);
+        return;
+      }
+
+      // Prioridade 2 (fallback): nada salvo (instalação nova, ou as
+      // faixas da fila salva não existem mais no Drive) — só a última
+      // faixa tocada, com a fila sendo a biblioteca inteira.
       const recent = Player.getRecent();
       if (!recent.length) return;
 
       const track = _tracks.find(t => t.id === recent[0].id);
       if (!track) return; // pode ter sido apagada/movida no Drive
-
-      // Se a versão instantânea já não deixou nada tocando, isso só
-      // troca a fila internamente (sem UI piscar) — se por acaso já
-      // estiver tocando algo (usuário foi rápido), não mexe em nada.
-      if (Player.getCurrentTrack() && Player.isPlaying()) return;
 
       Player.primeQueue(_tracks, _tracks.indexOf(track));
       UI.updatePlayerTrack(track);

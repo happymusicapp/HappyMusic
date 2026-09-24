@@ -22,6 +22,13 @@ const Player = (() => {
   let _queueLoops   = false;
   let _favorites    = new Set(JSON.parse(localStorage.getItem('hm_favorites') || '[]'));
 
+  // Ponto (em segundos) pra retomar assim que a faixa restaurada por
+  // restoreResumeState() for carregada de verdade (ver _play()) — sem
+  // isso, reabrir o app depois de o processo ser recriado em segundo
+  // plano sempre voltaria a faixa do zero.
+  let _pendingResumeTime = 0;
+  let _lastResumeSaveAt  = 0; // throttle do salvamento periódico (ver timeupdate)
+
   // ── CALLBACKS (registrados pelo ui.js / app.js) ──
   const _listeners = {
     onPlay:        null,  // (track) => {}
@@ -92,6 +99,69 @@ const Player = (() => {
     _index         = _shuffle ? 0 : startIndex;
     _preloadedTrackId = null;
     _loadedTrackId = null; // faixa ainda não carregada de fato — só apertar play que buscamos a URL
+  }
+
+  // ── RETOMAR DE ONDE PAROU (sobrevive a reabrir o app) ──────────
+  // O WebView do Android pode ser recriado do zero depois de um bom
+  // tempo em segundo plano (o sistema derruba o processo por memória —
+  // comum bem na hora de gravar/mandar um áudio no WhatsApp, ou numa
+  // ligação mais longa). Quando isso acontece, todo o estado do
+  // player em memória (fila, filtro/playlist ativa, ponto exato da
+  // música) se perde — sem isso, o app "esquece" que você tinha
+  // filtrado por gênero/artista/álbum ou tocado uma playlist, e ao
+  // reabrir cai de volta na biblioteca inteira a partir do início da
+  // faixa. Salvamos periodicamente um retrato mínimo (ids da fila,
+  // faixa atual, ponto exato, loop/shuffle/repeat) e usamos pra
+  // reconstruir tudo igual no próximo _primeLastPlayed() do app.js.
+  const KEY_RESUME = 'hm_resume';
+
+  function _saveResumeState() {
+    try {
+      const track = getCurrentTrack();
+      if (!track || track.isExternal || !_queue.length) return;
+      localStorage.setItem(KEY_RESUME, JSON.stringify({
+        ids:     _originalQueue.map(t => t.id),
+        trackId: track.id,
+        time:    audio.currentTime || 0,
+        loop:    _queueLoops,
+        shuffle: _shuffle,
+        repeat:  _repeat,
+      }));
+    } catch (_) { /* localStorage indisponível/cheio — não é crítico */ }
+  }
+
+  // Chamado pelo app.js na inicialização, assim que a biblioteca
+  // completa (allTracks) estiver carregada. Não toca nada sozinho —
+  // só remonta fila/índice/loop/shuffle/repeat e guarda o ponto exato
+  // pra aplicar quando o usuário apertar play (ver _pendingResumeTime
+  // em _play()). Retorna a faixa restaurada, ou null se não havia
+  // nada salvo (instalação nova) ou as faixas salvas não existem mais
+  // no Drive (apagadas/movidas enquanto o app estava fechado).
+  function restoreResumeState(allTracks) {
+    try {
+      const raw = localStorage.getItem(KEY_RESUME);
+      if (!raw) return null;
+      const saved = JSON.parse(raw);
+      if (!saved || !Array.isArray(saved.ids) || !saved.ids.length) return null;
+
+      const list = saved.ids.map(id => allTracks.find(t => t.id === id)).filter(Boolean);
+      const idx  = list.findIndex(t => t.id === saved.trackId);
+      if (idx === -1) return null;
+
+      _originalQueue     = list;
+      _shuffle           = !!saved.shuffle;
+      _repeat            = (saved.repeat === 'all' || saved.repeat === 'one') ? saved.repeat : 'none';
+      _queueLoops        = !!saved.loop;
+      _queue             = _shuffle ? _shuffled(list, idx) : [...list];
+      _index             = _shuffle ? 0 : idx;
+      _preloadedTrackId  = null;
+      _loadedTrackId     = null;
+      _pendingResumeTime = Math.max(0, saved.time || 0);
+
+      return list[idx];
+    } catch (_) {
+      return null;
+    }
   }
 
   function getQueue()        { return _queue; }
@@ -220,6 +290,7 @@ const Player = (() => {
     return {
       queue: _queue, originalQueue: _originalQueue, index: _index,
       loadedTrackId: _loadedTrackId, preloadedTrackId: _preloadedTrackId,
+      queueLoops: _queueLoops,
     };
   }
 
@@ -235,6 +306,7 @@ const Player = (() => {
       _index = snap.index;
       _loadedTrackId = snap.loadedTrackId;
       _preloadedTrackId = snap.preloadedTrackId;
+      _queueLoops = !!snap.queueLoops;
       restore = getCurrentTrack();
     }
     _listeners.onOfflineBlocked?.(track, {
@@ -273,8 +345,17 @@ const Player = (() => {
       audio.load();
       _loadedTrackId = track.id;
 
+      // Restaura o ponto exato de uma sessão anterior (ver
+      // restoreResumeState) — só na primeira vez que essa faixa é
+      // carregada de fato depois de restaurada; consumido uma vez só.
+      if (_pendingResumeTime > 0) {
+        audio.currentTime = _pendingResumeTime;
+        _pendingResumeTime = 0;
+      }
+
       await audio.play();
       _listeners.onPlay?.(track);
+      _saveResumeState();
 
       // Pré-carrega a próxima faixa em segundo plano. Isso é essencial
       // com a tela travada: baixar o áudio inteiro (fetch + blob) só
@@ -422,6 +503,7 @@ const Player = (() => {
     if (window.NativeMedia) NativeMedia.setPlaybackState('paused');
     else if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'paused';
     if (!opts.keepFocus) window.NativeAudioFocus?.abandon();
+    _saveResumeState();
     _listeners.onPause?.();
   }
 
@@ -451,20 +533,39 @@ const Player = (() => {
   // voltou de verdade (hmAudioFocusGain), o que só acontece quando a
   // ligação/o áudio termina.
   let _pausedByFocusLoss = false;
+  let _focusLossSnapshot = null; // { trackId, time } — ver hmAudioFocusGain abaixo
 
   if (window.NativeApp && window.NativeApp.isNative) {
     window.addEventListener('hmAudioFocusLoss', () => {
       if (!audio.paused) {
         _pausedByFocusLoss = true;
+        _focusLossSnapshot = { trackId: _loadedTrackId, time: audio.currentTime };
         pause({ keepFocus: true });
       }
     });
 
     window.addEventListener('hmAudioFocusGain', () => {
-      if (_pausedByFocusLoss) {
-        _pausedByFocusLoss = false;
-        play();
-      }
+      if (!_pausedByFocusLoss) return;
+      _pausedByFocusLoss = false;
+      const snap = _focusLossSnapshot;
+      _focusLossSnapshot = null;
+
+      if (!snap) { play(); return; }
+
+      // Depois de um tempo em segundo plano (gravar/mandar um áudio no
+      // WhatsApp, uma ligação mais longa), o Android pode descartar o
+      // player de mídia por trás do <audio> pra liberar memória — o
+      // elemento continua existindo, mas ao mandar tocar de novo ele
+      // recarrega o arquivo do zero. Sem essa correção, a música sempre
+      // voltaria do começo em vez do ponto exato em que ficou muda.
+      const restorePosition = () => {
+        if (_loadedTrackId === snap.trackId && Math.abs(audio.currentTime - snap.time) > 1) {
+          audio.currentTime = snap.time;
+        }
+      };
+      audio.addEventListener('loadedmetadata', restorePosition, { once: true });
+      play();
+      restorePosition(); // caso o metadata já estivesse carregado (player não foi descartado)
     });
   }
 
@@ -529,10 +630,15 @@ const Player = (() => {
     if (offline && target !== -1) target = _seekPlayable(target, +1);
 
     if (target === -1) {
-      // Fim da fila sem repeat (ou nada baixado mais à frente): em vez de
-      // parar, tenta continuar sozinho com faixas do mesmo estilo (ver
-      // _pickAutoContinueTracks).
-      const extra = _pickAutoContinueTracks(getCurrentTrack(), _queue.map(t => t.id));
+      // Fim da fila sem repeat: em vez de parar, tenta continuar sozinho
+      // com faixas do mesmo estilo (ver _pickAutoContinueTracks) — MAS
+      // só quando a fila não é fechada (_queueLoops). Numa playlist ou
+      // biblioteca filtrada por artista/gênero/álbum, o pedido é nunca
+      // sair dali; mesmo no caso raro de estar offline e nenhuma faixa
+      // da própria seleção estar baixada, é melhor parar do que emendar
+      // uma faixa de outro estilo por trás (era esse vazamento que fazia
+      // "sertanejo" de repente tocar rock).
+      const extra = _queueLoops ? [] : _pickAutoContinueTracks(getCurrentTrack(), _queue.map(t => t.id));
       if (extra.length) {
         const firstNew = _queue.length;
         _queue         = [..._queue, ...extra];
@@ -674,6 +780,16 @@ const Player = (() => {
     if (audio.duration && audio.duration - audio.currentTime <= 20) {
       _preloadNext();
     }
+
+    // Guarda o ponto atual de tempos em tempos (não a cada tick) —
+    // é o que permite retomar do lugar certo se o processo for
+    // recriado no meio da faixa, sem nunca ter passado por pause()
+    // (ver restoreResumeState / _pendingResumeTime).
+    const now = Date.now();
+    if (now - _lastResumeSaveAt > 5000) {
+      _lastResumeSaveAt = now;
+      _saveResumeState();
+    }
   });
 
   audio.addEventListener('ended', () => {
@@ -804,6 +920,7 @@ const Player = (() => {
     // Fila
     loadQueue,
     primeQueue,
+    restoreResumeState,
     getQueue,
     getCurrentTrack,
     getCurrentIndex,
