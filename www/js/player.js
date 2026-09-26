@@ -569,6 +569,22 @@ const Player = (() => {
     });
   }
 
+  // Bluetooth de música conectado (o carro ligou, um fone/caixa de som
+  // pareou) — ver BluetoothAudioWatcher.java (nativo). Se tinha uma
+  // música parada (pausada, ou só carregada esperando o play depois de
+  // abrir o app — ver restoreResumeState), retoma sozinha, igual o
+  // Spotify faz. Não mexe em nada se já está tocando, se não tem
+  // nenhuma faixa carregada ainda, ou se está mudo por causa de uma
+  // ligação/áudio do WhatsApp em andamento (aí quem manda a volta é o
+  // hmAudioFocusGain acima, não a simples conexão do Bluetooth).
+  if (window.NativeApp && window.NativeApp.isNative) {
+    window.addEventListener('hmBluetoothConnected', () => {
+      if (!_pausedByFocusLoss && getCurrentTrack() && audio.paused) {
+        play();
+      }
+    });
+  }
+
   function isPlaying() { return !audio.paused; }
 
   // ── CONTINUAR SOZINHO (MODO RÁDIO) ─────────────
