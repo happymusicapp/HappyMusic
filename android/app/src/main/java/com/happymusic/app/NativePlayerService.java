@@ -216,7 +216,12 @@ public class NativePlayerService extends Service {
 
     public void loadLocalAndPlay(String absolutePath, long resumeMs) {
         if (player == null) return;
-        MediaItem item = MediaItem.fromUri(Uri.fromFile(new File(absolutePath)));
+        // getAudioPath() no JS já devolve uma URI "file://..." (é o que
+        // o getUri() do plugin de Filesystem retorna) — usar Uri.parse
+        // direto; Uri.fromFile(new File(...)) só funciona com caminho
+        // puro, sem esquema, e quebraria aqui.
+        Uri uri = absolutePath.contains("://") ? Uri.parse(absolutePath) : Uri.fromFile(new File(absolutePath));
+        MediaItem item = MediaItem.fromUri(uri);
         player.setMediaItem(item);
         player.prepare();
         if (resumeMs > 0) player.seekTo(resumeMs);
@@ -423,14 +428,23 @@ public class NativePlayerService extends Service {
     private class MediaSessionCallback extends MediaSessionCompat.Callback {
         @Override
         public void onPlay() {
-            nativePlay();
+            // Chama o callback pro JS PRIMEIRO, e só depois mexe no
+            // ExoPlayer de verdade — ver onPause() abaixo, mesmo motivo.
             if (plugin != null) plugin.actionCallback("play");
+            nativePlay();
         }
 
         @Override
         public void onPause() {
-            nativePause();
+            // Avisa o JS (play()/pause() do player.js, que marca a pausa
+            // como "pedida pelo usuário") ANTES de mexer no ExoPlayer.
+            // Se fosse na ordem inversa, o aviso nativo de "estado mudou"
+            // (assíncrono, pelo Player.Listener) podia chegar no JS ANTES
+            // desse callback, e o player.js confundiria essa pausa com
+            // uma "pausa inesperada" (ligação/GPS) e tentaria retomar a
+            // música sozinha bem na hora em que o usuário pediu pra parar.
             if (plugin != null) plugin.actionCallback("pause");
+            nativePause();
         }
 
         @Override
