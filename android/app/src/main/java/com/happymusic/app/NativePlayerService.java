@@ -80,6 +80,43 @@ public class NativePlayerService extends Service {
     private NativePlayerPlugin plugin;
     private ExoPlayer player;
 
+    // Handler preso à thread principal — é NELA que o ExoPlayer precisa
+    // ser criado e SEMPRE acessado depois (regra do próprio ExoPlayer,
+    // não é opcional). Os métodos do plugin (load/nativePlay/nativePause/
+    // nativeSeek) são chamados pelo Capacitor numa thread própria dele
+    // ("CapacitorPlugins"), então toda operação que mexe em `player`
+    // precisa ser despachada pra cá dentro (ver postToMain abaixo).
+    private final android.os.Handler mainHandler = new android.os.Handler(android.os.Looper.getMainLooper());
+
+    // Cópia do estado, atualizada só de dentro da thread principal
+    // (pelo próprio Player.Listener e pelo positionTicker abaixo), pra
+    // getPositionMs()/getDurationMs()/isPlayingNow() poderem ser lidos
+    // com segurança de QUALQUER thread (ex.: nativeGetState() do plugin,
+    // chamado da thread "CapacitorPlugins") sem tocar no player.
+    private volatile boolean cachedPlaying = false;
+    private volatile long cachedPositionMs = 0;
+    private volatile long cachedDurationMs = 0;
+
+    // onIsPlayingChanged/onPlaybackStateChanged só disparam quando o
+    // ESTADO muda — sem isso a posição ficaria parada entre um evento e
+    // outro (a barra de progresso no app não andaria durante a música).
+    private final Runnable positionTicker = new Runnable() {
+        @Override
+        public void run() {
+            if (player != null) {
+                cachedPlaying = player.isPlaying();
+                cachedPositionMs = Math.max(player.getCurrentPosition(), 0);
+                long d = player.getDuration();
+                cachedDurationMs = (d == C.TIME_UNSET) ? 0 : Math.max(d, 0);
+            }
+            mainHandler.postDelayed(this, 500);
+        }
+    };
+
+    private void postToMain(Runnable action) {
+        mainHandler.post(action);
+    }
+
     private final IBinder binder = new LocalBinder();
 
     public final class LocalBinder extends Binder {
@@ -125,6 +162,7 @@ public class NativePlayerService extends Service {
         initializeMediaSession();
         initializeNotification(buildFallbackContentIntent());
         startForegroundNow();
+        mainHandler.post(positionTicker);
     }
 
     // PendingIntent genérico (abre o app do jeito normal) usado como
@@ -252,63 +290,76 @@ public class NativePlayerService extends Service {
     // ── Controle de reprodução (chamado pelo NativePlayerPlugin) ────
 
     public void loadAndPlay(String url, Map<String, String> headers, long resumeMs) {
-        if (player == null) return;
-        DefaultHttpDataSource.Factory httpFactory = new DefaultHttpDataSource.Factory();
-        if (headers != null && !headers.isEmpty()) httpFactory.setDefaultRequestProperties(headers);
-        MediaItem item = MediaItem.fromUri(url);
-        player.setMediaSource(new ProgressiveMediaSource.Factory(httpFactory).createMediaSource(item));
-        player.prepare();
-        if (resumeMs > 0) player.seekTo(resumeMs);
-        player.setPlayWhenReady(true);
+        postToMain(() -> {
+            if (player == null) return;
+            DefaultHttpDataSource.Factory httpFactory = new DefaultHttpDataSource.Factory();
+            if (headers != null && !headers.isEmpty()) httpFactory.setDefaultRequestProperties(headers);
+            MediaItem item = MediaItem.fromUri(url);
+            player.setMediaSource(new ProgressiveMediaSource.Factory(httpFactory).createMediaSource(item));
+            player.prepare();
+            if (resumeMs > 0) player.seekTo(resumeMs);
+            player.setPlayWhenReady(true);
+        });
     }
 
     public void loadLocalAndPlay(String absolutePath, long resumeMs) {
-        if (player == null) return;
-        // getAudioPath() no JS já devolve uma URI "file://..." (é o que
-        // o getUri() do plugin de Filesystem retorna) — usar Uri.parse
-        // direto; Uri.fromFile(new File(...)) só funciona com caminho
-        // puro, sem esquema, e quebraria aqui.
-        Uri uri = absolutePath.contains("://") ? Uri.parse(absolutePath) : Uri.fromFile(new File(absolutePath));
-        MediaItem item = MediaItem.fromUri(uri);
-        player.setMediaItem(item);
-        player.prepare();
-        if (resumeMs > 0) player.seekTo(resumeMs);
-        player.setPlayWhenReady(true);
+        postToMain(() -> {
+            if (player == null) return;
+            // getAudioPath() no JS já devolve uma URI "file://..." (é o que
+            // o getUri() do plugin de Filesystem retorna) — usar Uri.parse
+            // direto; Uri.fromFile(new File(...)) só funciona com caminho
+            // puro, sem esquema, e quebraria aqui.
+            Uri uri = absolutePath.contains("://") ? Uri.parse(absolutePath) : Uri.fromFile(new File(absolutePath));
+            MediaItem item = MediaItem.fromUri(uri);
+            player.setMediaItem(item);
+            player.prepare();
+            if (resumeMs > 0) player.seekTo(resumeMs);
+            player.setPlayWhenReady(true);
+        });
     }
 
     public void nativePlay() {
-        if (player != null) player.setPlayWhenReady(true);
+        postToMain(() -> { if (player != null) player.setPlayWhenReady(true); });
     }
 
     public void nativePause() {
-        if (player != null) player.setPlayWhenReady(false);
+        postToMain(() -> { if (player != null) player.setPlayWhenReady(false); });
     }
 
     public void nativeSeekTo(long ms) {
-        if (player != null) player.seekTo(ms);
+        postToMain(() -> { if (player != null) player.seekTo(ms); });
     }
 
     public long getPositionMs() {
-        return player != null ? Math.max(player.getCurrentPosition(), 0) : 0;
+        return cachedPositionMs;
     }
 
     public long getDurationMs() {
-        if (player == null) return 0;
-        long d = player.getDuration();
-        return d == C.TIME_UNSET ? 0 : Math.max(d, 0);
+        return cachedDurationMs;
     }
 
     public boolean isPlayingNow() {
-        return player != null && player.isPlaying();
+        return cachedPlaying;
     }
 
+    // Só é seguro chamar de dentro da thread principal (Player.Listener
+    // já roda nela) — atualiza o cache (ver campos no topo do arquivo) e
+    // avisa o JS. Chamadas vindas de outra thread devem usar
+    // getPositionMs()/getDurationMs()/isPlayingNow() acima, não isto.
     private void notifyJsState() {
+        if (player != null) {
+            cachedPlaying = player.isPlaying();
+            cachedPositionMs = Math.max(player.getCurrentPosition(), 0);
+            long d = player.getDuration();
+            cachedDurationMs = (d == C.TIME_UNSET) ? 0 : Math.max(d, 0);
+        }
         if (plugin != null) {
-            plugin.notifyStateChanged(isPlayingNow(), getPositionMs(), getDurationMs());
+            plugin.notifyStateChanged(cachedPlaying, cachedPositionMs, cachedDurationMs);
         }
     }
 
     public void destroy() {
+        mainHandler.removeCallbacks(positionTicker);
         if (player != null) {
             player.release();
             player = null;
