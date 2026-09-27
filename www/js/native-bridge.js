@@ -78,7 +78,64 @@
         catch { /* posição inválida (ex.: duração ainda desconhecida), ignora */ }
       }
     },
+
+    // ── Reprodução de verdade (ExoPlayer nativo, fora do WebView) ────
+    // Ver NativePlayerService.java/NativePlayerPlugin.java. Só existe
+    // dentro do app Android — na versão web (PWA no navegador) fica
+    // undefined de propósito; quem chama confere isNative antes.
+    //
+    // { url, headers } toca um arquivo online (headers leva o token do
+    // Google Drive); { path } toca um arquivo já baixado no disco.
+    // resumeSeconds retoma do ponto exato (troca de faixa restaurada
+    // de uma sessão anterior).
+    async load({ url, headers, path, resumeSeconds }) {
+      if (!plugin) return;
+      try { await plugin.load({ url, headers, path, resumeSeconds }); }
+      catch (err) { console.warn('[NativeMedia] load falhou:', err); }
+    },
+
+    async nativePlay() {
+      if (!plugin) return;
+      try { await plugin.nativePlay(); }
+      catch (err) { console.warn('[NativeMedia] nativePlay falhou:', err); }
+    },
+
+    async nativePause() {
+      if (!plugin) return;
+      try { await plugin.nativePause(); }
+      catch (err) { console.warn('[NativeMedia] nativePause falhou:', err); }
+    },
+
+    async nativeSeek(positionSeconds) {
+      if (!plugin) return;
+      try { await plugin.nativeSeek({ positionSeconds }); }
+      catch (err) { console.warn('[NativeMedia] nativeSeek falhou:', err); }
+    },
+
+    // { playing, positionSeconds, durationSeconds }
+    async nativeGetState() {
+      if (!plugin) return null;
+      try { return await plugin.nativeGetState(); }
+      catch (err) { console.warn('[NativeMedia] nativeGetState falhou:', err); return null; }
+    },
   };
+
+  // Estado do ExoPlayer mudou sozinho (tocou, pausou, terminou a
+  // faixa, deu erro) — reencaminha como evento de window, no mesmo
+  // estilo dos outros eventos nativos deste arquivo. player.js escuta
+  // isso pra manter a UI em sincronia mesmo quando quem mudou o estado
+  // foi um botão físico/notificação, não uma chamada da própria UI.
+  if (plugin) {
+    plugin.addListener('stateChanged', (data) => {
+      global.dispatchEvent(new CustomEvent('hmNativeStateChanged', { detail: data }));
+    });
+    plugin.addListener('ended', () => {
+      global.dispatchEvent(new CustomEvent('hmNativeEnded'));
+    });
+    plugin.addListener('error', (data) => {
+      global.dispatchEvent(new CustomEvent('hmNativeError', { detail: data }));
+    });
+  }
 
   global.NativeMedia = NativeMedia;
 
