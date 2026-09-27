@@ -57,6 +57,15 @@ dependencies {
     androidTestImplementation "androidx.test.ext:junit:$androidxJunitVersion"
     androidTestImplementation "androidx.test.espresso:espresso-core:$androidxEspressoCoreVersion"
     implementation project(':capacitor-cordova-android-plugins')
+
+    // Motor de áudio nativo (NativePlayerService/NativePlayerPlugin) —
+    // substitui o @jofr/capacitor-media-session (removido do
+    // package.json): agora quem toca o áudio de verdade é o ExoPlayer,
+    // dentro de um foreground service que sobrevive a fechar o app.
+    // androidx.media é o mesmo pacote de onde vinham MediaSessionCompat/
+    // MediaButtonReceiver antes (chegava de carona pelo plugin antigo).
+    implementation "androidx.media3:media3-exoplayer:1.4.1"
+    implementation "androidx.media:media:1.7.0"
 }
 
 apply from: 'capacitor.build.gradle'
