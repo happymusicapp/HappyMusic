@@ -103,11 +103,41 @@ public class NativePlayerService extends Service {
         return super.onUnbind(intent);
     }
 
-    public void connectAndInitialize(NativePlayerPlugin plugin, Intent intent) {
-        this.plugin = plugin;
+    @Override
+    public void onCreate() {
+        super.onCreate();
 
-        if (player != null) return; // já inicializado numa reconexão anterior — não recria nada
+        // CRÍTICO: como esse serviço é iniciado via
+        // ContextCompat.startForegroundService() (ver
+        // NativePlayerPlugin.ensureServiceThen), o Android EXIGE que
+        // startForeground() seja chamado aqui dentro do onCreate(), de
+        // forma síncrona e imediata — nos primeiros segundos de vida do
+        // serviço. Antes, esse startForeground() só acontecia dentro de
+        // connectAndInitialize(), chamado só quando o plugin terminava de
+        // se conectar (bind) — um passo A PARTE, que podia demorar um
+        // pouquinho mais que o Android tolera. Resultado: o sistema
+        // derrubava o app com "did not then call startForeground in
+        // time" bem na hora de tocar qualquer música. Por isso toda a
+        // criação do player/sessão/notificação agora acontece aqui,
+        // incondicional, e connectAndInitialize() só entra depois pra
+        // ligar o plugin e refinar o conteúdo da notificação.
+        initializePlayer();
+        initializeMediaSession();
+        initializeNotification(buildFallbackContentIntent());
+        startForegroundNow();
+    }
 
+    // PendingIntent genérico (abre o app do jeito normal) usado como
+    // conteúdo da notificação até o plugin conectar e mandar o intent de
+    // verdade (ver connectAndInitialize) — só existe pra o
+    // startForeground() do onCreate() ter algo válido pra usar na hora.
+    private PendingIntent buildFallbackContentIntent() {
+        Intent launchIntent = getPackageManager().getLaunchIntentForPackage(getPackageName());
+        if (launchIntent == null) launchIntent = new Intent();
+        return PendingIntent.getActivity(getApplicationContext(), 0, launchIntent, PendingIntent.FLAG_IMMUTABLE);
+    }
+
+    private void initializePlayer() {
         AudioAttributes audioAttributes = new AudioAttributes.Builder()
                 .setUsage(C.USAGE_MEDIA)
                 .setContentType(C.AUDIO_CONTENT_TYPE_MUSIC)
@@ -123,8 +153,8 @@ public class NativePlayerService extends Service {
         player.addListener(new Player.Listener() {
             @Override
             public void onPlaybackStateChanged(int state) {
-                if (state == Player.STATE_ENDED && NativePlayerService.this.plugin != null) {
-                    NativePlayerService.this.plugin.notifyEnded();
+                if (state == Player.STATE_ENDED && plugin != null) {
+                    plugin.notifyEnded();
                 }
                 notifyJsState();
             }
@@ -136,12 +166,12 @@ public class NativePlayerService extends Service {
 
             @Override
             public void onPlayerError(PlaybackException error) {
-                if (NativePlayerService.this.plugin != null) {
-                    NativePlayerService.this.plugin.notifyError(error.getMessage());
-                }
+                if (plugin != null) plugin.notifyError(error.getMessage());
             }
         });
+    }
 
+    private void initializeMediaSession() {
         mediaSession = new MediaSessionCompat(this, "HappyMusicNativeSession");
         mediaSession.setCallback(new MediaSessionCallback());
         mediaSession.setActive(true);
@@ -154,7 +184,9 @@ public class NativePlayerService extends Service {
         mediaMetadataBuilder = new MediaMetadataCompat.Builder()
                 .putLong(MediaMetadataCompat.METADATA_KEY_DURATION, duration);
         mediaSession.setMetadata(mediaMetadataBuilder.build());
+    }
 
+    private void initializeNotification(PendingIntent contentIntent) {
         notificationManager = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             NotificationChannel channel = new NotificationChannel("playback", "Reprodução", NotificationManager.IMPORTANCE_LOW);
@@ -165,14 +197,8 @@ public class NativePlayerService extends Service {
         notificationBuilder = new NotificationCompat.Builder(this, "playback")
                 .setStyle(notificationStyle)
                 .setSmallIcon(getApplicationInfo().icon) // ícone do próprio app — nada de recurso emprestado de outro pacote
-                .setContentIntent(PendingIntent.getActivity(getApplicationContext(), 0, intent, PendingIntent.FLAG_IMMUTABLE))
+                .setContentIntent(contentIntent)
                 .setVisibility(NotificationCompat.VISIBILITY_PUBLIC);
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            startForeground(NOTIFICATION_ID, notificationBuilder.build(), ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK);
-        } else {
-            startForeground(NOTIFICATION_ID, notificationBuilder.build());
-        }
 
         // Ícones do próprio Android (android.R.drawable) em vez dos que
         // vinham junto do plugin antigo — sempre existem, em qualquer
@@ -199,6 +225,28 @@ public class NativePlayerService extends Service {
         playbackStateActions.put("nexttrack", PlaybackStateCompat.ACTION_SKIP_TO_NEXT);
         playbackStateActions.put("seekto", PlaybackStateCompat.ACTION_SEEK_TO);
         playbackStateActions.put("stop", PlaybackStateCompat.ACTION_STOP);
+    }
+
+    private void startForegroundNow() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            startForeground(NOTIFICATION_ID, notificationBuilder.build(), ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK);
+        } else {
+            startForeground(NOTIFICATION_ID, notificationBuilder.build());
+        }
+    }
+
+    // Chamado pelo NativePlayerPlugin assim que o bind com o serviço
+    // termina. Nessa altura o player/sessão/notificação já existem (tudo
+    // isso já rodou no onCreate() acima) — aqui só liga a referência do
+    // plugin (pra repassar botões de mídia e eventos de estado) e troca o
+    // PendingIntent genérico da notificação pelo de verdade (abre a
+    // Activity certa em vez do launcher padrão do pacote).
+    public void connectAndInitialize(NativePlayerPlugin plugin, Intent intent) {
+        this.plugin = plugin;
+        if (notificationBuilder != null && intent != null) {
+            notificationBuilder.setContentIntent(PendingIntent.getActivity(getApplicationContext(), 0, intent, PendingIntent.FLAG_IMMUTABLE));
+        }
+        update();
     }
 
     // ── Controle de reprodução (chamado pelo NativePlayerPlugin) ────
