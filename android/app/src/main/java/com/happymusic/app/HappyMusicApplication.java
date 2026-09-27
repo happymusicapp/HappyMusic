@@ -10,6 +10,13 @@ import android.os.Build;
 
 import com.getcapacitor.Bridge;
 
+import java.io.File;
+import java.io.FileWriter;
+import java.io.PrintWriter;
+import java.text.SimpleDateFormat;
+import java.util.Date;
+import java.util.Locale;
+
 public class HappyMusicApplication extends Application {
 
   // Fone/Bluetooth desconectado no meio da reprodução: o Android avisa com
@@ -37,6 +44,32 @@ public class HappyMusicApplication extends Application {
   @Override
   public void onCreate() {
     super.onCreate();
+
+    // TEMPORÁRIO — grava qualquer travamento (fechamento forçado) num
+    // arquivo de texto simples, pra dar pra ler direto do celular (com
+    // qualquer gerenciador de arquivos, tipo "Meu Arquivos"/"Files"),
+    // sem precisar de PC nem ADB. Caminho:
+    // Android/data/com.happymusic.app/files/crash_log.txt (dentro do
+    // Armazenamento interno). Depois que resolvermos o problema atual,
+    // isso deve ser removido.
+    final Thread.UncaughtExceptionHandler defaultHandler = Thread.getDefaultUncaughtExceptionHandler();
+    Thread.setDefaultUncaughtExceptionHandler((thread, throwable) -> {
+      try {
+        File dir = getExternalFilesDir(null);
+        if (dir != null) {
+          File logFile = new File(dir, "crash_log.txt");
+          try (PrintWriter writer = new PrintWriter(new FileWriter(logFile, true))) {
+            writer.println("=== Fechamento forçado em " + new SimpleDateFormat("dd/MM/yyyy HH:mm:ss", Locale.getDefault()).format(new Date()) + " ===");
+            throwable.printStackTrace(writer);
+            writer.println();
+          }
+        }
+      } catch (Exception loggingError) {
+        // Se nem isso der certo, não tem mais nada a fazer — segue pro
+        // comportamento padrão do Android abaixo.
+      }
+      if (defaultHandler != null) defaultHandler.uncaughtException(thread, throwable);
+    });
 
     IntentFilter filter = new IntentFilter(AudioManager.ACTION_AUDIO_BECOMING_NOISY);
 
