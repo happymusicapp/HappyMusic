@@ -5,9 +5,127 @@
 
 const Player = (() => {
 
+  // ── MOTOR DE ÁUDIO (ExoPlayer nativo, fora do WebView, OU <audio> no
+  // navegador) ──────────────────────────────────────────────────────
+  // Dentro do app Android, quem toca o áudio de verdade agora é o
+  // NativePlayerService (ver NativePlayerService.java) — é isso que
+  // permite a música continuar tocando depois de fechar o app. Na
+  // versão web (PWA no navegador), continua sendo o <audio> de sempre.
+  // As duas implementações abaixo (_WebAudioEngine / _NativeAudioEngine)
+  // expõem a MESMA interface mínima (currentTime, duration, paused,
+  // play(), pause(), setSource(), addEventListener/dispatchEvent com os
+  // eventos play/pause/ended/timeupdate/error) — todo o resto deste
+  // arquivo (fila, shuffle, repeat, modo rádio, foco de áudio, retomar
+  // de onde parou...) usa só essa interface e não sabe (nem precisa
+  // saber) qual das duas está tocando por baixo.
+  const _useNative = !!(window.NativeMedia && window.NativeMedia.isNative);
+
+  class _WebAudioEngine extends EventTarget {
+    constructor() {
+      super();
+      this._audio = new Audio();
+      this._audio.preload = 'metadata';
+      ['play', 'pause', 'ended', 'timeupdate', 'error', 'loadedmetadata'].forEach(evt => {
+        this._audio.addEventListener(evt, () => this.dispatchEvent(new Event(evt)));
+      });
+    }
+    get paused()        { return this._audio.paused; }
+    get ended()         { return this._audio.ended; }
+    get duration()      { return this._audio.duration; }
+    get currentTime()   { return this._audio.currentTime; }
+    set currentTime(v)  { this._audio.currentTime = v; }
+    get volume()        { return this._audio.volume; }
+    set volume(v)       { this._audio.volume = v; }
+    // info = { url } — a versão web sempre recebe um blob: local (ver
+    // Drive.fetchAudioUrl), nunca headers/path.
+    async setSource(info, resumeSeconds) {
+      this._audio.src = info.url;
+      this._audio.load();
+      if (resumeSeconds > 0) this._audio.currentTime = resumeSeconds;
+    }
+    play()  { return this._audio.play(); }
+    pause() { this._audio.pause(); }
+  }
+
+  class _NativeAudioEngine extends EventTarget {
+    constructor() {
+      super();
+      this._paused = true;
+      this._currentTime = 0;
+      this._duration = 0;
+      this._justEnded = 0; // timestamp do último 'ended' — ver hmNativeStateChanged abaixo
+
+      // O nativo avisa sozinho quando o ExoPlayer muda de estado —
+      // inclusive quando quem mandou tocar/pausar foi um botão físico,
+      // a notificação, ou o próprio sistema (ver NativePlayerService.java
+      // / native-bridge.js). Repassamos como play/pause/ended/timeupdate
+      // pra ficar idêntico ao que o <audio> já disparava.
+      window.addEventListener('hmNativeStateChanged', (e) => {
+        const playing = !!e.detail?.playing;
+        const wasPaused = this._paused;
+        this._paused = !playing;
+        this._currentTime = e.detail?.positionSeconds || 0;
+        this._duration = e.detail?.durationSeconds || 0;
+        if (wasPaused && playing) {
+          this._justEnded = 0;
+          this.dispatchEvent(new Event('play'));
+        } else if (!wasPaused && !playing) {
+          // O ExoPlayer manda "parou de tocar" e "acabou a faixa" quase
+          // juntos quando chega no fim — sem isso, esse "parou" cairia
+          // no listener de 'pause' abaixo (pensado pra ligação/GPS
+          // roubando o foco) e tentaria RETOMAR a mesma faixa bem na
+          // hora em que o listener de 'ended' já está avançando pra
+          // próxima. Consome a flag (com validade curta, pra nunca
+          // engolir uma pausa de verdade caso o aviso de 'ended' não
+          // venha por algum motivo) e não dispara o 'pause' espúrio.
+          if (this._justEnded && Date.now() - this._justEnded < 3000) {
+            this._justEnded = 0;
+          } else {
+            this.dispatchEvent(new Event('pause'));
+          }
+        }
+        this.dispatchEvent(new Event('timeupdate'));
+      });
+      window.addEventListener('hmNativeEnded', () => {
+        this._paused = true;
+        this._justEnded = Date.now();
+        this.dispatchEvent(new Event('ended'));
+      });
+      window.addEventListener('hmNativeError', () => {
+        this.dispatchEvent(new Event('error'));
+      });
+
+      // O nativo só avisa quando o ESTADO muda, não a cada segundo — sem
+      // isso a barra de progresso ficaria parada durante a reprodução.
+      setInterval(async () => {
+        if (this._paused || !window.NativeMedia) return;
+        const state = await window.NativeMedia.nativeGetState();
+        if (state) {
+          this._currentTime = state.positionSeconds || 0;
+          this._duration = state.durationSeconds || 0;
+          this.dispatchEvent(new Event('timeupdate'));
+        }
+      }, 1000);
+    }
+    get paused()        { return this._paused; }
+    get ended()         { return false; } // tratado via evento 'ended' acima
+    get duration()      { return this._duration; }
+    get currentTime()   { return this._currentTime; }
+    set currentTime(v)  { this._currentTime = v; window.NativeMedia.nativeSeek(v); }
+    get volume()        { return this._volume ?? 1; }
+    set volume(v)       { this._volume = v; } // sem controle de volume nativo nesta fase — guardado só pra não quebrar quem ler de volta
+    // info = { url, headers } (streaming do Drive) ou { path } (arquivo
+    // já baixado) — ver _resolveTrackSource().
+    async setSource(info, resumeSeconds) {
+      await window.NativeMedia.load({ url: info.url, headers: info.headers, path: info.path, resumeSeconds });
+      this._currentTime = resumeSeconds || 0;
+    }
+    async play()  { await window.NativeMedia.nativePlay(); this._paused = false; }
+    pause() { window.NativeMedia.nativePause(); this._paused = true; }
+  }
+
   // ── ESTADO ────────────────────────────────────
-  const audio = new Audio();
-  audio.preload = 'metadata';
+  const audio = _useNative ? new _NativeAudioEngine() : new _WebAudioEngine();
 
   let _queue        = [];   // fila atual (array de tracks)
   let _originalQueue= [];   // cópia sem shuffle
@@ -336,22 +454,19 @@ const Player = (() => {
     if (_skipAttempts === 0) _listeners.onLoading?.(track);
 
     try {
-      const url = await Drive.fetchAudioUrl(track.id);
+      const source = await _resolveTrackSource(track);
 
       // Se o usuário já trocou de faixa enquanto isso carregava, ignora
       if (myLoad !== _loadToken) return;
 
-      audio.src = url;
-      audio.load();
-      _loadedTrackId = track.id;
-
       // Restaura o ponto exato de uma sessão anterior (ver
       // restoreResumeState) — só na primeira vez que essa faixa é
       // carregada de fato depois de restaurada; consumido uma vez só.
-      if (_pendingResumeTime > 0) {
-        audio.currentTime = _pendingResumeTime;
-        _pendingResumeTime = 0;
-      }
+      const resumeSeconds = _pendingResumeTime > 0 ? _pendingResumeTime : 0;
+      _pendingResumeTime = 0;
+
+      await audio.setSource(source, resumeSeconds);
+      _loadedTrackId = track.id;
 
       await audio.play();
       _listeners.onPlay?.(track);
@@ -365,6 +480,8 @@ const Player = (() => {
       // a aba/WebView antes do fetch da próxima faixa terminar — o app
       // trava e nunca mais toca. Com a próxima faixa já em cache no
       // momento em que a atual termina, a troca é praticamente instantânea.
+      // (Só se aplica ao motor web — o ExoPlayer nativo faz o próprio
+      // buffering sozinho, e não depende do WebView pra continuar vivo.)
       _preloadNext();
 
     } catch (err) {
@@ -389,6 +506,26 @@ const Player = (() => {
     }
   }
 
+  // Descobre de onde vem o áudio da faixa, no formato que o motor atual
+  // espera (ver _WebAudioEngine/_NativeAudioEngine acima):
+  //  - Web: sempre um blob: local (Drive.fetchAudioUrl já resolve baixado
+  //    vs. streaming sozinho, e cacheia o blob).
+  //  - Nativo: baixada -> caminho de arquivo puro (NativeFS.getAudioPath,
+  //    o ExoPlayer toca direto do disco); senão -> URL + cabeçalho de
+  //    autorização do Drive (Drive.getAudioDownloadInfo), pro ExoPlayer
+  //    buscar sozinho, sem gastar memória/rede duplicada num blob que
+  //    ninguém mais usaria.
+  async function _resolveTrackSource(track) {
+    if (_useNative) {
+      if (window.NativeFS && window.NativeFS.isNative) {
+        const path = await window.NativeFS.getAudioPath(track.id);
+        if (path) return { path };
+      }
+      return await Drive.getAudioDownloadInfo(track.id);
+    }
+    return { url: await Drive.fetchAudioUrl(track.id) };
+  }
+
   // Descobre, sem alterar o estado, qual seria o índice da próxima
   // faixa (espelha a lógica de next(), mas só de leitura).
   function _peekNextIndex() {
@@ -405,6 +542,7 @@ const Player = (() => {
   // já cacheia por fileId), sem bloquear nada. Se falhar, não tem problema:
   // _play() vai buscar de novo (com o intervalo mudo) quando chegar a vez.
   function _preloadNext() {
+    if (_useNative) return; // ExoPlayer cuida do próprio buffering sozinho
     const idx = _peekNextIndex();
     if (idx === -1) return;
 

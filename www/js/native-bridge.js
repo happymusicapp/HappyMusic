@@ -290,6 +290,19 @@
       }
     },
 
+    // Caminho "cru" do arquivo (file:///...), sem o convertFileSrc()
+    // acima — aquela conversão só serve pro WebView; o ExoPlayer nativo
+    // (ver NativePlayerService.java) precisa do caminho de verdade.
+    async getAudioPath(id) {
+      try {
+        await fsPlugin.stat({ path: _audioPath(id), directory: 'DATA' });
+        const { uri } = await fsPlugin.getUri({ path: _audioPath(id), directory: 'DATA' });
+        return uri;
+      } catch {
+        return null; // não baixada
+      }
+    },
+
     async hasAudio(id) {
       try { await fsPlugin.stat({ path: _audioPath(id), directory: 'DATA' }); return true; }
       catch { return false; }
