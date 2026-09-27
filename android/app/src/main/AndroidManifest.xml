@@ -62,15 +62,37 @@
                 android:name="android.support.FILE_PROVIDER_PATHS"
                 android:resource="@xml/file_paths"></meta-data>
         </provider>
+
+        <!-- Motor de áudio nativo (ExoPlayer) — ver NativePlayerService.java.
+             stopWithTask="false" é a peça-chave: SEM isso, o Android mata
+             o serviço junto quando o usuário fecha o app (desliza pra fora
+             dos recentes), do mesmo jeito que já matava antes. Com isso,
+             o áudio (e a notificação/controles) continuam depois de fechar
+             o app — só param se o usuário der stop de verdade ou o sistema
+             precisar de memória. exported="false": só o próprio app usa. -->
+        <service
+            android:name=".NativePlayerService"
+            android:enabled="true"
+            android:exported="false"
+            android:foregroundServiceType="mediaPlayback"
+            android:stopWithTask="false" />
+
+        <receiver
+            android:name="androidx.media.session.MediaButtonReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MEDIA_BUTTON" />
+            </intent-filter>
+        </receiver>
     </application>
 
     <!-- Permissions -->
 
     <uses-permission android:name="android.permission.INTERNET" />
 
-    <!-- Necessárias pro plugin de MediaSession manter o áudio tocando
-         com o app em segundo plano / tela bloqueada (Android 14+ exige
-         declarar o tipo do foreground service explicitamente). -->
+    <!-- Necessárias pro serviço nativo de áudio manter a música tocando
+         com o app em segundo plano / fechado / tela bloqueada (Android 14+
+         exige declarar o tipo do foreground service explicitamente). -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
