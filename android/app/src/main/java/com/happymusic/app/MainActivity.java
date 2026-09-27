@@ -10,8 +10,9 @@ public class MainActivity extends BridgeActivity {
   public void onCreate(Bundle savedInstanceState) {
     // Plugins escritos dentro do próprio app (não instalados via npm)
     // precisam ser registrados manualmente, e antes do super.onCreate()
-    // — ver AudioFocusPlugin.java.
+    // — ver AudioFocusPlugin.java e NativePlayerPlugin.java.
     registerPlugin(AudioFocusPlugin.class);
+    registerPlugin(NativePlayerPlugin.class);
     super.onCreate(savedInstanceState);
     // Deixa a Bridge (WebView) acessível pro receiver registrado em
     // HappyMusicApplication — ver aquela classe pra entender o motivo
