@@ -7,7 +7,6 @@
 // window.Capacitor.Plugins.<NomeDoPlugin>, e são consumidos através do
 // js/native-bridge.js (que é um arquivo normal, não empacotado).
 import { Capacitor } from '@capacitor/core';
-import '@jofr/capacitor-media-session';
 import '@capacitor/filesystem';
 import '@capacitor/app';
 import '@capacitor/browser';
