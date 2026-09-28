@@ -242,10 +242,10 @@ public class NativePlayerService extends Service {
         // vinham junto do plugin antigo — sempre existem, em qualquer
         // aparelho, sem depender de nenhum pacote externo.
         notificationActions.put("play", new NotificationCompat.Action(
-                android.R.drawable.ic_media_play, "Tocar", MediaButtonReceiver.buildMediaButtonPendingIntent(this, (PlaybackStateCompat.ACTION_PLAY_PAUSE | PlaybackStateCompat.ACTION_PLAY))
+                android.R.drawable.ic_media_play, "Tocar", MediaButtonReceiver.buildMediaButtonPendingIntent(this, PlaybackStateCompat.ACTION_PLAY)
         ));
         notificationActions.put("pause", new NotificationCompat.Action(
-                android.R.drawable.ic_media_pause, "Pausar", MediaButtonReceiver.buildMediaButtonPendingIntent(this, (PlaybackStateCompat.ACTION_PLAY_PAUSE | PlaybackStateCompat.ACTION_PAUSE))
+                android.R.drawable.ic_media_pause, "Pausar", MediaButtonReceiver.buildMediaButtonPendingIntent(this, PlaybackStateCompat.ACTION_PAUSE)
         ));
         notificationActions.put("previoustrack", new NotificationCompat.Action(
                 android.R.drawable.ic_media_previous, "Faixa anterior", MediaButtonReceiver.buildMediaButtonPendingIntent(this, PlaybackStateCompat.ACTION_SKIP_TO_PREVIOUS)
