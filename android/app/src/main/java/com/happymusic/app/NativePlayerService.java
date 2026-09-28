@@ -200,6 +200,14 @@ public class NativePlayerService extends Service {
             @Override
             public void onIsPlayingChanged(boolean isPlaying) {
                 notifyJsState();
+                // Atualiza a notificação (ícone tocar/pausar) a partir do
+                // player de verdade, não só quando o JS manda — é o que
+                // faz o botão continuar certo mesmo com o app fechado
+                // (ex.: usuário pausou pela notificação, e sem isso ela
+                // ficava travada mostrando "pausar" de novo, então
+                // apertar de novo só mandava pausar outra vez, "sem
+                // fazer nada" na prática).
+                syncStateFromPlayer();
             }
 
             @Override
@@ -358,6 +366,17 @@ public class NativePlayerService extends Service {
         }
     }
 
+    // Deixa a notificação/MediaSession fiel ao player de verdade, sem
+    // depender do JS pra avisar (ele pode estar morto, com o app
+    // fechado). Chamado pelo Player.Listener sempre que o ExoPlayer
+    // muda de tocando/pausado sozinho.
+    private void syncStateFromPlayer() {
+        if (player == null) return;
+        setPlaybackState(player.isPlaying() ? PlaybackStateCompat.STATE_PLAYING : PlaybackStateCompat.STATE_PAUSED);
+        setPosition(cachedPositionMs);
+        update();
+    }
+
     public void destroy() {
         mainHandler.removeCallbacks(positionTicker);
         if (player != null) {
@@ -449,7 +468,16 @@ public class NativePlayerService extends Service {
             int notificationActionIndex = 0;
             int compactNotificationActionIndicesIndex = 0;
             for (String actionName : possibleActions) {
-                if (plugin != null && plugin.hasActionHandler(actionName)) {
+                // Tocar/pausar são tratados direto no ExoPlayer, sem
+                // depender do JS (ver MediaSessionCallback.onPlay/onPause
+                // abaixo) — por isso não ficam presos ao hasActionHandler,
+                // que só reflete se o JS está vivo pra responder. Sem essa
+                // exceção, uma vez que o app fosse fechado e o "call" do
+                // JS ficasse pendurado (dangling), o botão de tocar/pausar
+                // sumia (ou travava) da notificação de vez.
+                boolean nativelyHandled = actionName.equals("play") || actionName.equals("pause");
+                boolean eligible = nativelyHandled || (plugin != null && plugin.hasActionHandler(actionName));
+                if (eligible) {
                     if (actionName.equals("play") && playbackState != PlaybackStateCompat.STATE_PAUSED) {
                         continue;
                     }
