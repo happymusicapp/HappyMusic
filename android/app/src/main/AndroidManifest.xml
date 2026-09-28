@@ -69,13 +69,20 @@
              dos recentes), do mesmo jeito que já matava antes. Com isso,
              o áudio (e a notificação/controles) continuam depois de fechar
              o app — só param se o usuário der stop de verdade ou o sistema
-             precisar de memória. exported="false": só o próprio app usa. -->
+             precisar de memória. exported="true" + filtro MEDIA_BUTTON: exigido pelo MediaButtonReceiver pra achar o serviço. -->
         <service
             android:name=".NativePlayerService"
             android:enabled="true"
-            android:exported="false"
+            android:exported="true"
             android:foregroundServiceType="mediaPlayback"
-            android:stopWithTask="false" />
+            android:stopWithTask="false">
+            <!-- Sem este filtro o MediaButtonReceiver não acha o serviço
+                 e os botões da notificação (play/pausa/próxima/anterior)
+                 não fazem nada. -->
+            <intent-filter>
+                <action android:name="android.intent.action.MEDIA_BUTTON" />
+            </intent-filter>
+        </service>
 
         <receiver
             android:name="androidx.media.session.MediaButtonReceiver"
