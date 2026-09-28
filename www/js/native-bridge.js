@@ -56,9 +56,19 @@
 
     setActionHandler(action, handler) {
       if (plugin) {
-        plugin
-          .setActionHandler({ action }, handler ? (details) => handler(details) : null)
-          .catch(err => console.warn('[NativeMedia] setActionHandler falhou:', err));
+        // Método "callback" do plugin nativo (RETURN_CALLBACK): o Capacitor
+        // devolve o id do callback (string), NÃO uma Promise — antes o
+        // pacote npm do jofr embrulhava isso numa Promise pra gente;
+        // agora que o plugin é próprio, chamar .catch() direto no retorno
+        // dava "is not a function" e derrubava o play de toda faixa.
+        try {
+          const result = plugin.setActionHandler({ action }, handler ? (details) => handler(details) : null);
+          if (result && typeof result.catch === 'function') {
+            result.catch(err => console.warn('[NativeMedia] setActionHandler falhou:', err));
+          }
+        } catch (err) {
+          console.warn('[NativeMedia] setActionHandler falhou:', err);
+        }
         return;
       }
       if ('mediaSession' in navigator) {
