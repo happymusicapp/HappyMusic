@@ -94,13 +94,16 @@
     // dentro do app Android — na versão web (PWA no navegador) fica
     // undefined de propósito; quem chama confere isNative antes.
     //
-    // { url, headers } toca um arquivo online (headers leva o token do
-    // Google Drive); { path } toca um arquivo já baixado no disco.
-    // resumeSeconds retoma do ponto exato (troca de faixa restaurada
-    // de uma sessão anterior).
-    async load({ url, headers, path, resumeSeconds }) {
+    // items[0] é a faixa atual; items[1] (opcional) é a próxima já
+    // preparada — é o que permite o ExoPlayer avançar sozinho quando a
+    // atual terminar, mesmo com o app fechado (ver FASE 3 no
+    // NativePlayerService.java). Cada item: { id, title, artist, album,
+    // artworkUrl } + OU { url, headers } (streaming do Drive) OU { path }
+    // (arquivo já baixado). resumeSeconds retoma do ponto exato (troca
+    // de faixa restaurada de uma sessão anterior).
+    async load({ items, resumeSeconds }) {
       if (!plugin) return;
-      try { await plugin.load({ url, headers, path, resumeSeconds }); }
+      try { await plugin.load({ items, resumeSeconds }); }
       catch (err) { console.warn('[NativeMedia] load falhou:', err); }
     },
 
@@ -122,7 +125,7 @@
       catch (err) { console.warn('[NativeMedia] nativeSeek falhou:', err); }
     },
 
-    // { playing, positionSeconds, durationSeconds }
+    // { playing, positionSeconds, durationSeconds, trackId }
     async nativeGetState() {
       if (!plugin) return null;
       try { return await plugin.nativeGetState(); }
@@ -144,6 +147,13 @@
     });
     plugin.addListener('error', (data) => {
       global.dispatchEvent(new CustomEvent('hmNativeError', { detail: data }));
+    });
+    // O ExoPlayer avançou/recuou sozinho pra uma faixa já preparada (ver
+    // load() acima e FASE 3 no NativePlayerService.java) — inclusive
+    // pode acontecer com o app fechado. player.js usa isso só pra manter
+    // a própria marcação de "faixa atual" em dia.
+    plugin.addListener('trackChanged', (data) => {
+      global.dispatchEvent(new CustomEvent('hmNativeTrackChanged', { detail: data }));
     });
   }
 
