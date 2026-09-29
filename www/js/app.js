@@ -315,7 +315,7 @@ const App = (() => {
       _renderRecent();
       _refreshFilterBar();
       _renderAllTracksList();
-      _primeLastPlayed();
+      await _primeLastPlayed();
 
       _autoDownloadMissing();
 
@@ -381,7 +381,7 @@ const App = (() => {
   // completa montada (pra next/prev funcionarem) — só falta apertar
   // play, igual ao Spotify. Não toca sozinho (autoplay sem gesto do
   // usuário é bloqueado pelo navegador mesmo).
-  function _primeLastPlayed() {
+  async function _primeLastPlayed() {
     try {
       // Se a versão instantânea já não deixou nada tocando, isso só
       // troca a fila internamente (sem UI piscar) — se por acaso já
@@ -394,11 +394,14 @@ const App = (() => {
       // sobrevivendo a uma recriação do processo em segundo plano
       // (ligação, WhatsApp, ou só o Android liberando memória). Sem
       // isso, reabrir o app sempre caía de volta na biblioteca inteira
-      // a partir do início da última faixa.
-      const restored = Player.restoreResumeState(_tracks);
+      // a partir do início da última faixa. No app nativo, isso também
+      // confere com o ExoPlayer se ele já avançou sozinho pra outra
+      // faixa (FASE 3) enquanto o app estava fechado — por isso pode
+      // já vir TOCANDO, não só pausado esperando o play.
+      const restored = await Player.restoreResumeState(_tracks);
       if (restored) {
         UI.updatePlayerTrack(restored);
-        UI.setPlayState(false);
+        UI.setPlayState(Player.isPlaying());
         return;
       }
 

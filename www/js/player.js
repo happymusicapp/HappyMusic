@@ -37,8 +37,9 @@ const Player = (() => {
     get volume()        { return this._audio.volume; }
     set volume(v)       { this._audio.volume = v; }
     // info = { url } — a versão web sempre recebe um blob: local (ver
-    // Drive.fetchAudioUrl), nunca headers/path.
-    async setSource(info, resumeSeconds) {
+    // Drive.fetchAudioUrl), nunca headers/path. nextInfo é ignorado (só
+    // o motor nativo consegue deixar a próxima faixa pré-carregada).
+    async setSource(info, resumeSeconds, nextInfo) {
       this._audio.src = info.url;
       this._audio.load();
       if (resumeSeconds > 0) this._audio.currentTime = resumeSeconds;
@@ -114,10 +115,15 @@ const Player = (() => {
     set currentTime(v)  { this._currentTime = v; window.NativeMedia.nativeSeek(v); }
     get volume()        { return this._volume ?? 1; }
     set volume(v)       { this._volume = v; } // sem controle de volume nativo nesta fase — guardado só pra não quebrar quem ler de volta
-    // info = { url, headers } (streaming do Drive) ou { path } (arquivo
-    // já baixado) — ver _resolveTrackSource().
-    async setSource(info, resumeSeconds) {
-      await window.NativeMedia.load({ url: info.url, headers: info.headers, path: info.path, resumeSeconds });
+    // info = { id, title, artist, album, artworkUrl, url, headers } ou
+    // { ...path } — ver _resolveTrackSource(). nextInfo (mesmo formato,
+    // opcional) é a próxima faixa já peekada: vai junto pro ExoPlayer
+    // poder avançar sozinho quando a atual terminar, mesmo com o app
+    // fechado (ver FASE 3 — loadQueueAndPlay em NativePlayerService.java).
+    async setSource(info, resumeSeconds, nextInfo) {
+      const items = [info];
+      if (nextInfo) items.push(nextInfo);
+      await window.NativeMedia.load({ items, resumeSeconds });
       this._currentTime = resumeSeconds || 0;
     }
     async play()  { await window.NativeMedia.nativePlay(); this._paused = false; }
@@ -255,11 +261,50 @@ const Player = (() => {
   // em _play()). Retorna a faixa restaurada, ou null se não havia
   // nada salvo (instalação nova) ou as faixas salvas não existem mais
   // no Drive (apagadas/movidas enquanto o app estava fechado).
-  function restoreResumeState(allTracks) {
+  async function restoreResumeState(allTracks) {
     try {
       const raw = localStorage.getItem(KEY_RESUME);
-      if (!raw) return null;
-      const saved = JSON.parse(raw);
+      let saved = null;
+      if (raw) { try { saved = JSON.parse(raw); } catch { saved = null; } }
+
+      // FASE 3: no nativo, o ExoPlayer pode ter avançado sozinho pra
+      // próxima faixa (ou até parado, se essa também acabou) enquanto o
+      // app estava fechado — o que foi salvo no celular por último pode
+      // já não bater com a realidade. Pergunta pro motor nativo o que
+      // está tocando DE VERDADE agora, e usa isso como fonte da verdade
+      // quando for diferente do que foi salvo.
+      if (_useNative && window.NativeMedia) {
+        const state = await window.NativeMedia.nativeGetState();
+        if (state && state.trackId && state.trackId !== saved?.trackId) {
+          const track = allTracks.find(t => t.id === state.trackId);
+          if (track) {
+            let list = (saved?.ids || []).map(id => allTracks.find(t => t.id === id)).filter(Boolean);
+            let idx  = list.findIndex(t => t.id === state.trackId);
+            if (idx === -1) { list = [track]; idx = 0; } // fila salva não tinha essa faixa — sobra só ela mesma por ora
+
+            _originalQueue     = list;
+            _shuffle           = saved ? !!saved.shuffle : false;
+            _repeat            = saved && (saved.repeat === 'all' || saved.repeat === 'one') ? saved.repeat : 'none';
+            _queueLoops        = saved ? !!saved.loop : false;
+            _queue             = _shuffle ? _shuffled(list, idx) : [...list];
+            _index             = _shuffle ? 0 : idx;
+            _preloadedTrackId  = null;
+            _loadedTrackId     = state.trackId; // já carregada e tocando/pausada de verdade no nativo
+            _pendingResumeTime = 0; // nada a retomar — já está na posição certa
+
+            // O motor só sabe do estado real a partir de agora (nunca
+            // recebeu 'hmNativeStateChanged' pra essa faixa) — atualiza
+            // o "espelho" JS direto, pra isPlaying()/getCurrentTime()
+            // já saírem certos sem esperar o próximo evento nativo.
+            audio._paused = !state.playing;
+            audio._currentTime = state.positionSeconds || 0;
+            audio._duration = state.durationSeconds || 0;
+
+            return track;
+          }
+        }
+      }
+
       if (!saved || !Array.isArray(saved.ids) || !saved.ids.length) return null;
 
       const list = saved.ids.map(id => allTracks.find(t => t.id === id)).filter(Boolean);
@@ -456,6 +501,20 @@ const Player = (() => {
     try {
       const source = await _resolveTrackSource(track);
 
+      // Deixa a PRÓXIMA faixa pronta e carregada no motor nativo (ver
+      // FASE 3) — é o que permite o ExoPlayer avançar sozinho quando a
+      // atual terminar, mesmo com o app fechado. Só resolve se houver
+      // mesmo uma próxima (senão fica só com a atual, como antes).
+      let nextSource = null;
+      if (_useNative) {
+        const nextIdx = _peekNextIndex();
+        const nextTrack = nextIdx !== -1 ? _queue[nextIdx] : null;
+        if (nextTrack) {
+          try { nextSource = await _resolveTrackSource(nextTrack); }
+          catch { /* sem próxima pronta não é motivo pra falhar a atual */ }
+        }
+      }
+
       // Se o usuário já trocou de faixa enquanto isso carregava, ignora
       if (myLoad !== _loadToken) return;
 
@@ -465,7 +524,7 @@ const Player = (() => {
       const resumeSeconds = _pendingResumeTime > 0 ? _pendingResumeTime : 0;
       _pendingResumeTime = 0;
 
-      await audio.setSource(source, resumeSeconds);
+      await audio.setSource(source, resumeSeconds, nextSource);
       _loadedTrackId = track.id;
 
       await audio.play();
@@ -517,11 +576,25 @@ const Player = (() => {
   //    ninguém mais usaria.
   async function _resolveTrackSource(track) {
     if (_useNative) {
+      // title/artist/album/artworkUrl vão junto pro motor nativo poder
+      // atualizar a notificação sozinho quando avançar pra essa faixa
+      // sem ajuda do JS (ver FASE 3 — onMediaItemTransition em
+      // NativePlayerService.java). Mesmos campos usados em
+      // _updateMediaSession, pra ficar igual em qualquer um dos dois
+      // caminhos.
+      const meta = {
+        id: track.id,
+        title: track.title,
+        artist: track.artist,
+        album: 'Happy Music',
+        artworkUrl: track.thumbnail || null,
+      };
       if (window.NativeFS && window.NativeFS.isNative) {
         const path = await window.NativeFS.getAudioPath(track.id);
-        if (path) return { path };
+        if (path) return { ...meta, path };
       }
-      return await Drive.getAudioDownloadInfo(track.id);
+      const info = await Drive.getAudioDownloadInfo(track.id);
+      return { ...meta, url: info.url, headers: info.headers };
     }
     return { url: await Drive.fetchAudioUrl(track.id) };
   }
@@ -720,6 +793,27 @@ const Player = (() => {
       if (!_pausedByFocusLoss && getCurrentTrack() && audio.paused) {
         play();
       }
+    });
+  }
+
+  // O ExoPlayer avançou/recuou SOZINHO pra uma faixa já preparada (ver
+  // FASE 3 — a "próxima" pré-carregada em _play(), ou o botão de
+  // avançar/recuar da notificação com o app fechado). Só atualiza a
+  // marcação de "faixa atual" e a UI — NÃO chama _play()/next() de
+  // novo, porque a faixa já está tocando de verdade; recarregar aqui
+  // reiniciaria ela do zero à toa.
+  if (window.NativeApp && window.NativeApp.isNative) {
+    window.addEventListener('hmNativeTrackChanged', (e) => {
+      const newId = e.detail?.trackId;
+      if (!newId || newId === _loadedTrackId) return;
+      const idx = _queue.findIndex(t => t.id === newId);
+      if (idx === -1) return; // faixa fora da fila que o JS conhece — nada a sincronizar
+      _index = idx;
+      _loadedTrackId = newId;
+      const track = _queue[idx];
+      if (track && !track.isExternal) _addToRecent(track);
+      _listeners.onPlay?.(track);
+      _saveResumeState();
     });
   }
 
