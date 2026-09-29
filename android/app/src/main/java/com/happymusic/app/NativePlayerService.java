@@ -22,16 +22,23 @@ import androidx.media.app.NotificationCompat.MediaStyle;
 import androidx.media3.common.AudioAttributes;
 import androidx.media3.common.C;
 import androidx.media3.common.MediaItem;
+import androidx.media3.common.MediaMetadata;
 import androidx.media3.common.PlaybackException;
 import androidx.media3.common.Player;
 import androidx.media3.datasource.DefaultHttpDataSource;
 import androidx.media3.exoplayer.ExoPlayer;
+import androidx.media3.exoplayer.source.MediaSource;
 import androidx.media3.exoplayer.source.ProgressiveMediaSource;
 
 import java.io.File;
+import java.io.InputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -43,13 +50,25 @@ import java.util.Set;
 // só trocando os ícones (que vinham junto do pacote dele, agora usamos
 // os do próprio Android) e ligando de verdade num player.
 //
-// FASE 1 deste projeto: só a faixa atual toca de forma 100% nativa
-// (sobrevive a fechar o app). "Próxima"/"anterior" ainda são decisões
-// do player.js (fila, shuffle, repeat, modo rádio, filtro/playlist) —
-// por isso essas duas ações continuam só repassadas pro JS, não tratadas
-// aqui dentro. Numa fase seguinte dá pra ensinar o ExoPlayer a tocar a
-// fila inteira sozinho.
+// FASE 1/2 deste projeto: a faixa atual toca de forma 100% nativa
+// (sobrevive a fechar o app). Quem decide qual é a fila (shuffle,
+// repeat, modo rádio, filtro/playlist) continua sendo o player.js.
+//
+// FASE 3: o ExoPlayer agora recebe a faixa atual + a próxima já
+// preparadas (ver loadQueueAndPlay) — assim, se a atual terminar com o
+// app fechado, ele mesmo avança pra próxima sozinho, sem precisar do
+// JS. Cada item carrega seu próprio título/artista/capa (MediaMetadata
+// do próprio Media3), pra notificação se atualizar sozinha quando isso
+// acontece.
 public class NativePlayerService extends Service {
+
+    // Um item da fila enviado pelo JS: id da faixa, metadata pra
+    // notificação, e OU {url,headers} (streaming do Drive) OU {path}
+    // (arquivo já baixado).
+    public static class QueueItem {
+        public String id, title, artist, album, artworkUrl, url, path;
+        public Map<String, String> headers;
+    }
 
     private MediaSessionCompat mediaSession;
     private PlaybackStateCompat.Builder playbackStateBuilder;
@@ -211,6 +230,31 @@ public class NativePlayerService extends Service {
             }
 
             @Override
+            public void onMediaItemTransition(MediaItem item, int reason) {
+                // Disparado toda vez que o ExoPlayer muda de faixa
+                // sozinho — inclusive quando a faixa atual termina com o
+                // app fechado e ele avança pra próxima já preparada (ver
+                // loadQueueAndPlay). Sem isso, a notificação continuaria
+                // mostrando o título/capa da faixa ANTERIOR mesmo com
+                // outra já tocando.
+                if (item == null) return;
+                MediaMetadata meta = item.mediaMetadata;
+                setTitle(meta.title != null ? meta.title.toString() : "");
+                setArtist(meta.artist != null ? meta.artist.toString() : "");
+                setAlbum(meta.albumTitle != null ? meta.albumTitle.toString() : "");
+                setArtwork(null); // limpa até a nova capa (se houver) carregar
+                possibleActionsUpdate = true; // "próxima"/"anterior" mudam de disponibilidade a cada faixa
+                update();
+                fetchArtworkAsync(meta.artworkUri != null ? meta.artworkUri.toString() : null);
+
+                // Avisa o JS (se estiver vivo) qual faixa está tocando
+                // agora de verdade — ele usa isso só pra manter a própria
+                // marcação de "faixa atual" e a UI em dia; não recarrega
+                // nada (já está tocando).
+                if (plugin != null) plugin.notifyTrackChanged(item.mediaId);
+            }
+
+            @Override
             public void onPlayerError(PlaybackException error) {
                 if (plugin != null) plugin.notifyError(error.getMessage());
             }
@@ -297,33 +341,75 @@ public class NativePlayerService extends Service {
 
     // ── Controle de reprodução (chamado pelo NativePlayerPlugin) ────
 
-    public void loadAndPlay(String url, Map<String, String> headers, long resumeMs) {
+    public void loadQueueAndPlay(List<QueueItem> items, long resumeMs) {
         postToMain(() -> {
-            if (player == null) return;
-            DefaultHttpDataSource.Factory httpFactory = new DefaultHttpDataSource.Factory();
-            if (headers != null && !headers.isEmpty()) httpFactory.setDefaultRequestProperties(headers);
-            MediaItem item = MediaItem.fromUri(url);
-            player.setMediaSource(new ProgressiveMediaSource.Factory(httpFactory).createMediaSource(item));
+            if (player == null || items == null || items.isEmpty()) return;
+
+            List<MediaSource> sources = new ArrayList<>();
+            for (QueueItem it : items) {
+                MediaMetadata metadata = new MediaMetadata.Builder()
+                        .setTitle(it.title)
+                        .setArtist(it.artist)
+                        .setAlbumTitle(it.album)
+                        .setArtworkUri(it.artworkUrl != null ? Uri.parse(it.artworkUrl) : null)
+                        .build();
+                MediaItem.Builder itemBuilder = new MediaItem.Builder()
+                        .setMediaId(it.id != null ? it.id : "")
+                        .setMediaMetadata(metadata);
+
+                if (it.path != null && !it.path.isEmpty()) {
+                    // getAudioPath() no JS já devolve uma URI "file://..."
+                    // (é o que o getUri() do plugin de Filesystem retorna)
+                    Uri uri = it.path.contains("://") ? Uri.parse(it.path) : Uri.fromFile(new File(it.path));
+                    MediaItem mediaItem = itemBuilder.setUri(uri).build();
+                    sources.add(new ProgressiveMediaSource.Factory(new androidx.media3.datasource.DefaultDataSource.Factory(this)).createMediaSource(mediaItem));
+                } else if (it.url != null) {
+                    MediaItem mediaItem = itemBuilder.setUri(Uri.parse(it.url)).build();
+                    DefaultHttpDataSource.Factory httpFactory = new DefaultHttpDataSource.Factory();
+                    if (it.headers != null && !it.headers.isEmpty()) httpFactory.setDefaultRequestProperties(it.headers);
+                    sources.add(new ProgressiveMediaSource.Factory(httpFactory).createMediaSource(mediaItem));
+                }
+            }
+            if (sources.isEmpty()) return;
+
+            player.setMediaSources(sources, 0, resumeMs > 0 ? resumeMs : 0);
             player.prepare();
-            if (resumeMs > 0) player.seekTo(resumeMs);
             player.setPlayWhenReady(true);
+            // A disponibilidade de "próxima"/"anterior" na notificação
+            // depende de quantos itens têm na fila (ver update() acima) —
+            // isso mudou agora que carregamos uma fila nova.
+            possibleActionsUpdate = true;
+            update();
         });
     }
 
-    public void loadLocalAndPlay(String absolutePath, long resumeMs) {
-        postToMain(() -> {
-            if (player == null) return;
-            // getAudioPath() no JS já devolve uma URI "file://..." (é o que
-            // o getUri() do plugin de Filesystem retorna) — usar Uri.parse
-            // direto; Uri.fromFile(new File(...)) só funciona com caminho
-            // puro, sem esquema, e quebraria aqui.
-            Uri uri = absolutePath.contains("://") ? Uri.parse(absolutePath) : Uri.fromFile(new File(absolutePath));
-            MediaItem item = MediaItem.fromUri(uri);
-            player.setMediaItem(item);
-            player.prepare();
-            if (resumeMs > 0) player.seekTo(resumeMs);
-            player.setPlayWhenReady(true);
-        });
+    // Baixa a capa da PRÓXIMA faixa quando o ExoPlayer troca sozinho (ver
+    // onMediaItemTransition) — roda numa thread separada (é rede), e só
+    // aplica o resultado se ainda for a faixa atual quando terminar.
+    private void fetchArtworkAsync(String url) {
+        if (url == null || url.isEmpty()) return;
+        final String requestedFor = title + "|" + artist; // marcador simples pra não aplicar fora de hora
+        new Thread(() -> {
+            Bitmap bmp = null;
+            try {
+                if (url.startsWith("http")) {
+                    HttpURLConnection connection = (HttpURLConnection) (new URL(url)).openConnection();
+                    connection.setDoInput(true);
+                    connection.connect();
+                    InputStream inputStream = connection.getInputStream();
+                    bmp = android.graphics.BitmapFactory.decodeStream(inputStream);
+                }
+            } catch (Exception ignored) { /* sem capa, sem problema */ }
+            final Bitmap result = bmp;
+            if (result != null) {
+                mainHandler.post(() -> {
+                    if (requestedFor.equals(title + "|" + artist)) {
+                        setArtwork(result);
+                        update();
+                    }
+                });
+            }
+        }).start();
     }
 
     public void nativePlay() {
@@ -336,6 +422,26 @@ public class NativePlayerService extends Service {
 
     public void nativeSeekTo(long ms) {
         postToMain(() -> { if (player != null) player.seekTo(ms); });
+    }
+
+    // Avança/recua pra faixa já carregada no ExoPlayer (ver
+    // loadQueueAndPlay) — funciona mesmo com o app fechado, desde que o
+    // player já tenha essa faixa preparada. Devolve se conseguiu, pro
+    // chamador (MediaSessionCallback) saber se ainda precisa avisar o JS.
+    public boolean nativeSeekToNext() {
+        if (player == null || !player.hasNextMediaItem()) return false;
+        postToMain(player::seekToNextMediaItem);
+        return true;
+    }
+
+    public boolean nativeSeekToPrevious() {
+        if (player == null || !player.hasPreviousMediaItem()) return false;
+        postToMain(player::seekToPreviousMediaItem);
+        return true;
+    }
+
+    public String getCurrentMediaId() {
+        return (player != null && player.getCurrentMediaItem() != null) ? player.getCurrentMediaItem().mediaId : null;
     }
 
     public long getPositionMs() {
@@ -455,8 +561,20 @@ public class NativePlayerService extends Service {
         }
     }
 
-    @SuppressLint("RestrictedApi")
+    // update() agora lê player.hasNextMediaItem()/hasPreviousMediaItem()
+    // (ver mais abaixo) — só pode rodar na thread principal (mesma regra
+    // de sempre do ExoPlayer). Mas é chamado de vários lugares, alguns
+    // deles métodos do plugin que rodam na thread "CapacitorPlugins"
+    // (setMetadata, setPlaybackState, setPositionState,
+    // updatePossibleActions) — por isso despacha pra thread principal
+    // aqui dentro, ao invés de exigir que cada chamador se preocupe com
+    // isso.
     public void update() {
+        postToMain(this::updateOnMainThread);
+    }
+
+    @SuppressLint("RestrictedApi")
+    private void updateOnMainThread() {
         if (possibleActionsUpdate) {
             if (notificationBuilder != null) {
                 notificationBuilder.mActions.clear();
@@ -476,7 +594,9 @@ public class NativePlayerService extends Service {
                 // JS ficasse pendurado (dangling), o botão de tocar/pausar
                 // sumia (ou travava) da notificação de vez.
                 boolean nativelyHandled = actionName.equals("play") || actionName.equals("pause");
-                boolean eligible = nativelyHandled || (plugin != null && plugin.hasActionHandler(actionName));
+                boolean nativeCanSkip = (actionName.equals("nexttrack") && player != null && player.hasNextMediaItem())
+                        || (actionName.equals("previoustrack") && player != null && player.hasPreviousMediaItem());
+                boolean eligible = nativelyHandled || nativeCanSkip || (plugin != null && plugin.hasActionHandler(actionName));
                 if (eligible) {
                     if (actionName.equals("play") && playbackState != PlaybackStateCompat.STATE_PAUSED) {
                         continue;
@@ -548,10 +668,11 @@ public class NativePlayerService extends Service {
         this.update();
     }
 
-    // Botões de mídia (notificação, fone, tela de bloqueio, carro). Play/
-    // pause/seekTo já mexem direto no ExoPlayer (resposta instantânea,
-    // funciona mesmo com o app fechado); nexttrack/previoustrack ainda
-    // dependem da fila em JS nesta fase, por isso só repassam pro plugin.
+    // Botões de mídia (notificação, fone, tela de bloqueio, carro). Todos
+    // já mexem direto no ExoPlayer primeiro (resposta instantânea,
+    // funciona mesmo com o app fechado — próxima/anterior só se já
+    // tiver algo carregado ali, ver loadQueueAndPlay) E avisam o plugin,
+    // pro JS (se estiver vivo) poder ir além disso com a fila completa.
     private class MediaSessionCallback extends MediaSessionCompat.Callback {
         @Override
         public void onPlay() {
@@ -586,11 +707,18 @@ public class NativePlayerService extends Service {
 
         @Override
         public void onSkipToPrevious() {
+            // Se a faixa anterior já estiver carregada no ExoPlayer (ver
+            // loadQueueAndPlay), toca ela direto — funciona mesmo com o
+            // app fechado. Sempre avisa o JS também: se ele estiver vivo,
+            // é quem decide a fila de verdade (shuffle/repeat/modo rádio)
+            // e pode querer ir além dessa única faixa pré-carregada.
+            nativeSeekToPrevious();
             if (plugin != null) plugin.actionCallback("previoustrack");
         }
 
         @Override
         public void onSkipToNext() {
+            nativeSeekToNext();
             if (plugin != null) plugin.actionCallback("nexttrack");
         }
 

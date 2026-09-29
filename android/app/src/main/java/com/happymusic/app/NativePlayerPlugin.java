@@ -195,30 +195,47 @@ public class NativePlayerPlugin extends Plugin {
 
     // ── Reprodução de verdade (ExoPlayer dentro do NativePlayerService) ──
 
+    // items[0] é a faixa atual, items[1] (se vier) é a próxima já
+    // preparada — ver NativePlayerService.QueueItem/loadQueueAndPlay.
+    // Assim, se a atual terminar com o app fechado, o ExoPlayer já tem
+    // pra onde ir sozinho, sem precisar do JS (ver FASE 3 no topo do
+    // NativePlayerService.java).
     @PluginMethod
     public void load(PluginCall call) {
-        final String url = call.getString("url");
-        final String path = call.getString("path");
         final double resumeSeconds = call.getDouble("resumeSeconds", 0.0);
         final long resumeMs = Math.round(resumeSeconds * 1000);
 
-        final Map<String, String> headers = new HashMap<>();
-        JSObject headersObj = call.getObject("headers");
-        if (headersObj != null) {
-            Iterator<String> keys = headersObj.keys();
-            while (keys.hasNext()) {
-                String k = keys.next();
-                headers.put(k, headersObj.optString(k, ""));
+        final JSArray itemsArray = call.getArray("items");
+        final List<NativePlayerService.QueueItem> queueItems = new ArrayList<>();
+        if (itemsArray != null) {
+            try {
+                for (JSONObject obj : itemsArray.<JSONObject>toList()) {
+                    NativePlayerService.QueueItem item = new NativePlayerService.QueueItem();
+                    item.id = obj.optString("id", null);
+                    item.title = obj.optString("title", "");
+                    item.artist = obj.optString("artist", "");
+                    item.album = obj.optString("album", "");
+                    item.artworkUrl = obj.optString("artworkUrl", null);
+                    item.url = obj.optString("url", null);
+                    item.path = obj.optString("path", null);
+                    JSONObject headersObj = obj.optJSONObject("headers");
+                    if (headersObj != null) {
+                        Map<String, String> headers = new HashMap<>();
+                        Iterator<String> keys = headersObj.keys();
+                        while (keys.hasNext()) {
+                            String k = keys.next();
+                            headers.put(k, headersObj.optString(k, ""));
+                        }
+                        item.headers = headers;
+                    }
+                    queueItems.add(item);
+                }
+            } catch (Exception e) {
+                Log.w(TAG, "Falha ao ler a fila enviada pro player nativo", e);
             }
         }
 
-        ensureServiceThen(() -> {
-            if (path != null && !path.isEmpty()) {
-                service.loadLocalAndPlay(path, resumeMs);
-            } else if (url != null) {
-                service.loadAndPlay(url, headers, resumeMs);
-            }
-        });
+        ensureServiceThen(() -> service.loadQueueAndPlay(queueItems, resumeMs));
         call.resolve();
     }
 
@@ -248,10 +265,12 @@ public class NativePlayerPlugin extends Plugin {
             ret.put("playing", service.isPlayingNow());
             ret.put("positionSeconds", service.getPositionMs() / 1000.0);
             ret.put("durationSeconds", service.getDurationMs() / 1000.0);
+            ret.put("trackId", service.getCurrentMediaId());
         } else {
             ret.put("playing", false);
             ret.put("positionSeconds", 0);
             ret.put("durationSeconds", 0);
+            ret.put("trackId", null);
         }
         call.resolve(ret);
     }
@@ -275,5 +294,15 @@ public class NativePlayerPlugin extends Plugin {
         JSObject data = new JSObject();
         data.put("message", message != null ? message : "Erro de reprodução");
         notifyListeners("error", data);
+    }
+
+    // O ExoPlayer trocou de faixa sozinho (ver
+    // NativePlayerService.onMediaItemTransition) — o JS usa isso só pra
+    // manter sua própria marcação de "faixa atual" em dia, sem recarregar
+    // nada (a faixa já está tocando de verdade).
+    public void notifyTrackChanged(String trackId) {
+        JSObject data = new JSObject();
+        data.put("trackId", trackId);
+        notifyListeners("trackChanged", data);
     }
 }
