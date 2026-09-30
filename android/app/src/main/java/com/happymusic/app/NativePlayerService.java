@@ -202,13 +202,21 @@ public class NativePlayerService extends Service {
                 .setUsage(C.USAGE_MEDIA)
                 .setContentType(C.AUDIO_CONTENT_TYPE_MUSIC)
                 .build();
-        // handleAudioFocus/handleAudioBecomingNoisy ficam desligados de
-        // propósito nesta fase: quem já cuida disso hoje é o
-        // AudioFocusPlugin/hmAudioBecomingNoisy (ver player.js) — dá pra
-        // migrar pro ExoPlayer numa fase seguinte.
+        // handleAudioFocus/handleAudioBecomingNoisy em true: o próprio
+        // ExoPlayer pausa/retoma sozinho quando perde/ganha o foco de
+        // áudio (ligação, GPS, Bluetooth reconectando no carro) e quando
+        // o fone/Bluetooth desconecta — direto no nativo, sem depender
+        // de o JavaScript estar respondendo. É justamente com a tela
+        // travada (ex.: Bluetooth do carro) que o WebView pode demorar
+        // mais pra reagir, e antes disso ficava só por conta do
+        // AudioFocusPlugin/hmAudioBecomingNoisy (ver player.js), que
+        // dependem do JS acordar — isso aqui é uma segunda camada, mais
+        // rápida e independente, por trás da mesma proteção; o
+        // AudioFocusPlugin continua ativo também (as duas não conflitam,
+        // só uma delas de fato reage primeiro cada vez).
         player = new ExoPlayer.Builder(this)
-                .setAudioAttributes(audioAttributes, false)
-                .setHandleAudioBecomingNoisy(false)
+                .setAudioAttributes(audioAttributes, true)
+                .setHandleAudioBecomingNoisy(true)
                 .build();
         player.addListener(new Player.Listener() {
             @Override
