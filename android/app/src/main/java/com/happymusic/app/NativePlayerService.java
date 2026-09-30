@@ -115,6 +115,7 @@ public class NativePlayerService extends Service {
     private volatile boolean cachedPlaying = false;
     private volatile long cachedPositionMs = 0;
     private volatile long cachedDurationMs = 0;
+    private volatile String cachedMediaId = null;
 
     // onIsPlayingChanged/onPlaybackStateChanged só disparam quando o
     // ESTADO muda — sem isso a posição ficaria parada entre um evento e
@@ -127,6 +128,8 @@ public class NativePlayerService extends Service {
                 cachedPositionMs = Math.max(player.getCurrentPosition(), 0);
                 long d = player.getDuration();
                 cachedDurationMs = (d == C.TIME_UNSET) ? 0 : Math.max(d, 0);
+                MediaItem current = player.getCurrentMediaItem();
+                cachedMediaId = current != null ? current.mediaId : null;
             }
             mainHandler.postDelayed(this, 500);
         }
@@ -238,6 +241,7 @@ public class NativePlayerService extends Service {
                 // mostrando o título/capa da faixa ANTERIOR mesmo com
                 // outra já tocando.
                 if (item == null) return;
+                cachedMediaId = item.mediaId; // atualiza já, sem esperar o próximo tick do positionTicker
                 MediaMetadata meta = item.mediaMetadata;
                 setTitle(meta.title != null ? meta.title.toString() : "");
                 setArtist(meta.artist != null ? meta.artist.toString() : "");
@@ -440,8 +444,12 @@ public class NativePlayerService extends Service {
         return true;
     }
 
+    // Lê do cache (ver campo no topo do arquivo), nunca do player
+    // direto — quem chama isso é nativeGetState() do plugin, que roda na
+    // thread do Capacitor, não a principal (mesma regra de sempre do
+    // ExoPlayer; foi exatamente essa leitura direta que crashava aqui).
     public String getCurrentMediaId() {
-        return (player != null && player.getCurrentMediaItem() != null) ? player.getCurrentMediaItem().mediaId : null;
+        return cachedMediaId;
     }
 
     public long getPositionMs() {
@@ -459,13 +467,16 @@ public class NativePlayerService extends Service {
     // Só é seguro chamar de dentro da thread principal (Player.Listener
     // já roda nela) — atualiza o cache (ver campos no topo do arquivo) e
     // avisa o JS. Chamadas vindas de outra thread devem usar
-    // getPositionMs()/getDurationMs()/isPlayingNow() acima, não isto.
+    // getPositionMs()/getDurationMs()/isPlayingNow()/getCurrentMediaId()
+    // acima, não isto.
     private void notifyJsState() {
         if (player != null) {
             cachedPlaying = player.isPlaying();
             cachedPositionMs = Math.max(player.getCurrentPosition(), 0);
             long d = player.getDuration();
             cachedDurationMs = (d == C.TIME_UNSET) ? 0 : Math.max(d, 0);
+            MediaItem current = player.getCurrentMediaItem();
+            cachedMediaId = current != null ? current.mediaId : null;
         }
         if (plugin != null) {
             plugin.notifyStateChanged(cachedPlaying, cachedPositionMs, cachedDurationMs);
