@@ -586,7 +586,7 @@ const Player = (() => {
         id: track.id,
         title: track.title,
         artist: track.artist,
-        album: 'Happy Music',
+        album: 'HappyMusic',
         artworkUrl: track.thumbnail || null,
       };
       if (window.NativeFS && window.NativeFS.isNative) {
@@ -986,7 +986,11 @@ const Player = (() => {
   function isFavorite(trackId) { return _favorites.has(trackId); }
 
   function getFavorites() {
-    return Drive.getCachedTracks().filter(t => _favorites.has(t.id));
+    // Mesma regra de _playlistTracks (app.js): sempre em ordem alfabética
+    // pelo título, tanto na tela quanto na ordem de reprodução.
+    return Drive.getCachedTracks()
+      .filter(t => _favorites.has(t.id))
+      .sort((a, b) => (a.title || '').localeCompare(b.title || '', 'pt-BR', { sensitivity: 'base' }));
   }
 
   function _saveFavorites() {
@@ -1135,7 +1139,7 @@ const Player = (() => {
     NativeMedia.setMetadata({
       title:  track.title,
       artist: track.artist,
-      album:  'Happy Music',
+      album:  'HappyMusic',
       artwork: track.thumbnail
         ? [{ src: track.thumbnail, sizes: '96x96', type: 'image/jpeg' }]
         : [{ src: '/assets/icons/icon-512.png', sizes: '512x512', type: 'image/png' }],

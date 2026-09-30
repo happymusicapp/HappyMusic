@@ -1276,7 +1276,13 @@ const App = (() => {
   const FAVORITES_ID = '__favorites__';
 
   function _playlistTracks(playlist) {
-    return playlist.trackIds.map(id => _findTrackAnywhere(id)).filter(Boolean);
+    // Sempre em ordem alfabética pelo título (não pela ordem em que foram
+    // adicionadas) — vale tanto pra lista mostrada na tela quanto pra
+    // ordem em que tocam ao apertar "tocar a lista" (ver btnPlaylistPlay).
+    return playlist.trackIds
+      .map(id => _findTrackAnywhere(id))
+      .filter(Boolean)
+      .sort((a, b) => (a.title || '').localeCompare(b.title || '', 'pt-BR', { sensitivity: 'base' }));
   }
   // ui.js usa isso pra montar a capa em colagem da grade de Coleções
   // (renderPlaylists), sem precisar que cada um dos vários lugares que
