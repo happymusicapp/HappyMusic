@@ -40,8 +40,13 @@ jobs:
       - name: Ajustar versionCode / versionName do build
         run: |
           set -euxo pipefail
-          sed -i "s/versionCode [0-9]\+/versionCode ${APP_VERSION_CODE}/" android/app/build.gradle
-          sed -i "s/versionName \"[^\"]*\"/versionName \"${APP_VERSION_NAME}\"/" android/app/build.gradle
+          # versionCode/versionName SEMPRE diferentes a cada build (usa o
+          # número da execução do Actions) — antes ficavam travados no
+          # mesmo valor em todo build, o que tornava impossível saber, só
+          # de olhar o app instalado, se era realmente a versão mais
+          # recente ou um APK antigo esquecido no celular.
+          sed -i "s/versionCode [0-9]\+/versionCode ${{ github.run_number }}/" android/app/build.gradle
+          sed -i "s/versionName \"[^\"]*\"/versionName \"${APP_VERSION_NAME}+${{ github.run_number }}\"/" android/app/build.gradle
           grep -E "versionCode|versionName" android/app/build.gradle
 
       - name: Decodificar keystore
@@ -86,6 +91,6 @@ jobs:
       - name: Disponibilizar APK e AAB para download
         uses: actions/upload-artifact@v4
         with:
-          name: happymusic-android-v${{ env.APP_VERSION_NAME }}
+          name: happymusic-android-build${{ github.run_number }}
           path: output/
           retention-days: 30
