@@ -94,16 +94,18 @@
     // dentro do app Android — na versão web (PWA no navegador) fica
     // undefined de propósito; quem chama confere isNative antes.
     //
-    // items[0] é a faixa atual; items[1] (opcional) é a próxima já
-    // preparada — é o que permite o ExoPlayer avançar sozinho quando a
-    // atual terminar, mesmo com o app fechado (ver FASE 3 no
-    // NativePlayerService.java). Cada item: { id, title, artist, album,
-    // artworkUrl } + OU { url, headers } (streaming do Drive) OU { path }
-    // (arquivo já baixado). resumeSeconds retoma do ponto exato (troca
-    // de faixa restaurada de uma sessão anterior).
-    async load({ items, resumeSeconds }) {
+    // items[0] é a faixa atual; o resto (opcional) é a fila seguinte já
+    // preparada — é o que permite o ExoPlayer trocar de faixa sozinho
+    // por várias músicas seguidas, mesmo com o app fechado (ver FASE 3
+    // no NativePlayerService.java). Cada item: { id, title, artist,
+    // album, artworkUrl } + OU { url, headers } (streaming do Drive) OU
+    // { path } (arquivo já baixado). resumeSeconds retoma do ponto
+    // exato (troca de faixa restaurada de uma sessão anterior).
+    // repeatMode ('none'|'all'|'one') diz pro ExoPlayer dar a volta
+    // sozinho quando a lista entregue acabar.
+    async load({ items, resumeSeconds, repeatMode }) {
       if (!plugin) return;
-      try { await plugin.load({ items, resumeSeconds }); }
+      try { await plugin.load({ items, resumeSeconds, repeatMode }); }
       catch (err) { console.warn('[NativeMedia] load falhou:', err); }
     },
 
