@@ -15,6 +15,7 @@ const UI = (() => {
 
     // Header
     btnPlayerExpand: $('btn-player-expand'),
+    btnPlayerCollapse: $('btn-player-collapse'),
     btnUser:        $('btn-user'),
     userAvatar:     $('user-avatar'),
     searchBar:      $('search-bar'),
@@ -116,6 +117,11 @@ const UI = (() => {
     filterMenuDot:      $('filter-menu-dot'),
     modalFilterMenu:    $('modal-filter-menu'),
     btnFilterMenuClose: $('btn-filter-menu-close'),
+    btnSortMenu:        $('btn-sort-menu'),
+    modalSortMenu:      $('modal-sort-menu'),
+    btnSortMenuClose:   $('btn-sort-menu-close'),
+    sortMenuList:       $('sort-menu-list'),
+    sortSummary:        $('sort-summary'),
     modalCollectionPreview:      $('modal-collection-preview'),
     btnCollectionPreviewClose:   $('btn-collection-preview-close'),
     collectionPreviewTitle:      $('collection-preview-title'),
@@ -1218,6 +1224,77 @@ const UI = (() => {
     });
   }
   _bindFilterMenuEvents();
+
+  // ── MENU DE ORDENAÇÃO (lista "Todas as músicas") ──
+  function showSortMenu() { el.modalSortMenu.classList.remove('hidden'); }
+  function hideSortMenu() { el.modalSortMenu.classList.add('hidden'); }
+  el.btnSortMenuClose?.addEventListener('click', hideSortMenu);
+  el.modalSortMenu?.addEventListener('click', e => {
+    if (e.target === el.modalSortMenu) hideSortMenu();
+  });
+
+  // ── PLAYER EXPANDIDO: abrir/fechar + botão voltar ──
+  // Abrir empilha uma entrada no histórico (mesmo padrão do player de
+  // vídeo e do perfil em app.js). Assim o botão/gesto "voltar" do Android
+  // recolhe o player em vez de sair do app, e o botão ⌄ do player faz o
+  // mesmo caminho (history.back() consome a entrada empilhada).
+  let _playerHistoryPushed = false;
+  let _ignoreNextPop = false;   // popstate causado pelo nosso próprio history.back()
+  let _backConsumed = false;    // "voltar" já tratado pelo player neste evento
+
+  // Outros listeners de popstate (ex.: perfil, em app.js) consultam isto
+  // pra não tratarem como deles um "voltar" que era do player.
+  function _markBackConsumed() {
+    _backConsumed = true;
+    setTimeout(() => { _backConsumed = false; }, 0);
+  }
+  function backWasConsumed() { return _backConsumed; }
+
+  function _playerIsOpen() {
+    return el.player.classList.contains('expanded') && !el.player.classList.contains('closing');
+  }
+
+  function expandPlayer() {
+    if (el.player.classList.contains('expanded')) return; // aberto ou fechando
+    PlayerFX.toggleExpand(el.player, {
+      onOpen: () => Aurora.start(),
+      onClose: () => Aurora.stop(),
+    });
+    history.pushState({ hmOverlay: 'player' }, '');
+    _playerHistoryPushed = true;
+  }
+
+  function collapsePlayer({ fromPopState = false } = {}) {
+    if (!_playerIsOpen()) return;
+    PlayerFX.toggleExpand(el.player, {
+      onOpen: () => Aurora.start(),
+      onClose: () => Aurora.stop(),
+    });
+    if (_playerHistoryPushed) {
+      _playerHistoryPushed = false;
+      if (!fromPopState) {
+        _ignoreNextPop = true;
+        history.back();
+        setTimeout(() => { _ignoreNextPop = false; }, 800); // rede de segurança
+      }
+    }
+  }
+
+  window.addEventListener('popstate', () => {
+    if (_ignoreNextPop) { _ignoreNextPop = false; _markBackConsumed(); return; }
+    if (_playerHistoryPushed && _playerIsOpen()) {
+      collapsePlayer({ fromPopState: true });
+      _markBackConsumed();
+    }
+  });
+
+  el.btnPlayerCollapse?.addEventListener('click', () => collapsePlayer());
+
+  document.addEventListener('keydown', e => {
+    if (e.key !== 'Escape' || !_playerIsOpen()) return;
+    if (document.querySelector('.modal-overlay:not(.hidden)')) return;
+    collapsePlayer();
+  });
 
   // ── PRÉVIA DE COLEÇÃO (modal, aberto pelos balões de "Coleções
   // recentes" no topo da Home — em vez de navegar pra outra tela) ──
@@ -2466,10 +2543,7 @@ const UI = (() => {
     // senão cada swipe também abriria/fecharia o player.
     el.btnPlayerExpand.addEventListener('click', () => {
       if (PlayerFX.consumeSuppressedClick()) return;
-      PlayerFX.toggleExpand(el.player, {
-        onOpen: () => Aurora.start(),
-        onClose: () => Aurora.stop(),
-      });
+      if (_playerIsOpen()) collapsePlayer(); else expandPlayer();
     });
 
     // Arrastar a capa expandida troca de faixa (item 9)
@@ -2770,6 +2844,11 @@ const UI = (() => {
     renderFilterOptions,
     showFilterMenu,
     hideFilterMenu,
+    showSortMenu,
+    hideSortMenu,
+    expandPlayer,
+    collapsePlayer,
+    backWasConsumed,
     showCollectionPreview,
     hideCollectionPreview,
     confirmDialog,

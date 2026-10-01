@@ -683,8 +683,66 @@ const App = (() => {
 
 
   // ── FILTROS (gênero / artista / álbum) ─────────
+  // ── ORDENAÇÃO da lista "Todas as músicas" ──────
+  // Padrão: título A–Z (o Drive devolve por nome de arquivo, que nem
+  // sempre bate com o título mostrado). A escolha fica salva no aparelho.
+  // Como a fila de reprodução nasce da lista exibida, "próxima" segue
+  // a mesma ordem que aparece na tela.
+  const KEY_SORT = 'hm_tracks_sort';
+  const SORT_LABELS = {
+    'title-asc':  'A–Z',
+    'title-desc': 'Z–A',
+    'artist-asc': 'por artista',
+    'recent':     'recentes',
+  };
+  const _collator = new Intl.Collator('pt-BR', { sensitivity: 'base', numeric: true });
+  let _sortMode = (() => {
+    try {
+      const v = localStorage.getItem(KEY_SORT);
+      return SORT_LABELS[v] ? v : 'title-asc';
+    } catch (_) { return 'title-asc'; }
+  })();
+
+  function _sortKey(t) { return (t.title || t.name || '').trim(); }
+
+  function _sortTracks(list) {
+    const byTitle = (a, b) => _collator.compare(_sortKey(a), _sortKey(b));
+    const arr = [...list];
+    switch (_sortMode) {
+      case 'title-desc':
+        return arr.sort((a, b) => byTitle(b, a));
+      case 'artist-asc':
+        return arr.sort((a, b) => _collator.compare(a.artist || '', b.artist || '') || byTitle(a, b));
+      case 'recent':
+        return arr.sort((a, b) => String(b.modifiedTime || '').localeCompare(String(a.modifiedTime || '')) || byTitle(a, b));
+      default:
+        return arr.sort(byTitle);
+    }
+  }
+
+  function _applySortUI() {
+    if (UI.el.sortSummary) UI.el.sortSummary.textContent = '· ' + SORT_LABELS[_sortMode];
+    UI.el.sortMenuList?.querySelectorAll('.filter-picker-item').forEach(b => {
+      b.classList.toggle('active', b.dataset.sort === _sortMode);
+    });
+  }
+
+  function _bindSortEvents() {
+    _applySortUI();
+    UI.el.btnSortMenu?.addEventListener('click', () => { _applySortUI(); UI.showSortMenu(); });
+    UI.el.sortMenuList?.addEventListener('click', e => {
+      const item = e.target.closest('.filter-picker-item');
+      if (!item || !SORT_LABELS[item.dataset.sort]) return;
+      _sortMode = item.dataset.sort;
+      try { localStorage.setItem(KEY_SORT, _sortMode); } catch (_) {}
+      _applySortUI();
+      UI.hideSortMenu();
+      _renderAllTracksList();
+    });
+  }
+
   function _visibleTracks() {
-    return Drive.filterTracks(_filters);
+    return _sortTracks(Drive.filterTracks(_filters));
   }
 
   function _renderAllTracksList() {
@@ -2306,6 +2364,8 @@ const App = (() => {
     UI.el.navBtns.forEach(btn => btn.addEventListener('click', _dropProfileHistory));
 
     window.addEventListener('popstate', () => {
+      // "Voltar" que era do player expandido: não é do perfil.
+      if (UI.backWasConsumed()) return;
       if (_swallowNextPop) { _swallowNextPop = false; return; }
       if (!_profileHistoryPushed || UI.getCurrentView() !== 'profile') return;
 
@@ -2477,6 +2537,7 @@ const App = (() => {
 
     // Filtros, upload, edição de metadados e playlists
     _bindFilterEvents();
+    _bindSortEvents();
     _bindSearchResultsClose();
     _bindSelectionEvents();
     _bindUploadEvents();
