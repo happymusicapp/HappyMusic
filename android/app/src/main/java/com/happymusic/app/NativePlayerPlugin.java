@@ -235,7 +235,9 @@ public class NativePlayerPlugin extends Plugin {
             }
         }
 
-        ensureServiceThen(() -> service.loadQueueAndPlay(queueItems, resumeMs));
+        final String repeatMode = call.getString("repeatMode", "none");
+
+        ensureServiceThen(() -> service.loadQueueAndPlay(queueItems, resumeMs, repeatMode));
         call.resolve();
     }
 

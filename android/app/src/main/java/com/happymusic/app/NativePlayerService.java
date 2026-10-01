@@ -117,6 +117,14 @@ public class NativePlayerService extends Service {
     private volatile long cachedDurationMs = 0;
     private volatile String cachedMediaId = null;
 
+    // Quantas faixas seguidas puladas por erro (ver onPlayerError) —
+    // zera assim que uma toca de verdade. É pra não ficar pulando a
+    // fila inteira à toa quando o sinal cai por completo (ex.: um
+    // trecho longo sem cobertura numa viagem) — depois de algumas
+    // tentativas, para e espera o usuário interagir de novo.
+    private int consecutiveErrorSkips = 0;
+    private static final int MAX_CONSECUTIVE_ERROR_SKIPS = 3;
+
     // onIsPlayingChanged/onPlaybackStateChanged só disparam quando o
     // ESTADO muda — sem isso a posição ficaria parada entre um evento e
     // outro (a barra de progresso no app não andaria durante a música).
@@ -229,6 +237,7 @@ public class NativePlayerService extends Service {
 
             @Override
             public void onIsPlayingChanged(boolean isPlaying) {
+                if (isPlaying) consecutiveErrorSkips = 0; // tocou de verdade — zera o contador de pulos por erro
                 notifyJsState();
                 // Atualiza a notificação (ícone tocar/pausar) a partir do
                 // player de verdade, não só quando o JS manda — é o que
@@ -269,6 +278,19 @@ public class NativePlayerService extends Service {
             @Override
             public void onPlayerError(PlaybackException error) {
                 if (plugin != null) plugin.notifyError(error.getMessage());
+
+                // Uma faixa da fila falhou (ex.: trecho sem sinal numa
+                // viagem, pra quem está tocando por streaming) — em vez
+                // de simplesmente parar, tenta pular pra próxima já
+                // preparada e continuar a viagem. Só até um limite (ver
+                // MAX_CONSECUTIVE_ERROR_SKIPS): se o sinal sumiu de vez,
+                // não adianta ficar tentando a fila inteira à toa.
+                consecutiveErrorSkips++;
+                if (consecutiveErrorSkips <= MAX_CONSECUTIVE_ERROR_SKIPS && player != null && player.hasNextMediaItem()) {
+                    player.seekToNextMediaItem();
+                    player.prepare();
+                    player.setPlayWhenReady(true);
+                }
             }
         });
     }
@@ -353,9 +375,19 @@ public class NativePlayerService extends Service {
 
     // ── Controle de reprodução (chamado pelo NativePlayerPlugin) ────
 
-    public void loadQueueAndPlay(List<QueueItem> items, long resumeMs) {
+    public void loadQueueAndPlay(List<QueueItem> items, long resumeMs, String repeatMode) {
         postToMain(() -> {
             if (player == null || items == null || items.isEmpty()) return;
+
+            consecutiveErrorSkips = 0; // fila nova — zera o contador de "pulou por erro" (ver onPlayerError)
+
+            // Dá a volta sozinho quando a lista entregue acabar (loop de
+            // playlist/filtro, ou repetir tudo/uma faixa) — sem isso,
+            // mesmo entregando a fila inteira, ele pararia no fim dela
+            // em vez de recomeçar.
+            if ("one".equals(repeatMode)) player.setRepeatMode(Player.REPEAT_MODE_ONE);
+            else if ("all".equals(repeatMode)) player.setRepeatMode(Player.REPEAT_MODE_ALL);
+            else player.setRepeatMode(Player.REPEAT_MODE_OFF);
 
             List<MediaSource> sources = new ArrayList<>();
             for (QueueItem it : items) {
