@@ -768,6 +768,28 @@ img    { display: block; }
 /* Some junto com o player expandido pra não competir por espaço */
 .player.expanded ~ .bottom-nav { display: none; }
 
+/* Botão "voltar" do player em tela cheia (recolhe de volta pras listas).
+   Escondido no mini-player; só existe quando .expanded. */
+.player-collapse-btn { display: none; }
+.player.expanded .player-collapse-btn {
+  display: flex;
+  position: absolute;
+  top: calc(var(--sp-3) + env(safe-area-inset-top, 0px));
+  left: var(--sp-3);
+  width: 44px;
+  height: 44px;
+  z-index: 3;
+  color: var(--grey-soft);
+}
+
+/* Rótulo discreto da ordenação atual, ao lado de "Todas as músicas" */
+.sort-summary {
+  margin-left: var(--sp-2);
+  font-size: 0.72rem;
+  font-weight: 400;
+  color: var(--grey-dark);
+}
+
 .player-track {
   display: flex;
   align-items: center;
