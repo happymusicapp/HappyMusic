@@ -37,9 +37,10 @@ const Player = (() => {
     get volume()        { return this._audio.volume; }
     set volume(v)       { this._audio.volume = v; }
     // info = { url } — a versão web sempre recebe um blob: local (ver
-    // Drive.fetchAudioUrl), nunca headers/path. nextInfo é ignorado (só
-    // o motor nativo consegue deixar a próxima faixa pré-carregada).
-    async setSource(info, resumeSeconds, nextInfo) {
+    // Drive.fetchAudioUrl), nunca headers/path. upcoming/repeatMode são
+    // ignorados (só o motor nativo consegue deixar o resto da fila
+    // pré-carregado).
+    async setSource(info, resumeSeconds, upcoming, repeatMode) {
       this._audio.src = info.url;
       this._audio.load();
       if (resumeSeconds > 0) this._audio.currentTime = resumeSeconds;
@@ -116,14 +117,17 @@ const Player = (() => {
     get volume()        { return this._volume ?? 1; }
     set volume(v)       { this._volume = v; } // sem controle de volume nativo nesta fase — guardado só pra não quebrar quem ler de volta
     // info = { id, title, artist, album, artworkUrl, url, headers } ou
-    // { ...path } — ver _resolveTrackSource(). nextInfo (mesmo formato,
-    // opcional) é a próxima faixa já peekada: vai junto pro ExoPlayer
-    // poder avançar sozinho quando a atual terminar, mesmo com o app
-    // fechado (ver FASE 3 — loadQueueAndPlay em NativePlayerService.java).
-    async setSource(info, resumeSeconds, nextInfo) {
-      const items = [info];
-      if (nextInfo) items.push(nextInfo);
-      await window.NativeMedia.load({ items, resumeSeconds });
+    // { ...path } — ver _resolveTrackSource(). upcoming (mesmo formato,
+    // array, opcional) é o RESTO DA FILA já peekado: vai junto pro
+    // ExoPlayer poder trocar de música sozinho por várias faixas
+    // seguidas quando a atual (e as de depois) terminarem, mesmo com o
+    // app fechado — ex.: uma viagem de carro (ver FASE 3 —
+    // loadQueueAndPlay em NativePlayerService.java). repeatMode
+    // ('none'|'all'|'one') é pro ExoPlayer saber dar a volta sozinho
+    // quando a lista entregue acabar.
+    async setSource(info, resumeSeconds, upcoming, repeatMode) {
+      const items = [info, ...(upcoming || [])];
+      await window.NativeMedia.load({ items, resumeSeconds, repeatMode });
       this._currentTime = resumeSeconds || 0;
     }
     async play()  { await window.NativeMedia.nativePlay(); this._paused = false; }
@@ -501,17 +505,19 @@ const Player = (() => {
     try {
       const source = await _resolveTrackSource(track);
 
-      // Deixa a PRÓXIMA faixa pronta e carregada no motor nativo (ver
-      // FASE 3) — é o que permite o ExoPlayer avançar sozinho quando a
-      // atual terminar, mesmo com o app fechado. Só resolve se houver
-      // mesmo uma próxima (senão fica só com a atual, como antes).
-      let nextSource = null;
+      // Deixa o RESTO DA FILA pronto e carregado no motor nativo (ver
+      // FASE 3) — é o que permite o ExoPlayer trocar de música sozinho
+      // quando a atual terminar, mesmo com o app fechado, por várias
+      // faixas seguidas (ex.: uma viagem de carro), não só uma. Resolve
+      // tudo em paralelo — não baixa áudio nenhum nessa hora, só monta
+      // a URL/token (ou acha o caminho do arquivo baixado) de cada uma,
+      // então é rápido mesmo com várias faixas.
+      let upcoming = [];
       if (_useNative) {
-        const nextIdx = _peekNextIndex();
-        const nextTrack = nextIdx !== -1 ? _queue[nextIdx] : null;
-        if (nextTrack) {
-          try { nextSource = await _resolveTrackSource(nextTrack); }
-          catch { /* sem próxima pronta não é motivo pra falhar a atual */ }
+        const upcomingIdx = _peekUpcomingIndexes();
+        if (upcomingIdx.length) {
+          const resolved = await Promise.allSettled(upcomingIdx.map(idx => _resolveTrackSource(_queue[idx])));
+          upcoming = resolved.filter(r => r.status === 'fulfilled').map(r => r.value);
         }
       }
 
@@ -524,7 +530,14 @@ const Player = (() => {
       const resumeSeconds = _pendingResumeTime > 0 ? _pendingResumeTime : 0;
       _pendingResumeTime = 0;
 
-      await audio.setSource(source, resumeSeconds, nextSource);
+      // 'one' reaproveita o próprio ExoPlayer repetindo a faixa atual
+      // sozinho (ver repeatMode nativo); 'all'/loop de playlist-filtro
+      // já vêm cobertos dentro de upcoming (_peekUpcomingIndexes dá a
+      // volta), mas ainda passamos o modo pra ele saber repetir quando
+      // a lista entregue acabar.
+      const repeatMode = _repeat === 'one' ? 'one' : (_repeat === 'all' || _queueLoops) ? 'all' : 'none';
+
+      await audio.setSource(source, resumeSeconds, upcoming, repeatMode);
       _loadedTrackId = track.id;
 
       await audio.play();
@@ -607,6 +620,33 @@ const Player = (() => {
     if (_index < _queue.length - 1) return _index + 1;
     if (_repeat === 'all' || _queueLoops) return 0;
     return -1; // fim da fila, sem repeat
+  }
+
+  // Lista de índices que vêm depois da faixa atual, na ordem em que
+  // tocariam (já considerando repeat/loop) — usada pra deixar o motor
+  // nativo com o RESTO da fila pronto de uma vez (ver _play()), não só
+  // a próxima faixa. É o que permite uma viagem de horas com o app
+  // fechado continuar trocando de música sozinha, sem precisar
+  // desbloquear o telefone a cada faixa. 40 faixas à frente já cobre
+  // umas 2h de música com folga; sem limite, uma biblioteca enorme sem
+  // filtro ficaria resolvendo centenas de URLs à toa a cada troca.
+  const NATIVE_QUEUE_LOOKAHEAD = 40;
+
+  function _peekUpcomingIndexes(limit = NATIVE_QUEUE_LOOKAHEAD) {
+    if (!_queue.length || _repeat === 'one') return []; // repeat-one: a própria faixa atual já cobre (ver repeatMode nativo)
+    const out = [];
+    let i = _index;
+    for (let n = 0; n < limit; n++) {
+      let next = i + 1;
+      if (next >= _queue.length) {
+        if (_repeat === 'all' || _queueLoops) next = 0;
+        else break; // fim da fila, sem repeat
+      }
+      if (next === _index) break; // já demos a volta completa na fila
+      out.push(next);
+      i = next;
+    }
+    return out;
   }
 
   let _preloadedTrackId = null;
