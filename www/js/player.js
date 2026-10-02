@@ -155,6 +155,7 @@ const Player = (() => {
   // isso, reabrir o app depois de o processo ser recriado em segundo
   // plano sempre voltaria a faixa do zero.
   let _pendingResumeTime = 0;
+  let _pendingResumeTrackId = null; // o ponto salvo só vale pra ESSA faixa
   let _lastResumeSaveAt  = 0; // throttle do salvamento periódico (ver timeupdate)
 
   // ── CALLBACKS (registrados pelo ui.js / app.js) ──
@@ -385,6 +386,7 @@ const Player = (() => {
       _preloadedTrackId  = null;
       _loadedTrackId     = null;
       _pendingResumeTime = Math.max(0, saved.time || 0);
+      _pendingResumeTrackId = saved.trackId;
 
       return list[idx];
     } catch (_) {
@@ -588,8 +590,12 @@ const Player = (() => {
       // Restaura o ponto exato de uma sessão anterior (ver
       // restoreResumeState) — só na primeira vez que essa faixa é
       // carregada de fato depois de restaurada; consumido uma vez só.
-      const resumeSeconds = _pendingResumeTime > 0 ? _pendingResumeTime : 0;
+      // Só retoma se for a MESMA faixa que estava salva. Antes, o ponto
+      // ficava pendente pra "a primeira faixa carregada": tocar outra
+      // música logo ao abrir o app começava no meio dela.
+      const resumeSeconds = (_pendingResumeTime > 0 && _pendingResumeTrackId === track.id) ? _pendingResumeTime : 0;
       _pendingResumeTime = 0;
+      _pendingResumeTrackId = null;
 
       // 'one' reaproveita o próprio ExoPlayer repetindo a faixa atual
       // sozinho (ver repeatMode nativo); 'all'/loop de playlist-filtro
