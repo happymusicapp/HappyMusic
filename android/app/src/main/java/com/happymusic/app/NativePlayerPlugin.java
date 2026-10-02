@@ -51,6 +51,30 @@ public class NativePlayerPlugin extends Plugin {
     private NativePlayerService service = null;
     private final List<Runnable> pendingWhenReady = new ArrayList<>();
 
+    // Reabrir o app (nova Activity/WebView) cria uma NOVA instância deste
+    // plugin, com `service` null — mas o NativePlayerService pode estar
+    // vivo, tocando em segundo plano (ele sobrevive ao app fechado). Antes
+    // nada religava os dois até o JS chamar algum método que fizesse o
+    // bind; nesse meio tempo nativeGetState() respondia "nada tocando" e
+    // o app mostrava a faixa antiga, não a que estava tocando de verdade.
+    // Aqui religamos já no carregamento do plugin (thread principal), o
+    // que também devolve ao serviço a referência do plugin novo (é por
+    // ela que chegam os eventos de faixa/estado) e o intent da notificação.
+    @Override
+    public void load() {
+        super.load();
+        adoptRunningService();
+    }
+
+    private void adoptRunningService() {
+        if (service != null) return;
+        NativePlayerService running = NativePlayerService.getRunningInstance();
+        if (running == null) return;
+        service = running;
+        Intent intent = getActivity() != null ? new Intent(getActivity(), getActivity().getClass()) : null;
+        service.connectAndInitialize(this, intent);
+    }
+
     private final ServiceConnection serviceConnection = new ServiceConnection() {
         @Override
         public void onServiceConnected(ComponentName componentName, IBinder iBinder) {

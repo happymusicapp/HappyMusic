@@ -99,6 +99,17 @@ public class NativePlayerService extends Service {
     private NativePlayerPlugin plugin;
     private ExoPlayer player;
 
+    // Instância viva deste serviço no processo atual (null se não está
+    // rodando). Existe pra uma NOVA instância do plugin — criada quando o
+    // app é reaberto, com a música ainda tocando em segundo plano — poder
+    // se religar ao serviço que já existe, sem esperar o JS chamar algum
+    // método que faça o bind (ver NativePlayerPlugin.load()).
+    private static volatile NativePlayerService runningInstance = null;
+
+    public static NativePlayerService getRunningInstance() {
+        return runningInstance;
+    }
+
     // Handler preso à thread principal — é NELA que o ExoPlayer precisa
     // ser criado e SEMPRE acessado depois (regra do próprio ExoPlayer,
     // não é opcional). Os métodos do plugin (load/nativePlay/nativePause/
@@ -173,6 +184,7 @@ public class NativePlayerService extends Service {
     @Override
     public void onCreate() {
         super.onCreate();
+        runningInstance = this;
 
         // CRÍTICO: como esse serviço é iniciado via
         // ContextCompat.startForegroundService() (ver
@@ -534,7 +546,14 @@ public class NativePlayerService extends Service {
         update();
     }
 
+    @Override
+    public void onDestroy() {
+        if (runningInstance == this) runningInstance = null;
+        super.onDestroy();
+    }
+
     public void destroy() {
+        if (runningInstance == this) runningInstance = null;
         mainHandler.removeCallbacks(positionTicker);
         if (player != null) {
             player.release();
