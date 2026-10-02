@@ -258,6 +258,85 @@ const Player = (() => {
     } catch (_) { /* localStorage indisponível/cheio — não é crítico */ }
   }
 
+  function _readSavedResume() {
+    try {
+      const raw = localStorage.getItem(KEY_RESUME);
+      return raw ? JSON.parse(raw) : null;
+    } catch (_) { return null; }
+  }
+
+  // Monta a fila do JS em torno de uma faixa que o motor nativo JÁ está
+  // tocando/pausado (carregada de verdade lá): usa a fila salva se ela
+  // contém a faixa; senão sobra só a própria faixa por ora.
+  function _adoptNativeQueue(track, saved, pool) {
+    let list = (saved?.ids || []).map(id => pool.find(t => t.id === id)).filter(Boolean);
+    let idx  = list.findIndex(t => t.id === track.id);
+    if (idx === -1) { list = [track]; idx = 0; }
+
+    _originalQueue    = list;
+    _shuffle          = saved ? !!saved.shuffle : false;
+    _repeat           = saved && (saved.repeat === 'all' || saved.repeat === 'one') ? saved.repeat : 'none';
+    _queueLoops       = saved ? !!saved.loop : false;
+    _queue            = _shuffle ? _shuffled(list, idx) : [...list];
+    _index            = _shuffle ? 0 : idx;
+    _preloadedTrackId = null;
+    _loadedTrackId    = track.id; // já carregada de verdade no nativo
+    _pendingResumeTime = 0;       // nada a retomar — já está na posição certa
+  }
+
+  // O motor só sabe do estado real a partir de agora (nunca recebeu
+  // 'hmNativeStateChanged' pra essa faixa) — atualiza o "espelho" JS
+  // direto, pra isPlaying()/getCurrentTime() já saírem certos.
+  function _applyNativeMirror(state) {
+    const dur = state.durationSeconds || 0;
+    const pos = state.positionSeconds || 0;
+    audio._paused      = !state.playing;
+    audio._currentTime = pos;
+    audio._duration    = dur;
+    // Faixa que já tinha ACABADO no nativo (parado no fim): apertar play
+    // não faria nada lá — marca como não carregada pra play() recarregar
+    // do começo.
+    if (!state.playing && dur > 0 && pos >= dur - 1) {
+      audio._currentTime = 0;
+      _loadedTrackId = null;
+    }
+  }
+
+  // Reconcilia o JS com o que o ExoPlayer está tocando AGORA. Chamado ao
+  // voltar pro app (visibilitychange): enquanto ele esteve em segundo
+  // plano / fechado, o nativo pode ter trocado de faixa várias vezes sem
+  // o JS (pausado ou recriado) receber nenhum aviso. Retorna a faixa
+  // atual do nativo (já refletida na fila/estado do JS) ou null se não
+  // há nada a sincronizar. Quem chama atualiza a UI.
+  async function syncWithNative(allTracks) {
+    if (!_useNative || !window.NativeMedia) return null;
+    const state = await window.NativeMedia.nativeGetState();
+    if (!state || !state.trackId) return null;
+
+    const pool = (allTracks && allTracks.length)
+      ? allTracks
+      : ((typeof Drive !== 'undefined' && Drive.getCachedTracks && Drive.getCachedTracks()) || []);
+    const track = pool.find(t => t.id === state.trackId);
+    if (!track) return null;
+
+    const sameAsCurrent = getCurrentTrack()?.id === state.trackId && _loadedTrackId === state.trackId;
+    if (!sameAsCurrent) {
+      const idx = _queue.findIndex(t => t.id === state.trackId);
+      if (idx !== -1) {
+        _index = idx;
+        _loadedTrackId = state.trackId;
+        _preloadedTrackId = null;
+        _pendingResumeTime = 0;
+      } else {
+        _adoptNativeQueue(track, _readSavedResume(), pool);
+      }
+      if (!track.isExternal) _addToRecent(track);
+    }
+    _applyNativeMirror(state);
+    if (!sameAsCurrent) _saveResumeState();
+    return track;
+  }
+
   // Chamado pelo app.js na inicialização, assim que a biblioteca
   // completa (allTracks) estiver carregada. Não toca nada sozinho —
   // só remonta fila/índice/loop/shuffle/repeat e guarda o ponto exato
@@ -275,35 +354,17 @@ const Player = (() => {
       // próxima faixa (ou até parado, se essa também acabou) enquanto o
       // app estava fechado — o que foi salvo no celular por último pode
       // já não bater com a realidade. Pergunta pro motor nativo o que
-      // está tocando DE VERDADE agora, e usa isso como fonte da verdade
-      // quando for diferente do que foi salvo.
+      // está tocando DE VERDADE agora e usa isso como fonte da verdade
+      // (mesmo quando é a mesma faixa salva: assim o estado tocando/
+      // pausado e o ponto exato também vêm do nativo, e apertar play não
+      // recarrega a faixa à toa).
       if (_useNative && window.NativeMedia) {
         const state = await window.NativeMedia.nativeGetState();
-        if (state && state.trackId && state.trackId !== saved?.trackId) {
+        if (state && state.trackId) {
           const track = allTracks.find(t => t.id === state.trackId);
           if (track) {
-            let list = (saved?.ids || []).map(id => allTracks.find(t => t.id === id)).filter(Boolean);
-            let idx  = list.findIndex(t => t.id === state.trackId);
-            if (idx === -1) { list = [track]; idx = 0; } // fila salva não tinha essa faixa — sobra só ela mesma por ora
-
-            _originalQueue     = list;
-            _shuffle           = saved ? !!saved.shuffle : false;
-            _repeat            = saved && (saved.repeat === 'all' || saved.repeat === 'one') ? saved.repeat : 'none';
-            _queueLoops        = saved ? !!saved.loop : false;
-            _queue             = _shuffle ? _shuffled(list, idx) : [...list];
-            _index             = _shuffle ? 0 : idx;
-            _preloadedTrackId  = null;
-            _loadedTrackId     = state.trackId; // já carregada e tocando/pausada de verdade no nativo
-            _pendingResumeTime = 0; // nada a retomar — já está na posição certa
-
-            // O motor só sabe do estado real a partir de agora (nunca
-            // recebeu 'hmNativeStateChanged' pra essa faixa) — atualiza
-            // o "espelho" JS direto, pra isPlaying()/getCurrentTime()
-            // já saírem certos sem esperar o próximo evento nativo.
-            audio._paused = !state.playing;
-            audio._currentTime = state.positionSeconds || 0;
-            audio._duration = state.durationSeconds || 0;
-
+            _adoptNativeQueue(track, saved, allTracks);
+            _applyNativeMirror(state);
             return track;
           }
         }
@@ -737,6 +798,13 @@ const Player = (() => {
       return;
     }
 
+    // A fila foi editada ("A seguir") enquanto estava pausado: o ExoPlayer
+    // ainda tem a ordem antiga. Recarrega no ponto atual (já toca sozinho).
+    if (_useNative && _nativeQueueDirty) {
+      _refreshNativeUpcoming();
+      return;
+    }
+
     audio.play()
       .then(() => _listeners.onPlay?.(track))
       .catch(err => {
@@ -846,8 +914,17 @@ const Player = (() => {
     window.addEventListener('hmNativeTrackChanged', (e) => {
       const newId = e.detail?.trackId;
       if (!newId || newId === _loadedTrackId) return;
-      const idx = _queue.findIndex(t => t.id === newId);
-      if (idx === -1) return; // faixa fora da fila que o JS conhece — nada a sincronizar
+      let idx = _queue.findIndex(t => t.id === newId);
+      if (idx === -1) {
+        // Faixa fora da fila que o JS conhece (ex.: o JS foi recriado e só
+        // sabe a fila salva): acha na biblioteca e remonta em volta dela
+        // em vez de ignorar — senão a tela ficava presa na faixa antiga.
+        const pool = (typeof Drive !== 'undefined' && Drive.getCachedTracks && Drive.getCachedTracks()) || [];
+        const found = pool.find(t => t.id === newId);
+        if (!found) return;
+        _adoptNativeQueue(found, _readSavedResume(), pool);
+        idx = _index;
+      }
       _index = idx;
       _loadedTrackId = newId;
       const track = _queue[idx];
@@ -991,6 +1068,119 @@ const Player = (() => {
     const snapshot = _snapshot();
     _index = index;
     _play(0, { explicit: true, snapshot });
+  }
+
+  // ── EDIÇÃO DA FILA ("A seguir") ────────────────
+  // O ExoPlayer nativo já recebeu as próximas faixas (ver _play): se a
+  // ordem muda aqui, ele precisa receber de novo, senão trocaria de
+  // faixa na ordem antiga com a tela apagada. Recarregar reinicia o
+  // buffer (pequeno corte), então só fazemos com a música tocando; se
+  // estiver pausada, fica marcado e é refeito no próximo play().
+  let _nativeQueueDirty = false;
+  let _queueRefreshTimer = null;
+
+  function _afterQueueEdit() {
+    _saveResumeState();
+    if (!_useNative) return;
+    _nativeQueueDirty = true;
+    clearTimeout(_queueRefreshTimer);
+    _queueRefreshTimer = setTimeout(() => {
+      if (!audio.paused) _refreshNativeUpcoming();
+    }, 700);
+  }
+
+  async function _refreshNativeUpcoming() {
+    const track = getCurrentTrack();
+    if (!_useNative || !track || _loadedTrackId !== track.id) return;
+    _nativeQueueDirty = false;
+    const myLoad = _loadToken;
+    const pos = audio.currentTime || 0;
+    try {
+      const source = await _resolveTrackSource(track);
+      const upcomingIdx = _peekUpcomingIndexes();
+      const resolved = await Promise.allSettled(upcomingIdx.map(i => _resolveTrackSource(_queue[i])));
+      const upcoming = resolved.filter(r => r.status === 'fulfilled').map(r => r.value);
+      if (myLoad !== _loadToken || getCurrentTrack()?.id !== track.id) return; // usuário trocou de faixa nesse meio tempo
+      const repeatMode = _repeat === 'one' ? 'one' : (_repeat === 'all' || _queueLoops) ? 'all' : 'none';
+      await audio.setSource(source, pos, upcoming, repeatMode); // o nativo já começa tocando
+      _listeners.onPlay?.(track);
+    } catch (err) {
+      _nativeQueueDirty = true; // não deu certo — tenta de novo no próximo play()
+      console.warn('[Player] Não foi possível atualizar a fila nativa:', err);
+    }
+  }
+
+  function _syncOriginalAfterEdit(removedTrack) {
+    if (!_shuffle) _originalQueue = [..._queue];
+    else if (removedTrack) {
+      const i = _originalQueue.findIndex(t => t.id === removedTrack.id);
+      if (i !== -1) _originalQueue.splice(i, 1);
+    }
+  }
+
+  // Coloca a faixa logo depois da atual. Se já está na fila, MOVE (sem
+  // duplicar). Retorna 'ok' | 'current' (é a que está tocando) | 'empty'.
+  function playNext(track) {
+    if (!track) return 'empty';
+    const cur = getCurrentTrack();
+    if (!cur) {
+      // Nada carregado ainda: vira a fila inteira, só preparada.
+      primeQueue([track], 0);
+      return 'empty';
+    }
+    if (cur.id === track.id) return 'current';
+    const existing = _queue.findIndex(t => t.id === track.id);
+    if (existing !== -1) {
+      _queue.splice(existing, 1);
+      if (existing < _index) _index--;
+    } else if (_shuffle) {
+      _originalQueue.push(track);
+    }
+    _queue.splice(_index + 1, 0, track);
+    _syncOriginalAfterEdit(null);
+    _afterQueueEdit();
+    return 'ok';
+  }
+
+  // Coloca a faixa no fim da fila (se já estava, move pro fim).
+  function addToQueue(track) {
+    if (!track) return 'empty';
+    const cur = getCurrentTrack();
+    if (!cur) { primeQueue([track], 0); return 'empty'; }
+    if (cur.id === track.id) return 'current';
+    const existing = _queue.findIndex(t => t.id === track.id);
+    if (existing !== -1) {
+      _queue.splice(existing, 1);
+      if (existing < _index) _index--;
+    } else if (_shuffle) {
+      _originalQueue.push(track);
+    }
+    _queue.push(track);
+    _syncOriginalAfterEdit(null);
+    _afterQueueEdit();
+    return 'ok';
+  }
+
+  // Move um item DEPOIS da faixa atual (índices da fila de reprodução).
+  function moveInQueue(from, to) {
+    if (from === _index || to === _index) return false;
+    if (from < 0 || to < 0 || from >= _queue.length || to >= _queue.length || from === to) return false;
+    const [t] = _queue.splice(from, 1);
+    _queue.splice(to, 0, t);
+    if (from < _index && to >= _index) _index--;
+    else if (from > _index && to <= _index) _index++;
+    _syncOriginalAfterEdit(null);
+    _afterQueueEdit();
+    return true;
+  }
+
+  function removeFromQueue(index) {
+    if (index === _index || index < 0 || index >= _queue.length) return false;
+    const [removed] = _queue.splice(index, 1);
+    if (index < _index) _index--;
+    _syncOriginalAfterEdit(removed);
+    _afterQueueEdit();
+    return true;
   }
 
   // ── SEEK ──────────────────────────────────────
@@ -1213,7 +1403,12 @@ const Player = (() => {
     loadQueue,
     primeQueue,
     restoreResumeState,
+    syncWithNative,
     getQueue,
+    playNext,
+    addToQueue,
+    moveInQueue,
+    removeFromQueue,
     getCurrentTrack,
     getCurrentIndex,
     jumpTo,

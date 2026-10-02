@@ -105,7 +105,37 @@ const App = (() => {
   }
 
   // Filtros da tela "Todas as músicas"
-  let _filters = { genre: '', artist: [], album: '' };
+  const KEY_FILTERS = 'hm_filters';
+  const KEY_LAST_VIEW = 'hm_last_view';
+  const KEY_LAST_LIBTAB = 'hm_last_libtab';
+  let _filters = (() => {
+    const empty = { genre: '', artist: [], album: '' };
+    try {
+      const f = JSON.parse(localStorage.getItem(KEY_FILTERS) || 'null');
+      if (!f || typeof f !== 'object') return empty;
+      return {
+        genre:  typeof f.genre === 'string' ? f.genre : '',
+        artist: Array.isArray(f.artist) ? f.artist.filter(a => typeof a === 'string') : [],
+        album:  typeof f.album === 'string' ? f.album : '',
+      };
+    } catch (_) { return empty; }
+  })();
+  function _saveFilters() {
+    try { localStorage.setItem(KEY_FILTERS, JSON.stringify(_filters)); } catch (_) {}
+  }
+  // Filtro salvo pode apontar pra artista/álbum/gênero que já não existe
+  // (música apagada ou renomeada): descarta, senão a lista abriria vazia.
+  function _sanitizeFilters() {
+    const before = JSON.stringify(_filters);
+    const g = Drive.getKnownGenres(), ar = Drive.getKnownArtists(), al = Drive.getKnownAlbums();
+    if (_filters.genre && !g.includes(_filters.genre)) _filters.genre = '';
+    _filters.artist = (_filters.artist || []).filter(a => ar.includes(a));
+    if (_filters.album && !al.includes(_filters.album)) _filters.album = '';
+    if (JSON.stringify(_filters) !== before) _saveFilters();
+  }
+  function _activeFilterCount() {
+    return [_filters.genre, (_filters.artist && _filters.artist.length ? 1 : ''), _filters.album].filter(Boolean).length;
+  }
 
   // Playlists (cache em memória; fonte de verdade é o Drive.loadPlaylists/savePlaylists)
   let _playlists = [];
@@ -244,6 +274,14 @@ const App = (() => {
     // verdade (pra next/prev funcionarem).
     _primeLastPlayedInstant();
 
+    // Volta pra aba onde o app foi deixado
+    try {
+      const v = localStorage.getItem(KEY_LAST_VIEW);
+      const t = localStorage.getItem(KEY_LAST_LIBTAB);
+      if (t === 'tracks' || t === 'playlists') UI.showLibraryTab(t);
+      if (v === 'library') UI.showView('library');
+    } catch (_) {}
+
     // Sincroniza com o que já está no cache de áudio do Service Worker
     // (fonte de verdade) e atualiza os indicadores visuais assim que
     // a resposta chegar — sem bloquear o carregamento das músicas.
@@ -313,6 +351,7 @@ const App = (() => {
 
       // Recentes
       _renderRecent();
+      _sanitizeFilters();
       _refreshFilterBar();
       _renderAllTracksList();
       await _primeLastPlayed();
@@ -331,10 +370,6 @@ const App = (() => {
 
       UI.el.allTracksList.innerHTML = `
         <p class="empty-hint">Erro ao carregar músicas. Verifique sua conexão.</p>`;
-      // DIAGNÓSTICO TEMPORÁRIO: mostra a mensagem real do erro no toast
-      // (a genérica escondia o motivo de verdade). Reverter depois que
-      // acharmos a causa.
-      UI.showToast('Erro: ' + (err && err.message ? err.message : err), 6000);
     }
   }
 
@@ -365,11 +400,30 @@ const App = (() => {
   // de músicas carregar do Drive. É só uma pré-visualização; a fila de
   // verdade é montada depois por _primeLastPlayed(), quando _tracks
   // estiver disponível.
-  function _primeLastPlayedInstant() {
+  async function _primeLastPlayedInstant() {
     try {
       if (Player.getCurrentTrack()) return;
       const recent = Player.getRecent();
       if (!recent.length) return;
+
+      // No app nativo a música pode ter continuado (e trocado de faixa)
+      // com o app fechado: "recentes" só guarda o que o JS viu, então a
+      // primeira da lista pode estar desatualizada. Pergunta ao ExoPlayer
+      // o que está tocando de verdade; se não temos os dados dessa faixa
+      // ainda (a biblioteca não carregou), não mostra a antiga — a
+      // restauração completa (_primeLastPlayed) mostra a certa em seguida.
+      if (window.NativeMedia && NativeMedia.isNative) {
+        const st = await NativeMedia.nativeGetState();
+        if (Player.getCurrentTrack()) return; // algo já assumiu enquanto esperava
+        if (st && st.trackId) {
+          const playingNow = recent.find(t => t.id === st.trackId);
+          if (!playingNow) return;
+          UI.updatePlayerTrack(playingNow);
+          UI.setPlayState(!!st.playing);
+          return;
+        }
+      }
+
       UI.updatePlayerTrack(recent[0]);
       UI.setPlayState(false);
     } catch (err) {
@@ -424,6 +478,29 @@ const App = (() => {
 
   function _currentId() {
     return Player.getCurrentTrack()?.id || null;
+  }
+
+  // Voltou pro app (da tela de bloqueio, da notificação, de outro app):
+  // o ExoPlayer pode ter trocado de faixa sozinho sem o JS ficar sabendo
+  // (WebView pausado/recriado) — reconcilia a tela com o que toca de verdade.
+  let _resyncing = false;
+  async function _resyncWithNative() {
+    if (_resyncing || !_appStarted || !window.NativeMedia || !NativeMedia.isNative) return;
+    _resyncing = true;
+    try {
+      const before = Player.getCurrentTrack()?.id || null;
+      const track = await Player.syncWithNative(_tracks);
+      if (!track) return;
+      if (track.id !== before) UI.updatePlayerTrack(track);
+      UI.setPlayState(Player.isPlaying());
+      UI.setPlayingTrack(track.id);
+      UI.updateProgress(Player.getCurrentTime(), Player.getDuration());
+      if (UI.el.player.classList.contains('hidden')) UI.el.player.classList.remove('hidden');
+    } catch (err) {
+      console.warn('[App] Falha ao sincronizar com o player nativo:', err);
+    } finally {
+      _resyncing = false;
+    }
   }
 
   // ── MODO OFFLINE ────────────────────────────────
@@ -741,8 +818,138 @@ const App = (() => {
     });
   }
 
+  // ── BUSCA dentro da lista "Todas as músicas" ────
+  let _libQuery = '';
+  const _norm = s => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+
   function _visibleTracks() {
-    return _sortTracks(Drive.filterTracks(_filters));
+    let list = Drive.filterTracks(_filters);
+    const q = _norm(_libQuery).trim();
+    if (q) {
+      const words = q.split(/\s+/);
+      list = list.filter(t => {
+        const hay = _norm(`${t.title || t.name || ''} ${t.artist || ''} ${t.album || ''}`);
+        return words.every(w => hay.includes(w));
+      });
+    }
+    return _sortTracks(list);
+  }
+
+  // ── ATALHO A–Z ──────────────────────────────────
+  const _AZ = ['#', ...'ABCDEFGHIJKLMNOPQRSTUVWXYZ'];
+  let _azIndex = new Map(); // letra -> id da primeira faixa daquela letra
+
+  function _letterOf(t) {
+    const raw = _sortMode === 'artist-asc' ? (t.artist || '') : _sortKey(t);
+    const c = _norm(raw).trim().charAt(0).toUpperCase();
+    return /[A-Z]/.test(c) ? c : '#';
+  }
+
+  function _renderAzRail(list) {
+    const rail = UI.el.azRail;
+    if (!rail) return;
+    const alpha = _sortMode === 'title-asc' || _sortMode === 'artist-asc';
+    _azIndex = new Map();
+    if (!alpha || list.length < 40) { rail.classList.add('hidden'); rail.innerHTML = ''; return; }
+    for (const t of list) { const l = _letterOf(t); if (!_azIndex.has(l)) _azIndex.set(l, t.id); }
+    rail.innerHTML = _AZ.map(l => `<span class="${_azIndex.has(l) ? '' : 'dim'}">${l}</span>`).join('');
+    rail.classList.remove('hidden');
+  }
+
+  function _bindAzRail() {
+    const rail = UI.el.azRail;
+    if (!rail) return;
+    let bubble = null;
+    let lastLetter = null;
+
+    const pick = y => {
+      const r = rail.getBoundingClientRect();
+      const i = Math.max(0, Math.min(_AZ.length - 1, Math.floor(((y - r.top - 4) / Math.max(1, r.height - 8)) * _AZ.length)));
+      // letra sem músicas: usa a próxima que tenha (depois a anterior)
+      let k = i;
+      while (k < _AZ.length && !_azIndex.has(_AZ[k])) k++;
+      if (k >= _AZ.length) { k = i; while (k > 0 && !_azIndex.has(_AZ[k])) k--; }
+      return _azIndex.has(_AZ[k]) ? _AZ[k] : null;
+    };
+
+    const go = y => {
+      const letter = pick(y);
+      if (!letter || letter === lastLetter) return;
+      lastLetter = letter;
+      if (!bubble) { bubble = document.createElement('div'); bubble.className = 'az-bubble'; document.body.appendChild(bubble); }
+      bubble.textContent = letter;
+      UI.revealTrack(UI.el.allTracksList, _azIndex.get(letter), { flash: false, block: 'start', behavior: 'auto' });
+    };
+
+    const end = () => {
+      rail.classList.remove('dragging');
+      bubble?.remove(); bubble = null; lastLetter = null;
+    };
+
+    rail.addEventListener('pointerdown', e => {
+      rail.setPointerCapture?.(e.pointerId);
+      rail.classList.add('dragging');
+      go(e.clientY);
+    });
+    rail.addEventListener('pointermove', e => { if (rail.classList.contains('dragging')) go(e.clientY); });
+    rail.addEventListener('pointerup', end);
+    rail.addEventListener('pointercancel', end);
+  }
+
+  // ── Busca, "Tocar tudo", "Aleatório" e "Ir para a música atual" ──
+  function _goToFacet(kind, value) {
+    if (!value) return;
+    _filters = { genre: '', artist: kind === 'artist' ? [value] : [], album: kind === 'album' ? value : '' };
+    _libQuery = '';
+    if (UI.el.libSearch) UI.el.libSearch.value = '';
+    UI.el.libSearchClear?.classList.add('hidden');
+    UI.collapsePlayer();
+    UI.showView('library');
+    UI.showLibraryTab('tracks');
+    try { localStorage.setItem(KEY_LAST_VIEW, 'library'); localStorage.setItem(KEY_LAST_LIBTAB, 'tracks'); } catch (_) {}
+    _refreshFilterBar();
+    _renderAllTracksList();
+    UI.el.mainContent.scrollTo({ top: 0 });
+    UI.showToast(`Mostrando: ${value}`);
+  }
+
+  function _bindLibraryExtras() {
+    let timer = null;
+    UI.el.libSearch?.addEventListener('input', e => {
+      UI.el.libSearchClear?.classList.toggle('hidden', !e.target.value);
+      clearTimeout(timer);
+      timer = setTimeout(() => { _libQuery = e.target.value; _renderAllTracksList(); }, 150);
+    });
+    UI.el.libSearchClear?.addEventListener('click', () => {
+      UI.el.libSearch.value = '';
+      UI.el.libSearchClear.classList.add('hidden');
+      _libQuery = '';
+      _renderAllTracksList();
+    });
+
+    UI.el.btnTracksPlayAll?.addEventListener('click', () => {
+      const list = _visibleTracks();
+      if (!list.length) return;
+      if (Player.isShuffle()) { Player.toggleShuffle(); UI.setShuffleState(false); }
+      Player.loadQueue(list, 0, { loop: _activeFilterCount() > 0, skipUnavailable: true });
+    });
+
+    UI.el.btnTracksShuffle?.addEventListener('click', () => {
+      const list = _visibleTracks();
+      if (!list.length) return;
+      if (!Player.isShuffle()) { Player.toggleShuffle(); UI.setShuffleState(true); }
+      Player.loadQueue(list, Math.floor(Math.random() * list.length), { loop: _activeFilterCount() > 0, skipUnavailable: true });
+    });
+
+    UI.el.btnLocateTrack?.addEventListener('click', () => {
+      const id = _currentId();
+      if (!id) { UI.showToast('Nenhuma música tocando'); return; }
+      if (!UI.revealTrack(UI.el.allTracksList, id)) {
+        UI.showToast('Essa música está fora do filtro ou da busca atual');
+      }
+    });
+
+    _bindAzRail();
   }
 
   function _renderAllTracksList() {
@@ -750,10 +957,11 @@ const App = (() => {
 
     if (!_tracks.length) return; // trata vazio lá em cima, em _loadTracks
 
-    const active = [_filters.genre, (_filters.artist && _filters.artist.length ? 1 : ''), _filters.album].filter(Boolean).length;
+    _saveFilters();
+    const active = _activeFilterCount();
 
     if (!list.length) {
-      UI.el.allTracksList.innerHTML = `<p class="empty-hint">Nenhuma música com esse filtro.</p>`;
+      UI.el.allTracksList.innerHTML = `<p class="empty-hint">Nenhuma música com esse filtro ou busca.</p>`;
     } else {
       UI.renderTrackListIncremental(UI.el.allTracksList, list, _currentId(), UI.el.mainContent);
       // loop: true só com filtro (artista/gênero/álbum) ativo — nesse caso
@@ -764,6 +972,8 @@ const App = (() => {
     }
 
     UI.setFilterSummary(active ? `${list.length} de ${_tracks.length} músicas com o filtro atual` : null);
+    if (UI.el.btnTracksPlayAllCount) UI.el.btnTracksPlayAllCount.textContent = list.length ? String(list.length) : '';
+    _renderAzRail(list);
 
     if (UI.isSelectMode(UI.el.allTracksList)) _updateSelectionUI();
   }
@@ -2538,6 +2748,7 @@ const App = (() => {
     // Filtros, upload, edição de metadados e playlists
     _bindFilterEvents();
     _bindSortEvents();
+    _bindLibraryExtras();
     _bindSearchResultsClose();
     _bindSelectionEvents();
     _bindUploadEvents();
@@ -2559,6 +2770,8 @@ const App = (() => {
       onAddToPlaylist: track => _openAddToPlaylistModal(track),
       onDelete: track => _deleteTrack(track),
       onRemoveFromPlaylist: track => _removeTrackFromActivePlaylist(track),
+      onGoToArtist: track => _goToFacet('artist', track.artist),
+      onGoToAlbum: track => _goToFacet('album', track.album),
     });
 
     // Fecha modais novos ao clicar fora da caixa (mesmo padrão dos outros modais)
@@ -2603,6 +2816,20 @@ const App = (() => {
       }
     });
 
+    // Lembra a última aba (Início/Biblioteca) e a sub-aba da Biblioteca
+    document.querySelectorAll('.nav-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        if (btn.dataset.view === 'home' || btn.dataset.view === 'library') {
+          try { localStorage.setItem(KEY_LAST_VIEW, btn.dataset.view); } catch (_) {}
+        }
+      });
+    });
+    UI.el.libraryTabs.forEach(btn => {
+      btn.addEventListener('click', () => {
+        try { localStorage.setItem(KEY_LAST_LIBTAB, btn.dataset.libTab); } catch (_) {}
+      });
+    });
+
     // Atualiza recentes sempre que trocar para a home
     document.querySelectorAll('.nav-btn').forEach(btn => {
       btn.addEventListener('click', () => {
@@ -2617,7 +2844,11 @@ const App = (() => {
       if (!document.hidden && Drive.isLoggedIn()) {
         // Atualiza saudação (pode ter mudado o horário)
         UI.setGreeting();
+        _resyncWithNative();
       }
+    });
+    window.addEventListener('focus', () => {
+      if (Drive.isLoggedIn()) _resyncWithNative();
     });
 
     // Erros de rede globais

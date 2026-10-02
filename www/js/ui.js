@@ -16,6 +16,19 @@ const UI = (() => {
     // Header
     btnPlayerExpand: $('btn-player-expand'),
     btnPlayerCollapse: $('btn-player-collapse'),
+    btnPlayerQueue:    $('btn-player-queue'),
+    btnPlayerMore:     $('btn-player-more'),
+    modalQueue:        $('modal-queue'),
+    btnQueueClose:     $('btn-queue-close'),
+    queueList:         $('queue-list'),
+    queueSub:          $('queue-sub'),
+    libSearch:         $('lib-search'),
+    libSearchClear:    $('lib-search-clear'),
+    btnTracksPlayAll:  $('btn-tracks-play-all'),
+    btnTracksPlayAllCount: $('btn-tracks-play-all-count'),
+    btnTracksShuffle:  $('btn-tracks-shuffle'),
+    btnLocateTrack:    $('btn-locate-track'),
+    azRail:            $('az-rail'),
     btnUser:        $('btn-user'),
     userAvatar:     $('user-avatar'),
     searchBar:      $('search-bar'),
@@ -784,6 +797,7 @@ const UI = (() => {
       if (remaining < 1200) appendNextBatch();
     };
 
+    state.appendNextBatch = appendNextBatch;
     appendNextBatch(true); // primeiro lote, na hora — reseta o observer daqui
 
     if (preservedScrollTop > 0) {
@@ -802,6 +816,31 @@ const UI = (() => {
     scrollParent.addEventListener('scroll', onScroll, { passive: true });
     state.onScroll = onScroll;
     _incrementalState.set(container, state);
+  }
+
+  // Rola a lista até uma faixa, renderizando os lotes que faltam (a lista
+  // é incremental: itens lá embaixo ainda nem existem no DOM).
+  function revealTrack(container, trackId, { flash = true, block = 'center', behavior = 'smooth' } = {}) {
+    if (!container || !trackId) return false;
+    const find = () => [...container.querySelectorAll('.track-item')].find(n => n.dataset.id === trackId);
+    let node = find();
+    const st = _incrementalState.get(container);
+    if (!node && st && st.appendNextBatch) {
+      let guard = 0;
+      while (!node && st.rendered < st.tracks.length && guard++ < 400) {
+        st.appendNextBatch();
+        node = find();
+      }
+    }
+    if (!node) return false;
+    node.scrollIntoView({ block, behavior });
+    if (flash) {
+      node.classList.remove('locate-flash');
+      void node.offsetWidth;
+      node.classList.add('locate-flash');
+      setTimeout(() => node.classList.remove('locate-flash'), 1300);
+    }
+    return true;
   }
 
   function _menuIcon() {
@@ -855,7 +894,7 @@ const UI = (() => {
   // ── MENU DE AÇÕES DA FAIXA (editar / add à playlist) ──
   // Popover simples e independente, sem framework — app.js registra o
   // que cada ação deve fazer via setTrackMenuHandlers.
-  let _trackMenuHandlers = { onEdit: null, onAddToPlaylist: null, onDelete: null, onRemoveFromPlaylist: null };
+  let _trackMenuHandlers = { onEdit: null, onAddToPlaylist: null, onDelete: null, onRemoveFromPlaylist: null, onGoToArtist: null, onGoToAlbum: null };
 
   function setTrackMenuHandlers(handlers) {
     _trackMenuHandlers = { ..._trackMenuHandlers, ...handlers };
@@ -881,11 +920,18 @@ const UI = (() => {
 
     const pop = document.createElement('div');
     pop.className = 'track-menu-popover';
+    const _svg = d => `<svg width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">${d}</svg>`;
+    const canNav = !track.isExternal;
     pop.innerHTML = `
+      <button data-action="next">${_svg('<path d="M3 6h12M3 12h8M3 18h8"/><path d="m15 14 6 4-6 4z" fill="currentColor"/>')}<span>Tocar a seguir</span></button>
+      <button data-action="queue">${_svg('<path d="M3 6h13M3 12h13M3 18h8"/><path d="M18 15v6M15 18h6"/>')}<span>Adicionar à fila</span></button>
+      <div class="track-menu-popover-divider"></div>
       <button data-action="favorite">${_favIcon(isFav)}<span>${isFav ? 'Remover dos favoritos' : 'Adicionar aos favoritos'}</span></button>
       <button data-action="edit">${_editIcon()}<span>Editar informações</span></button>
       <button data-action="playlist">${_addToPlaylistIcon()}<span>Adicionar à playlist</span></button>
       ${opts.removable ? `<button data-action="remove-playlist">${_removeFromPlaylistIcon()}<span>Remover desta playlist</span></button>` : ''}
+      ${canNav && track.artist ? `<button data-action="artist">${_svg('<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>')}<span>Ir para o artista</span></button>` : ''}
+      ${canNav && track.album ? `<button data-action="album">${_svg('<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="2.5"/>')}<span>Ir para o álbum</span></button>` : ''}
       <div class="track-menu-popover-divider"></div>
       <button data-action="delete" class="danger">${_trashIcon()}<span>Excluir do Drive</span></button>
     `;
@@ -929,6 +975,14 @@ const UI = (() => {
       if (action === 'playlist') _trackMenuHandlers.onAddToPlaylist?.(track);
       if (action === 'remove-playlist') _trackMenuHandlers.onRemoveFromPlaylist?.(track);
       if (action === 'delete') _trackMenuHandlers.onDelete?.(track);
+      if (action === 'artist') _trackMenuHandlers.onGoToArtist?.(track);
+      if (action === 'album') _trackMenuHandlers.onGoToAlbum?.(track);
+      if (action === 'next' || action === 'queue') {
+        const res = action === 'next' ? Player.playNext(track) : Player.addToQueue(track);
+        if (res === 'current') showToast('Essa música já está tocando');
+        else if (res === 'empty') { updatePlayerTrack(track); setPlayState(false); showToast('Música pronta pra tocar'); }
+        else showToast(action === 'next' ? 'Vai tocar a seguir' : 'Adicionada ao fim da fila');
+      }
       if (action === 'favorite') {
         const fav = Player.toggleFavorite(track.id);
         showToast(fav ? 'Adicionado aos favoritos' : 'Removido dos favoritos');
@@ -1011,6 +1065,7 @@ const UI = (() => {
     el.btnFav.classList.toggle('hidden', !!track.isExternal);
     el.btnDownloadCurrent.classList.toggle('hidden', !!track.isExternal);
     el.btnAddToLibrary.classList.toggle('hidden', !track.isExternal);
+    el.btnPlayerMore?.classList.toggle('hidden', !!track.isExternal);
     if (track.isExternal) el.btnAddToLibrary.disabled = false; // nova faixa externa, reabilita
 
     if (!track.isExternal) {
@@ -1282,6 +1337,14 @@ const UI = (() => {
 
   window.addEventListener('popstate', () => {
     if (_ignoreNextPop) { _ignoreNextPop = false; _markBackConsumed(); return; }
+    // Fila aberta por cima do player: "voltar" fecha só a fila (a entrada
+    // de histórico do player é reposta pra o próximo "voltar" recolhê-lo).
+    if (_playerHistoryPushed && _playerIsOpen() && el.modalQueue && !el.modalQueue.classList.contains('hidden')) {
+      history.pushState({ hmOverlay: 'player' }, '');
+      hideQueue();
+      _markBackConsumed();
+      return;
+    }
     if (_playerHistoryPushed && _playerIsOpen()) {
       collapsePlayer({ fromPopState: true });
       _markBackConsumed();
@@ -1289,6 +1352,132 @@ const UI = (() => {
   });
 
   el.btnPlayerCollapse?.addEventListener('click', () => collapsePlayer());
+
+  // ── FILA "A seguir" ──
+  function _queueRow(track, idx, cur, total) {
+    const thumb = track.thumbnail ? `<img src="${track.thumbnail}" alt="" loading="lazy" />` : _musicIcon(18);
+    const isCur = idx === cur;
+    return `
+      <div class="queue-item${isCur ? ' current' : ''}" data-q="${idx}">
+        <div class="queue-thumb">${thumb}</div>
+        <div class="queue-meta">
+          <span class="queue-title">${_escape(track.title)}</span>
+          <span class="queue-artist">${_escape(track.artist || '')}</span>
+        </div>
+        ${isCur ? '' : `
+          <button class="queue-btn" data-q-up="${idx}" aria-label="Subir" ${idx - 1 <= cur ? 'disabled' : ''}>
+            <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="m18 15-6-6-6 6"/></svg>
+          </button>
+          <button class="queue-btn" data-q-down="${idx}" aria-label="Descer" ${idx + 1 >= total ? 'disabled' : ''}>
+            <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg>
+          </button>
+          <button class="queue-btn" data-q-del="${idx}" aria-label="Tirar da fila">
+            <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg>
+          </button>`}
+      </div>`;
+  }
+
+  function renderQueue() {
+    const q = Player.getQueue();
+    const cur = Player.getCurrentIndex();
+    const keepScroll = el.queueList.scrollTop;
+
+    if (!q.length || !q[cur]) {
+      el.queueList.innerHTML = '<p class="empty-hint">A fila está vazia. Toque numa música pra começar.</p>';
+      el.queueSub.textContent = '';
+      return;
+    }
+
+    const MAX = 150;
+    const end = Math.min(q.length, cur + 1 + MAX);
+    const left = q.length - end;
+    const upcoming = q.length - cur - 1;
+
+    let html = '<div class="queue-label">Tocando agora</div>' + _queueRow(q[cur], cur, cur, q.length);
+    if (upcoming > 0) {
+      html += '<div class="queue-label">A seguir</div>';
+      for (let i = cur + 1; i < end; i++) html += _queueRow(q[i], i, cur, q.length);
+      if (left > 0) html += `<p class="queue-more-hint">e mais ${left} música${left > 1 ? 's' : ''}</p>`;
+    } else {
+      html += '<p class="queue-more-hint">Não há mais músicas depois desta.</p>';
+    }
+    el.queueList.innerHTML = html;
+    el.queueSub.textContent = upcoming > 0 ? `${upcoming} música${upcoming > 1 ? 's' : ''} a seguir` : '';
+    el.queueList.scrollTop = keepScroll;
+  }
+
+  function showQueue() { renderQueue(); el.modalQueue.classList.remove('hidden'); }
+  function hideQueue() { el.modalQueue.classList.add('hidden'); }
+
+  el.btnPlayerQueue?.addEventListener('click', showQueue);
+  el.btnQueueClose?.addEventListener('click', hideQueue);
+  el.modalQueue?.addEventListener('click', e => { if (e.target === el.modalQueue) hideQueue(); });
+
+  el.queueList?.addEventListener('click', e => {
+    const up = e.target.closest('[data-q-up]');
+    const down = e.target.closest('[data-q-down]');
+    const del = e.target.closest('[data-q-del]');
+    if (up)   { const i = +up.dataset.qUp;     Player.moveInQueue(i, i - 1); renderQueue(); return; }
+    if (down) { const i = +down.dataset.qDown; Player.moveInQueue(i, i + 1); renderQueue(); return; }
+    if (del)  { Player.removeFromQueue(+del.dataset.qDel); renderQueue(); return; }
+    const row = e.target.closest('.queue-item');
+    if (!row) return;
+    const idx = +row.dataset.q;
+    if (idx !== Player.getCurrentIndex()) { Player.jumpTo(idx); hideQueue(); }
+  });
+
+  // ── MENU ⋮ DO PLAYER (mesmas ações do menu da lista, na faixa atual) ──
+  el.btnPlayerMore?.addEventListener('click', e => {
+    e.stopPropagation();
+    const track = Player.getCurrentTrack();
+    if (!track) return;
+    _openTrackMenu(track.id, el.btnPlayerMore, [track]);
+  });
+
+  // ── ARRASTAR PRA BAIXO FECHA O PLAYER ──
+  (function bindDragDownToClose() {
+    const p = el.player;
+    let sx = 0, sy = 0, dy = 0, tracking = false, dragging = false;
+
+    p.addEventListener('touchstart', e => {
+      tracking = false; dragging = false; dy = 0;
+      if (!_playerIsOpen() || e.touches.length !== 1) return;
+      // Ignora gestos que começam em controles ou na capa (a capa já usa o
+      // arrasto horizontal pra trocar de faixa).
+      if (e.target.closest('input, button, a, .player-art')) return;
+      sx = e.touches[0].clientX; sy = e.touches[0].clientY;
+      tracking = true;
+    }, { passive: true });
+
+    p.addEventListener('touchmove', e => {
+      if (!tracking) return;
+      const t = e.touches[0];
+      const dx = t.clientX - sx;
+      dy = t.clientY - sy;
+      if (!dragging) {
+        if (dy > 12 && Math.abs(dy) > Math.abs(dx) * 1.3) dragging = true;
+        else if (Math.abs(dx) > 14 || dy < -12) tracking = false;
+        else return;
+        if (!dragging) return;
+      }
+      p.style.transition = 'none';
+      p.style.transform = `translateY(${Math.max(0, dy) * 0.7}px)`;
+    }, { passive: true });
+
+    function end() {
+      if (!tracking) return;
+      tracking = false;
+      if (!dragging) return;
+      dragging = false;
+      const close = dy > 110;
+      p.style.transition = close ? 'none' : 'transform 0.2s ease';
+      p.style.transform = '';
+      if (close) collapsePlayer();
+      else setTimeout(() => { p.style.transition = ''; }, 220);
+    }
+    p.addEventListener('touchend', end, { passive: true });
+    p.addEventListener('touchcancel', end, { passive: true });
+  })();
 
   document.addEventListener('keydown', e => {
     if (e.key !== 'Escape' || !_playerIsOpen()) return;
@@ -2849,6 +3038,10 @@ const UI = (() => {
     expandPlayer,
     collapsePlayer,
     backWasConsumed,
+    revealTrack,
+    showQueue,
+    hideQueue,
+    renderQueue,
     showCollectionPreview,
     hideCollectionPreview,
     confirmDialog,
