@@ -63,6 +63,9 @@ const App = (() => {
     // arquivo de novo.
     const track = {
       id, title, artist, album, genre: '', thumbnail, isExternal: true,
+      // URI original do aparelho (content:// ou file://): é o que o player
+      // nativo (ExoPlayer) abre. O 'src' acima só funciona dentro do WebView.
+      __uri: uri,
       __blob: blob, __title: title, __artist: artist, __album: album,
     };
     Player.loadQueue([track], 0);

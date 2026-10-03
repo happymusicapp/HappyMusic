@@ -692,6 +692,12 @@ const Player = (() => {
         album: 'HappyMusic',
         artworkUrl: track.thumbnail || null,
       };
+      // Arquivo do aparelho aberto por "Abrir com": não existe no Drive nem na
+      // pasta de downloads — o ExoPlayer abre direto pela URI original.
+      if (track.isExternal) {
+        if (track.__uri) return { ...meta, album: track.album || meta.album, path: track.__uri };
+        throw new Error('Arquivo externo sem URI');
+      }
       if (window.NativeFS && window.NativeFS.isNative) {
         const path = await window.NativeFS.getAudioPath(track.id);
         if (path) return { ...meta, path };
@@ -755,6 +761,7 @@ const Player = (() => {
   // app fechado a fila carregada acabava e vinha silêncio — o modo rádio só
   // rodava no JS, que pode estar dormindo.
   function _extendQueueForNative(track) {
+    if (track.isExternal) return; // arquivo avulso do aparelho: toca só ele
     if (_queueLoops || _repeat !== 'none') return;
     if (_queue.length - 1 - _index >= 10) return;
     const extra = _pickAutoContinueTracks(track, _queue.map(t => t.id));
