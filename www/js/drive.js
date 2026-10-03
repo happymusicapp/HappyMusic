@@ -286,6 +286,7 @@ const Drive = (() => {
       window.history.replaceState({}, '', '/');
       localStorage.removeItem(KEY_VERIFIER);
 
+      _syncAuthToNative();
       await _fetchUser();
       return true;
 
@@ -360,6 +361,7 @@ const Drive = (() => {
     localStorage.removeItem(KEY_TOKEN);
     localStorage.removeItem(KEY_EXPIRY);
     localStorage.removeItem(KEY_REFRESH);
+    try { window.NativeMedia?.isNative && window.NativeMedia.setAuth?.({ clear: true }); } catch (_) {}
     localStorage.removeItem(KEY_USER);
     localStorage.removeItem(KEY_FOLDER_ID);
     localStorage.removeItem('hm_folder_name');
@@ -426,6 +428,7 @@ const Drive = (() => {
         const expiry = Date.now() + (data.expires_in * 1000);
         localStorage.setItem(KEY_TOKEN,  _token);
         localStorage.setItem(KEY_EXPIRY, expiry);
+        _syncAuthToNative();
         return true;
       })
       .catch(err => {
@@ -446,6 +449,23 @@ const Drive = (() => {
   // Chamado antes de qualquer requisição autenticada: se o access token
   // já expirou (ou está prestes a), renova antes de seguir — evita
   // bater 401 no meio de uma troca de faixa com a tela travada.
+  // Entrega as credenciais ao serviço de áudio nativo (ele renova o token
+  // sozinho com o app fechado — ver DriveAuth.java). Chamado ao entrar, ao
+  // renovar e ao abrir o app. Silencioso fora do app nativo.
+  function _syncAuthToNative() {
+    try {
+      if (!window.NativeMedia || !window.NativeMedia.isNative || !window.NativeMedia.setAuth) return;
+      const refreshToken = localStorage.getItem(KEY_REFRESH);
+      if (!refreshToken) return;
+      window.NativeMedia.setAuth({
+        refreshToken,
+        apiBase: API_BASE,
+        accessToken: _token || localStorage.getItem(KEY_TOKEN) || '',
+        expiresAt: parseInt(localStorage.getItem(KEY_EXPIRY) || '0', 10),
+      });
+    } catch (_) { /* não é crítico */ }
+  }
+
   async function _ensureValidToken() {
     const expiry = parseInt(localStorage.getItem(KEY_EXPIRY) || '0', 10);
     if (_token && expiry - Date.now() > 60_000) return true;
@@ -1659,6 +1679,7 @@ const Drive = (() => {
     handleCallback,
     restoreSession,
     isLoggedIn,
+    syncAuthToNative: _syncAuthToNative,
     readAudioTags,
     registerExternalAudio,
     logout,

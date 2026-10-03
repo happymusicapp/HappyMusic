@@ -257,6 +257,10 @@ const App = (() => {
     UI.showApp();
     _markReady();
 
+    // Entrega ao serviço de áudio nativo as credenciais do Drive (ele renova o
+    // token sozinho, então a música com o app fechado não para quando vence).
+    Drive.syncAuthToNative?.();
+
     const user = Drive.getUser();
     UI.renderProfile(user);
     UI.setGreeting();

@@ -103,9 +103,11 @@
     // exato (troca de faixa restaurada de uma sessão anterior).
     // repeatMode ('none'|'all'|'one') diz pro ExoPlayer dar a volta
     // sozinho quando a lista entregue acabar.
-    async load({ items, resumeSeconds, repeatMode }) {
+    // startIndex: posição, em items, da faixa que toca agora (as de antes dela
+    // são o histórico, pro "anterior" funcionar direto no nativo).
+    async load({ items, resumeSeconds, repeatMode, startIndex }) {
       if (!plugin) return;
-      try { await plugin.load({ items, resumeSeconds, repeatMode }); }
+      try { await plugin.load({ items, resumeSeconds, repeatMode, startIndex: startIndex || 0 }); }
       catch (err) { console.warn('[NativeMedia] load falhou:', err); }
     },
 
@@ -129,6 +131,15 @@
 
     // Normalização de volume entre músicas (só existe no app nativo).
     // get devolve true/false, ou null se não deu pra saber.
+    // Credenciais do Drive pro serviço nativo renovar o token sozinho (assim
+    // a música com o app fechado não para quando o token vence).
+    // { refreshToken, apiBase, accessToken, expiresAt } ou { clear: true }.
+    async setAuth(info) {
+      if (!plugin) return;
+      try { await plugin.setAuth(info || {}); }
+      catch (err) { console.warn('[NativeMedia] setAuth falhou:', err); }
+    },
+
     async getVolumeNormalization() {
       if (!plugin) return null;
       try {
@@ -147,9 +158,11 @@
     },
 
     // { playing, positionSeconds, durationSeconds, trackId }
-    async nativeGetState() {
+    // opts.light: só tocando/posição/faixa (sem a fila) — pro relógio de 1 s.
+    // Sem light, devolve também queue (ids na ordem do player) e index.
+    async nativeGetState(opts) {
       if (!plugin) return null;
-      try { return await plugin.nativeGetState(); }
+      try { return await plugin.nativeGetState({ light: !!(opts && opts.light) }); }
       catch (err) { console.warn('[NativeMedia] nativeGetState falhou:', err); return null; }
     },
   };

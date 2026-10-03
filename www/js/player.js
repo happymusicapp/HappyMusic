@@ -101,7 +101,7 @@ const Player = (() => {
       // isso a barra de progresso ficaria parada durante a reprodução.
       setInterval(async () => {
         if (this._paused || !window.NativeMedia) return;
-        const state = await window.NativeMedia.nativeGetState();
+        const state = await window.NativeMedia.nativeGetState({ light: true });
         if (state) {
           this._currentTime = state.positionSeconds || 0;
           this._duration = state.durationSeconds || 0;
@@ -125,9 +125,12 @@ const Player = (() => {
     // loadQueueAndPlay em NativePlayerService.java). repeatMode
     // ('none'|'all'|'one') é pro ExoPlayer saber dar a volta sozinho
     // quando a lista entregue acabar.
-    async setSource(info, resumeSeconds, upcoming, repeatMode) {
-      const items = [info, ...(upcoming || [])];
-      await window.NativeMedia.load({ items, resumeSeconds, repeatMode });
+    // history (opcional): as faixas ANTES da atual — com elas o "anterior" da
+    // notificação/fone/carro funciona direto no nativo, sem o app aberto.
+    async setSource(info, resumeSeconds, upcoming, repeatMode, history) {
+      const before = history || [];
+      const items = [...before, info, ...(upcoming || [])];
+      await window.NativeMedia.load({ items, resumeSeconds, repeatMode, startIndex: before.length });
       this._currentTime = resumeSeconds || 0;
     }
     async play()  { await window.NativeMedia.nativePlay(); this._paused = false; }
@@ -269,17 +272,31 @@ const Player = (() => {
   // Monta a fila do JS em torno de uma faixa que o motor nativo JÁ está
   // tocando/pausado (carregada de verdade lá): usa a fila salva se ela
   // contém a faixa; senão sobra só a própria faixa por ora.
-  function _adoptNativeQueue(track, saved, pool) {
-    let list = (saved?.ids || []).map(id => pool.find(t => t.id === id)).filter(Boolean);
-    let idx  = list.findIndex(t => t.id === track.id);
-    if (idx === -1) { list = [track]; idx = 0; }
+  // nativeIds (opcional): a fila REAL do player nativo (ids, na ordem em que ele
+  // toca). Quando vem, ela vale mais que a salva pelo JS — o nativo pode ter
+  // avançado várias faixas com o app fechado, sem o JS ficar sabendo.
+  function _adoptNativeQueue(track, saved, pool, nativeIds) {
+    let list = [];
+    let idx  = -1;
+    let fromNative = false;
+    if (Array.isArray(nativeIds) && nativeIds.length) {
+      list = nativeIds.map(id => pool.find(t => t.id === id)).filter(Boolean);
+      idx  = list.findIndex(t => t.id === track.id);
+      fromNative = idx !== -1;
+    }
+    if (!fromNative) {
+      list = (saved?.ids || []).map(id => pool.find(t => t.id === id)).filter(Boolean);
+      idx  = list.findIndex(t => t.id === track.id);
+      if (idx === -1) { list = [track]; idx = 0; }
+    }
 
     _originalQueue    = list;
     _shuffle          = saved ? !!saved.shuffle : false;
     _repeat           = saved && (saved.repeat === 'all' || saved.repeat === 'one') ? saved.repeat : 'none';
     _queueLoops       = saved ? !!saved.loop : false;
-    _queue            = _shuffle ? _shuffled(list, idx) : [...list];
-    _index            = _shuffle ? 0 : idx;
+    // Fila vinda do nativo já está na ordem de reprodução (embaralhada, se for o caso).
+    _queue            = (_shuffle && !fromNative) ? _shuffled(list, idx) : [...list];
+    _index            = (_shuffle && !fromNative) ? 0 : idx;
     _preloadedTrackId = null;
     _loadedTrackId    = track.id; // já carregada de verdade no nativo
     _pendingResumeTime = 0;       // nada a retomar — já está na posição certa
@@ -329,7 +346,7 @@ const Player = (() => {
         _preloadedTrackId = null;
         _pendingResumeTime = 0;
       } else {
-        _adoptNativeQueue(track, _readSavedResume(), pool);
+        _adoptNativeQueue(track, _readSavedResume(), pool, state.queue);
       }
       if (!track.isExternal) _addToRecent(track);
     }
@@ -364,7 +381,7 @@ const Player = (() => {
         if (state && state.trackId) {
           const track = allTracks.find(t => t.id === state.trackId);
           if (track) {
-            _adoptNativeQueue(track, saved, allTracks);
+            _adoptNativeQueue(track, saved, allTracks, state.queue);
             _applyNativeMirror(state);
             return track;
           }
@@ -576,11 +593,17 @@ const Player = (() => {
       // a URL/token (ou acha o caminho do arquivo baixado) de cada uma,
       // então é rápido mesmo com várias faixas.
       let upcoming = [];
+      let history  = [];
       if (_useNative) {
+        _extendQueueForNative(track);
+        const historyIdx  = _peekHistoryIndexes();
         const upcomingIdx = _peekUpcomingIndexes();
-        if (upcomingIdx.length) {
-          const resolved = await Promise.allSettled(upcomingIdx.map(idx => _resolveTrackSource(_queue[idx])));
-          upcoming = resolved.filter(r => r.status === 'fulfilled').map(r => r.value);
+        const all = [...historyIdx, ...upcomingIdx];
+        if (all.length) {
+          const resolved = await Promise.allSettled(all.map(idx => _resolveTrackSource(_queue[idx])));
+          const ok = r => r.status === 'fulfilled';
+          history  = resolved.slice(0, historyIdx.length).filter(ok).map(r => r.value);
+          upcoming = resolved.slice(historyIdx.length).filter(ok).map(r => r.value);
         }
       }
 
@@ -604,7 +627,7 @@ const Player = (() => {
       // a lista entregue acabar.
       const repeatMode = _repeat === 'one' ? 'one' : (_repeat === 'all' || _queueLoops) ? 'all' : 'none';
 
-      await audio.setSource(source, resumeSeconds, upcoming, repeatMode);
+      await audio.setSource(source, resumeSeconds, upcoming, repeatMode, history);
       _loadedTrackId = track.id;
 
       await audio.play();
@@ -716,6 +739,30 @@ const Player = (() => {
     return out;
   }
 
+  // Faixas que tocaram ANTES da atual (até 10), em ordem — vão pro nativo
+  // junto com o resto da fila (ver _play) pra "anterior" funcionar lá.
+  const NATIVE_QUEUE_HISTORY = 10;
+
+  function _peekHistoryIndexes(limit = NATIVE_QUEUE_HISTORY) {
+    if (!_queue.length || _repeat === 'one') return [];
+    const out = [];
+    for (let i = _index - 1; i >= 0 && out.length < limit; i--) out.push(i);
+    return out.reverse();
+  }
+
+  // Fila aberta (sem repeat nem loop) quase acabando: completa JÁ com faixas
+  // do mesmo estilo (modo rádio), antes de mandar pro nativo. Sem isso, com o
+  // app fechado a fila carregada acabava e vinha silêncio — o modo rádio só
+  // rodava no JS, que pode estar dormindo.
+  function _extendQueueForNative(track) {
+    if (_queueLoops || _repeat !== 'none') return;
+    if (_queue.length - 1 - _index >= 10) return;
+    const extra = _pickAutoContinueTracks(track, _queue.map(t => t.id));
+    if (!extra.length) return;
+    _queue         = [..._queue, ...extra];
+    _originalQueue = [..._originalQueue, ...extra];
+  }
+
   let _preloadedTrackId = null;
 
   // Busca antecipadamente o áudio da próxima faixa (Drive.fetchAudioUrl
@@ -817,6 +864,21 @@ const Player = (() => {
         console.error('[Player] Erro ao retomar reprodução:', err);
         _listeners.onError?.(err);
       });
+
+    // Rede de segurança (só nativo): a faixa foi mostrada como "carregada" a
+    // partir do que estava salvo, mas se o serviço reiniciou e não conseguiu
+    // reabrir a fila (arquivo apagado, por ex.), o play não faria nada. Se
+    // depois de 2 s o nativo não tem ESTA faixa, carrega do zero.
+    if (_useNative) {
+      setTimeout(async () => {
+        if (_userPaused || getCurrentTrack()?.id !== track.id) return;
+        const st = await window.NativeMedia.nativeGetState({ light: true });
+        if (!st || st.trackId !== track.id) {
+          _loadedTrackId = null;
+          _play(0, { explicit: true, snapshot: _snapshot() });
+        }
+      }, 2000);
+    }
   }
   // opts.keepFocus: usado só pela pausa por perda de foco de áudio (ver
   // hmAudioFocusLoss abaixo) — abandonar o foco ali faria o Android
@@ -827,7 +889,7 @@ const Player = (() => {
     audio.pause();
     if (window.NativeMedia) NativeMedia.setPlaybackState('paused');
     else if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'paused';
-    if (!opts.keepFocus) window.NativeAudioFocus?.abandon();
+    if (!opts.keepFocus && !_useNative) window.NativeAudioFocus?.abandon();
     _saveResumeState();
     _listeners.onPause?.();
   }
@@ -842,7 +904,7 @@ const Player = (() => {
   // cair na auto-retomada acima (que é só pra "roubadas" de foco
   // passageiras). Sem isso, a música voltava a tocar sozinha pelo
   // alto-falante do celular assim que o Bluetooth caía.
-  if (window.NativeApp && window.NativeApp.isNative) {
+  if (window.NativeApp && window.NativeApp.isNative && !_useNative) {
     window.addEventListener('hmAudioBecomingNoisy', () => {
       if (!audio.paused) pause();
     });
@@ -860,7 +922,7 @@ const Player = (() => {
   let _pausedByFocusLoss = false;
   let _focusLossSnapshot = null; // { trackId, time } — ver hmAudioFocusGain abaixo
 
-  if (window.NativeApp && window.NativeApp.isNative) {
+  if (window.NativeApp && window.NativeApp.isNative && !_useNative) {
     window.addEventListener('hmAudioFocusLoss', () => {
       if (!audio.paused) {
         _pausedByFocusLoss = true;
@@ -902,7 +964,7 @@ const Player = (() => {
   // nenhuma faixa carregada ainda, ou se está mudo por causa de uma
   // ligação/áudio do WhatsApp em andamento (aí quem manda a volta é o
   // hmAudioFocusGain acima, não a simples conexão do Bluetooth).
-  if (window.NativeApp && window.NativeApp.isNative) {
+  if (window.NativeApp && window.NativeApp.isNative && !_useNative) {
     window.addEventListener('hmBluetoothConnected', () => {
       if (!_pausedByFocusLoss && getCurrentTrack() && audio.paused) {
         play();
@@ -1103,12 +1165,15 @@ const Player = (() => {
     const pos = audio.currentTime || 0;
     try {
       const source = await _resolveTrackSource(track);
+      const historyIdx  = _peekHistoryIndexes();
       const upcomingIdx = _peekUpcomingIndexes();
-      const resolved = await Promise.allSettled(upcomingIdx.map(i => _resolveTrackSource(_queue[i])));
-      const upcoming = resolved.filter(r => r.status === 'fulfilled').map(r => r.value);
+      const resolved = await Promise.allSettled([...historyIdx, ...upcomingIdx].map(i => _resolveTrackSource(_queue[i])));
+      const ok = r => r.status === 'fulfilled';
+      const history  = resolved.slice(0, historyIdx.length).filter(ok).map(r => r.value);
+      const upcoming = resolved.slice(historyIdx.length).filter(ok).map(r => r.value);
       if (myLoad !== _loadToken || getCurrentTrack()?.id !== track.id) return; // usuário trocou de faixa nesse meio tempo
       const repeatMode = _repeat === 'one' ? 'one' : (_repeat === 'all' || _queueLoops) ? 'all' : 'none';
-      await audio.setSource(source, pos, upcoming, repeatMode); // o nativo já começa tocando
+      await audio.setSource(source, pos, upcoming, repeatMode, history); // o nativo já começa tocando
       _listeners.onPlay?.(track);
     } catch (err) {
       _nativeQueueDirty = true; // não deu certo — tenta de novo no próximo play()
@@ -1293,11 +1358,15 @@ const Player = (() => {
     // automática e de falhas seguidas (ver listeners 'pause'/'error').
     _autoResumeAttempts = 0;
     _errorSkipStreak = 0;
+    // Tocar começou por fora do app (notificação, fone, Bluetooth): reflete na tela.
+    if (_useNative && track) _listeners.onPlay?.(track);
     // Garante o foco de áudio pedido (ver hmAudioFocusLoss/Gain acima) —
     // é o que faz o Android nos avisar de ligação/áudio do WhatsApp.
     // Idempotente do lado nativo, então chamar de novo a cada play() não
     // tem custo.
-    window.NativeAudioFocus?.request();
+    // (No app nativo o ExoPlayer já gerencia o foco — pedir de novo aqui criava
+    // dois donos de foco brigando.)
+    if (!_useNative) window.NativeAudioFocus?.request();
   });
 
   // Conta falhas seguidas do elemento <audio> (evento 'error', disparado
@@ -1335,6 +1404,15 @@ const Player = (() => {
   const AUTO_RESUME_DELAY_MS     = 400;  // espera antes de cada tentativa
 
   audio.addEventListener('pause', () => {
+    // Motor nativo: o ExoPlayer é o dono do play/pause (foco de áudio, ligação,
+    // fone/Bluetooth saindo, botões da notificação). Ele mesmo retoma o que deve
+    // ser retomado — o JS só REFLETE na tela. A "auto-retomada" abaixo brigava
+    // com ele (e com a pausa que o usuário acabou de pedir).
+    if (_useNative) {
+      _userPaused = false;
+      _listeners.onPause?.();
+      return;
+    }
     if (_userPaused) { _userPaused = false; return; }
     if (!getCurrentTrack()) return;
     // Áudio terminou naturalmente (ended cuida disso) ou já está no fim
@@ -1369,8 +1447,22 @@ const Player = (() => {
   // Media Session API (controles na tela de bloqueio / Bluetooth) —
   // usa o plugin nativo (com foreground service) dentro do app Android,
   // ou a Media Session Web API normal quando roda no navegador.
+  let _nextHandlerSet = false;
+
   function _updateMediaSession(track) {
     if (!window.NativeMedia) return;
+
+    // Motor nativo: o serviço mostra título/capa/estado/posição sozinho, a
+    // partir da fila que recebeu — o JS não empurra mais nada por cima (isso
+    // gerava notificação desatualizada). Resta só o "próxima" pro caso do
+    // nativo chegar ao fim da fila carregada (aí o JS continua no modo rádio).
+    if (_useNative) {
+      if (!_nextHandlerSet) {
+        _nextHandlerSet = true;
+        NativeMedia.setActionHandler('nexttrack', () => next());
+      }
+      return;
+    }
 
     NativeMedia.setMetadata({
       title:  track.title,
