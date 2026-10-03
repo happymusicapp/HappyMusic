@@ -2742,6 +2742,19 @@ const App = (() => {
       setAutoDownloadEnabled(UI.el.chkAutoDownload.checked);
     });
 
+    // Normalização de volume: só no app nativo (é o ExoPlayer que ajusta)
+    if (window.NativeMedia && NativeMedia.isNative && UI.el.chkNormalizeVolume) {
+      UI.el.rowNormalizeVolume?.classList.remove('hidden');
+      NativeMedia.getVolumeNormalization().then(v => {
+        if (v !== null) UI.el.chkNormalizeVolume.checked = v;
+      });
+      UI.el.chkNormalizeVolume.addEventListener('change', () => {
+        const on = UI.el.chkNormalizeVolume.checked;
+        NativeMedia.setVolumeNormalization(on);
+        UI.showToast(on ? 'Volume normalizado entre as músicas' : 'Normalização de volume desligada');
+      });
+    }
+
     // Mantém o resumo "X de Y músicas baixadas" sempre atualizado
     Downloads.onChange(() => _updateOfflineSummary());
 

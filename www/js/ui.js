@@ -97,6 +97,8 @@ const UI = (() => {
     btnClearDownloads:    $('btn-clear-downloads'),
     btnDownloadCustom:      $('btn-download-custom'),
     chkAutoDownload:      $('chk-auto-download'),
+    chkNormalizeVolume:   $('chk-normalize-volume'),
+    rowNormalizeVolume:   $('row-normalize-volume'),
 
     // Onboarding
     modalOnboarding:    $('modal-onboarding'),

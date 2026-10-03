@@ -127,6 +127,25 @@
       catch (err) { console.warn('[NativeMedia] nativeSeek falhou:', err); }
     },
 
+    // Normalização de volume entre músicas (só existe no app nativo).
+    // get devolve true/false, ou null se não deu pra saber.
+    async getVolumeNormalization() {
+      if (!plugin) return null;
+      try {
+        const r = await plugin.getVolumeNormalization();
+        return !!(r && r.enabled);
+      } catch (err) {
+        console.warn('[NativeMedia] getVolumeNormalization falhou:', err);
+        return null;
+      }
+    },
+
+    async setVolumeNormalization(enabled) {
+      if (!plugin) return;
+      try { await plugin.setVolumeNormalization({ enabled: !!enabled }); }
+      catch (err) { console.warn('[NativeMedia] setVolumeNormalization falhou:', err); }
+    },
+
     // { playing, positionSeconds, durationSeconds, trackId }
     async nativeGetState() {
       if (!plugin) return null;
