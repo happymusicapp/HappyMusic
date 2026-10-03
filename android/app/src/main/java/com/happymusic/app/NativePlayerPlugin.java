@@ -265,6 +265,23 @@ public class NativePlayerPlugin extends Plugin {
         call.resolve();
     }
 
+    // Normalização de volume: a configuração fica gravada no aparelho (não
+    // precisa do serviço rodando); se o serviço já existe, é avisado na hora.
+    @PluginMethod
+    public void setVolumeNormalization(PluginCall call) {
+        boolean enabled = call.getBoolean("enabled", true);
+        VolumeNormalizer.saveEnabled(getContext(), enabled);
+        if (service != null) service.onNormalizationSettingChanged();
+        call.resolve();
+    }
+
+    @PluginMethod
+    public void getVolumeNormalization(PluginCall call) {
+        JSObject ret = new JSObject();
+        ret.put("enabled", VolumeNormalizer.readEnabled(getContext()));
+        call.resolve(ret);
+    }
+
     @PluginMethod
     public void nativePlay(PluginCall call) {
         ensureServiceThen(() -> service.nativePlay());

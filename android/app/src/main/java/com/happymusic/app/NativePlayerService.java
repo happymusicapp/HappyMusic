@@ -128,6 +128,13 @@ public class NativePlayerService extends Service {
     private volatile long cachedDurationMs = 0;
     private volatile String cachedMediaId = null;
 
+    // ── Normalização de volume (ver VolumeNormalizer) ──
+    private VolumeNormalizer normalizer;
+    // Faixas da fila atual, NA MESMA ORDEM da playlist do ExoPlayer — o
+    // índice do player aponta direto pra cá (ver loadQueueAndPlay).
+    private List<QueueItem> currentItems = new ArrayList<>();
+    private Runnable volumeRamp = null;
+
     // Quantas faixas seguidas puladas por erro (ver onPlayerError) —
     // zera assim que uma toca de verdade. É pra não ficar pulando a
     // fila inteira à toa quando o sinal cai por completo (ex.: um
@@ -201,6 +208,11 @@ public class NativePlayerService extends Service {
         // incondicional, e connectAndInitialize() só entra depois pra
         // ligar o plugin e refinar o conteúdo da notificação.
         initializePlayer();
+        normalizer = new VolumeNormalizer(this, mainHandler, trackId -> {
+            // Medição pronta: se for da faixa que está tocando agora, aplica
+            // com uma descida suave (a faixa já estava tocando sem ajuste).
+            if (trackId != null && trackId.equals(cachedMediaId)) applyNormalization(true);
+        });
         initializeMediaSession();
         initializeNotification(buildFallbackContentIntent());
         startForegroundNow();
@@ -285,6 +297,10 @@ public class NativePlayerService extends Service {
                 // marcação de "faixa atual" e a UI em dia; não recarrega
                 // nada (já está tocando).
                 if (plugin != null) plugin.notifyTrackChanged(item.mediaId);
+
+                // Cada faixa tem o seu ajuste de volume (e as próximas já
+                // começam a ser medidas aqui, pra estarem prontas a tempo).
+                applyNormalization(false);
             }
 
             @Override
@@ -402,6 +418,7 @@ public class NativePlayerService extends Service {
             else player.setRepeatMode(Player.REPEAT_MODE_OFF);
 
             List<MediaSource> sources = new ArrayList<>();
+            List<QueueItem> playable = new ArrayList<>(); // só quem virou fonte — mantém o índice do player
             for (QueueItem it : items) {
                 MediaMetadata metadata = new MediaMetadata.Builder()
                         .setTitle(it.title)
@@ -419,23 +436,86 @@ public class NativePlayerService extends Service {
                     Uri uri = it.path.contains("://") ? Uri.parse(it.path) : Uri.fromFile(new File(it.path));
                     MediaItem mediaItem = itemBuilder.setUri(uri).build();
                     sources.add(new ProgressiveMediaSource.Factory(new androidx.media3.datasource.DefaultDataSource.Factory(this)).createMediaSource(mediaItem));
+                    playable.add(it);
                 } else if (it.url != null) {
                     MediaItem mediaItem = itemBuilder.setUri(Uri.parse(it.url)).build();
                     DefaultHttpDataSource.Factory httpFactory = new DefaultHttpDataSource.Factory();
                     if (it.headers != null && !it.headers.isEmpty()) httpFactory.setDefaultRequestProperties(it.headers);
                     sources.add(new ProgressiveMediaSource.Factory(httpFactory).createMediaSource(mediaItem));
+                    playable.add(it);
                 }
             }
             if (sources.isEmpty()) return;
+            currentItems = playable;
 
             player.setMediaSources(sources, 0, resumeMs > 0 ? resumeMs : 0);
             player.prepare();
             player.setPlayWhenReady(true);
+            applyNormalization(false); // volume certo já na primeira faixa
             // A disponibilidade de "próxima"/"anterior" na notificação
             // depende de quantos itens têm na fila (ver update() acima) —
             // isso mudou agora que carregamos uma fila nova.
             possibleActionsUpdate = true;
             update();
+        });
+    }
+
+    // ── Normalização de volume ────────────────────────────────────
+
+    // Ajusta o volume do player pra faixa que está tocando agora (e pede
+    // a medição dela e das próximas, se ainda não existirem). Sem medição
+    // ainda, fica em 100% — quando ela chegar, onLoudnessReady chama isto
+    // de novo com ramp=true. Roda sempre na thread principal.
+    private void applyNormalization(boolean ramp) {
+        if (player == null || normalizer == null) return;
+        MediaItem cur = player.getCurrentMediaItem();
+        String id = cur != null ? cur.mediaId : null;
+        float target = normalizer.gainLinearFor(id);
+        if (ramp) rampVolume(target, 1200);
+        else setVolumeNow(target);
+
+        if (!normalizer.isEnabled()) return;
+        int index = player.getCurrentMediaItemIndex();
+        List<QueueItem> want = new ArrayList<>();
+        for (int i = Math.max(index, 0); i < Math.min(currentItems.size(), index + 3); i++) {
+            want.add(currentItems.get(i));
+        }
+        normalizer.analyzeAsync(want);
+    }
+
+    private void setVolumeNow(float volume) {
+        if (volumeRamp != null) { mainHandler.removeCallbacks(volumeRamp); volumeRamp = null; }
+        if (player != null) player.setVolume(volume);
+    }
+
+    private void rampVolume(final float to, final int durationMs) {
+        if (player == null) return;
+        if (volumeRamp != null) { mainHandler.removeCallbacks(volumeRamp); volumeRamp = null; }
+        final float from = player.getVolume();
+        if (Math.abs(from - to) < 0.01f) { player.setVolume(to); return; }
+        final long startedAt = android.os.SystemClock.uptimeMillis();
+        volumeRamp = new Runnable() {
+            @Override
+            public void run() {
+                if (player == null) { volumeRamp = null; return; }
+                float t = Math.min(1f, (android.os.SystemClock.uptimeMillis() - startedAt) / (float) durationMs);
+                player.setVolume(from + (to - from) * t);
+                if (t < 1f) mainHandler.postDelayed(this, 40);
+                else volumeRamp = null;
+            }
+        };
+        mainHandler.post(volumeRamp);
+    }
+
+    // Chamado pelo plugin quando o usuário liga/desliga a normalização
+    // nas configurações (o valor já foi gravado no aparelho).
+    public void onNormalizationSettingChanged() {
+        postToMain(() -> {
+            if (normalizer == null) return;
+            normalizer.reloadEnabled();
+            // Desligado: volta pra 100% suave; ligado: aplica o ganho da faixa atual.
+            if (normalizer.isEnabled()) applyNormalization(true);
+            else rampVolume(1.0f, 400);
         });
     }
 
@@ -555,6 +635,7 @@ public class NativePlayerService extends Service {
     public void destroy() {
         if (runningInstance == this) runningInstance = null;
         mainHandler.removeCallbacks(positionTicker);
+        if (volumeRamp != null) { mainHandler.removeCallbacks(volumeRamp); volumeRamp = null; }
         if (player != null) {
             player.release();
             player = null;
