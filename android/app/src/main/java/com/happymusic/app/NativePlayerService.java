@@ -25,7 +25,10 @@ import androidx.media3.common.MediaItem;
 import androidx.media3.common.MediaMetadata;
 import androidx.media3.common.PlaybackException;
 import androidx.media3.common.Player;
+import androidx.media3.datasource.DataSource;
+import androidx.media3.datasource.DataSpec;
 import androidx.media3.datasource.DefaultHttpDataSource;
+import androidx.media3.datasource.ResolvingDataSource;
 import androidx.media3.exoplayer.ExoPlayer;
 import androidx.media3.exoplayer.source.MediaSource;
 import androidx.media3.exoplayer.source.ProgressiveMediaSource;
@@ -135,6 +138,42 @@ public class NativePlayerService extends Service {
     private List<QueueItem> currentItems = new ArrayList<>();
     private Runnable volumeRamp = null;
 
+    // ── Persistência, Bluetooth e ociosidade ──
+    // Tudo isto vive AQUI, no serviço (que sobrevive ao app fechado), e não
+    // no JS — é o que dá a confiabilidade de "app de música de verdade".
+    private String repeatModeStr = "none";
+    private volatile List<String> cachedQueueIds = new ArrayList<>();
+    private volatile int cachedIndex = 0;
+    private int tickCount = 0;
+    private boolean foregroundActive = false;
+
+    // Bluetooth/fone desconectado no meio da música (o carro desligou): o
+    // ExoPlayer pausa sozinho; guardamos isso pra retomar quando um áudio
+    // Bluetooth voltar. Só vale se a música ESTAVA tocando — se o usuário
+    // pausou de propósito, não retoma sozinho.
+    private boolean resumeOnBluetooth = false;
+    private long resumeOnBluetoothUntil = 0;
+    private Object bluetoothCallback = null;
+    private static final long BLUETOOTH_RESUME_WINDOW_MS = 12L * 60 * 60 * 1000;
+
+    // Parado/pausado por muito tempo: salva o estado e solta a notificação
+    // (o app reabre exatamente de onde parou, ver PlaybackStore).
+    private static final long IDLE_STOP_MS = 20L * 60 * 1000;
+    private static final long IDLE_STOP_BLUETOOTH_MS = 3L * 60 * 60 * 1000;
+    private boolean idleScheduled = false;
+    private final Runnable idleShutdown = new Runnable() {
+        @Override
+        public void run() {
+            idleScheduled = false;
+            if (player == null) return;
+            savePlaybackState();
+            player.setPlayWhenReady(false);
+            foregroundActive = false;
+            stopForeground(true);
+            stopSelf();
+        }
+    };
+
     // Quantas faixas seguidas puladas por erro (ver onPlayerError) —
     // zera assim que uma toca de verdade. É pra não ficar pulando a
     // fila inteira à toa quando o sinal cai por completo (ex.: um
@@ -150,12 +189,14 @@ public class NativePlayerService extends Service {
         @Override
         public void run() {
             if (player != null) {
-                cachedPlaying = player.isPlaying();
+                cachedPlaying = wantsPlay();
                 cachedPositionMs = Math.max(player.getCurrentPosition(), 0);
                 long d = player.getDuration();
                 cachedDurationMs = (d == C.TIME_UNSET) ? 0 : Math.max(d, 0);
                 MediaItem current = player.getCurrentMediaItem();
                 cachedMediaId = current != null ? current.mediaId : null;
+                cachedIndex = Math.max(player.getCurrentMediaItemIndex(), 0);
+                if (cachedPlaying && ++tickCount % 20 == 0) savePlaybackState();
             }
             mainHandler.postDelayed(this, 500);
         }
@@ -215,8 +256,16 @@ public class NativePlayerService extends Service {
         });
         initializeMediaSession();
         initializeNotification(buildFallbackContentIntent());
-        startForegroundNow();
+        ensureForeground();
         mainHandler.post(positionTicker);
+
+        // Reiniciou (sistema matou o processo, ou o app foi aberto depois de
+        // muito tempo): reabre a fila de onde parou, em pausa.
+        restorePlaybackFromStore();
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            bluetoothCallback = BluetoothAudioWatcher.register(this, mainHandler, this::onBluetoothAudioConnected);
+        }
     }
 
     // PendingIntent genérico (abre o app do jeito normal) usado como
@@ -234,21 +283,20 @@ public class NativePlayerService extends Service {
                 .setUsage(C.USAGE_MEDIA)
                 .setContentType(C.AUDIO_CONTENT_TYPE_MUSIC)
                 .build();
-        // handleAudioFocus/handleAudioBecomingNoisy em true: o próprio
-        // ExoPlayer pausa/retoma sozinho quando perde/ganha o foco de
-        // áudio (ligação, GPS, Bluetooth reconectando no carro) e quando
-        // o fone/Bluetooth desconecta — direto no nativo, sem depender
-        // de o JavaScript estar respondendo. É justamente com a tela
-        // travada (ex.: Bluetooth do carro) que o WebView pode demorar
-        // mais pra reagir, e antes disso ficava só por conta do
-        // AudioFocusPlugin/hmAudioBecomingNoisy (ver player.js), que
-        // dependem do JS acordar — isso aqui é uma segunda camada, mais
-        // rápida e independente, por trás da mesma proteção; o
-        // AudioFocusPlugin continua ativo também (as duas não conflitam,
-        // só uma delas de fato reage primeiro cada vez).
+        // O ExoPlayer é o ÚNICO dono do foco de áudio e do "fone saiu": pausa
+        // sozinho numa ligação/GPS (e retoma quando acaba) e quando o fone ou o
+        // Bluetooth desconecta — direto no nativo, sem depender do JavaScript.
+        // (O antigo AudioFocusPlugin não é mais usado pelo player.js: dois donos
+        // de foco brigavam entre si.)
+        //
+        // WAKE_MODE_NETWORK: com a tela apagada o Android põe a CPU e o Wi-Fi pra
+        // dormir; sem isto, tocando em streaming do Drive a música engasga ou
+        // para depois de alguns minutos (principalmente em Xiaomi/Samsung).
+        // Segura o wake lock só enquanto está de fato tocando.
         player = new ExoPlayer.Builder(this)
                 .setAudioAttributes(audioAttributes, true)
                 .setHandleAudioBecomingNoisy(true)
+                .setWakeMode(C.WAKE_MODE_NETWORK)
                 .build();
         player.addListener(new Player.Listener() {
             @Override
@@ -257,12 +305,44 @@ public class NativePlayerService extends Service {
                     plugin.notifyEnded();
                 }
                 notifyJsState();
+                syncStateFromPlayer();
+                updateIdleTimer();
+            }
+
+            @Override
+            public void onPlayWhenReadyChanged(boolean playWhenReady, int reason) {
+                if (!playWhenReady) {
+                    if (reason == Player.PLAY_WHEN_READY_CHANGE_REASON_AUDIO_BECOMING_NOISY) {
+                        // Fone/Bluetooth/carro saiu com a música tocando: retoma quando voltar.
+                        resumeOnBluetooth = true;
+                        resumeOnBluetoothUntil = System.currentTimeMillis() + BLUETOOTH_RESUME_WINDOW_MS;
+                    } else if (reason == Player.PLAY_WHEN_READY_CHANGE_REASON_USER_REQUEST) {
+                        resumeOnBluetooth = false; // pausou de propósito: não retoma sozinho
+                    }
+                } else if (reason == Player.PLAY_WHEN_READY_CHANGE_REASON_USER_REQUEST) {
+                    resumeOnBluetooth = false;
+                }
+                rescheduleIdleTimer();
+                savePlaybackState();
+                // Pausa/retomada com a música ainda carregando não muda isPlaying (já
+                // era falso): sem isto o JS e a notificação ficariam sem saber.
+                notifyJsState();
+                syncStateFromPlayer();
+            }
+
+            @Override
+            public void onPositionDiscontinuity(Player.PositionInfo oldPosition, Player.PositionInfo newPosition, int reason) {
+                // Pulo de posição (busca na barra, troca de faixa): a notificação
+                // precisa da posição nova pra barra de progresso ficar certa.
+                notifyJsState();
+                syncStateFromPlayer();
             }
 
             @Override
             public void onIsPlayingChanged(boolean isPlaying) {
                 if (isPlaying) consecutiveErrorSkips = 0; // tocou de verdade — zera o contador de pulos por erro
                 notifyJsState();
+                savePlaybackState();
                 // Atualiza a notificação (ícone tocar/pausar) a partir do
                 // player de verdade, não só quando o JS manda — é o que
                 // faz o botão continuar certo mesmo com o app fechado
@@ -275,32 +355,11 @@ public class NativePlayerService extends Service {
 
             @Override
             public void onMediaItemTransition(MediaItem item, int reason) {
-                // Disparado toda vez que o ExoPlayer muda de faixa
-                // sozinho — inclusive quando a faixa atual termina com o
-                // app fechado e ele avança pra próxima já preparada (ver
-                // loadQueueAndPlay). Sem isso, a notificação continuaria
-                // mostrando o título/capa da faixa ANTERIOR mesmo com
-                // outra já tocando.
-                if (item == null) return;
-                cachedMediaId = item.mediaId; // atualiza já, sem esperar o próximo tick do positionTicker
-                MediaMetadata meta = item.mediaMetadata;
-                setTitle(meta.title != null ? meta.title.toString() : "");
-                setArtist(meta.artist != null ? meta.artist.toString() : "");
-                setAlbum(meta.albumTitle != null ? meta.albumTitle.toString() : "");
-                setArtwork(null); // limpa até a nova capa (se houver) carregar
-                possibleActionsUpdate = true; // "próxima"/"anterior" mudam de disponibilidade a cada faixa
-                update();
-                fetchArtworkAsync(meta.artworkUri != null ? meta.artworkUri.toString() : null);
-
-                // Avisa o JS (se estiver vivo) qual faixa está tocando
-                // agora de verdade — ele usa isso só pra manter a própria
-                // marcação de "faixa atual" e a UI em dia; não recarrega
-                // nada (já está tocando).
-                if (plugin != null) plugin.notifyTrackChanged(item.mediaId);
-
-                // Cada faixa tem o seu ajuste de volume (e as próximas já
-                // começam a ser medidas aqui, pra estarem prontas a tempo).
-                applyNormalization(false);
+                // Disparado toda vez que o ExoPlayer muda de faixa sozinho —
+                // inclusive quando a atual termina com o app fechado e ele
+                // avança pra próxima já preparada, ou quando o usuário usa
+                // próxima/anterior pela notificação/Bluetooth/fone.
+                onCurrentItemChanged(item, true);
             }
 
             @Override
@@ -401,60 +460,246 @@ public class NativePlayerService extends Service {
         update();
     }
 
+    // "Quer tocar" = o usuário (ou o sistema) mandou tocar e ainda não acabou.
+    // É este o estado que o JS e a notificação mostram: durante o carregamento
+    // entre faixas (BUFFERING) o player não está "tocando" por um instante,
+    // mas a intenção continua sendo tocar — usar isPlaying() aqui fazia a tela
+    // piscar pausado/tocando a cada troca de música.
+    private boolean wantsPlay() {
+        if (player == null) return false;
+        int st = player.getPlaybackState();
+        return player.getPlayWhenReady() && st != Player.STATE_ENDED && st != Player.STATE_IDLE;
+    }
+
+    // ── Foreground ─────────────────────────────────────────────────
+
+    // Idempotente. No Android 12+ o sistema pode recusar subir um serviço
+    // em foreground quando o app está em segundo plano (ex.: reinício
+    // automático depois de ser morto) — nesse caso não derruba o app: o
+    // serviço só encerra, e o PlaybackStore guarda o estado pra próxima vez.
+    private void ensureForeground() {
+        if (foregroundActive) return;
+        try {
+            startForegroundNow();
+            foregroundActive = true;
+        } catch (Exception e) {
+            android.util.Log.w("NativePlayerService", "Não foi possível subir em foreground: " + e);
+            stopSelf();
+        }
+    }
+
+    // ── Ociosidade: pausado por muito tempo → solta a notificação ──
+
+    private void updateIdleTimer() {
+        if (player == null) return;
+        int st = player.getPlaybackState();
+        boolean active = player.getPlayWhenReady() && st != Player.STATE_ENDED && st != Player.STATE_IDLE;
+        if (active) {
+            mainHandler.removeCallbacks(idleShutdown);
+            idleScheduled = false;
+            return;
+        }
+        if (idleScheduled) return;
+        idleScheduled = true;
+        mainHandler.postDelayed(idleShutdown, resumeOnBluetooth ? IDLE_STOP_BLUETOOTH_MS : IDLE_STOP_MS);
+    }
+
+    private void rescheduleIdleTimer() {
+        mainHandler.removeCallbacks(idleShutdown);
+        idleScheduled = false;
+        updateIdleTimer();
+    }
+
+    // ── Bluetooth: voltou um áudio Bluetooth ───────────────────────
+
+    private void onBluetoothAudioConnected() {
+        if (player == null || !resumeOnBluetooth) return;
+        if (System.currentTimeMillis() > resumeOnBluetoothUntil) { resumeOnBluetooth = false; return; }
+        if (player.getMediaItemCount() == 0 || player.getPlayWhenReady()) return;
+        // Pequena espera: deixa o sistema terminar de trocar a saída de áudio
+        // (retomar na hora pode tocar no alto-falante do celular por um instante
+        // ou deixar a central do carro instável).
+        mainHandler.postDelayed(() -> {
+            if (player == null || !resumeOnBluetooth || player.getPlayWhenReady()) return;
+            resumeOnBluetooth = false;
+            ensureForeground();
+            player.setPlayWhenReady(true);
+        }, 1500);
+    }
+
+    // ── Faixa atual mudou ──────────────────────────────────────────
+
+    private void onCurrentItemChanged(MediaItem item, boolean notifyPlugin) {
+        if (item == null || player == null) return;
+        cachedMediaId = item.mediaId; // já, sem esperar o próximo tick
+        cachedIndex = Math.max(player.getCurrentMediaItemIndex(), 0);
+        MediaMetadata meta = item.mediaMetadata;
+        setTitle(meta.title != null ? meta.title.toString() : "");
+        setArtist(meta.artist != null ? meta.artist.toString() : "");
+        setAlbum(meta.albumTitle != null ? meta.albumTitle.toString() : "");
+        setArtwork(null); // limpa até a nova capa (se houver) carregar
+        possibleActionsUpdate = true; // "próxima"/"anterior" mudam de disponibilidade a cada faixa
+        update();
+        fetchArtworkAsync(meta.artworkUri != null ? meta.artworkUri.toString() : null);
+
+        // Avisa o JS (se estiver vivo): ele só mantém a marcação de "faixa atual"
+        // e a UI em dia; não recarrega nada (já está tocando).
+        if (notifyPlugin && plugin != null) plugin.notifyTrackChanged(item.mediaId);
+
+        // Cada faixa tem o seu ajuste de volume (ver VolumeNormalizer).
+        applyNormalization(false);
+        savePlaybackState();
+    }
+
+    // ── Persistência ───────────────────────────────────────────────
+
+    // Só da thread principal. A fila inteira é gravada quando muda (ver
+    // loadQueueAndPlay); aqui só faixa atual + posição.
+    private void savePlaybackState() {
+        if (player == null || currentItems.isEmpty()) return;
+        int idx = Math.max(player.getCurrentMediaItemIndex(), 0);
+        long pos = player.getPlaybackState() == Player.STATE_ENDED ? 0L : Math.max(player.getCurrentPosition(), 0L);
+        PlaybackStore.savePosition(this, idx, pos);
+    }
+
+    private void restorePlaybackFromStore() {
+        if (player == null || player.getMediaItemCount() > 0) return;
+        PlaybackStore.Snapshot snap = PlaybackStore.read(this);
+        if (snap == null) return;
+
+        List<QueueItem> playable = new ArrayList<>();
+        List<MediaSource> sources = buildSources(snap.items, playable);
+        if (sources.isEmpty()) return;
+
+        int idx = Math.min(Math.max(snap.index, 0), playable.size() - 1);
+        applyRepeatMode(snap.repeatMode);
+        currentItems = playable;
+        publishQueueIds();
+
+        player.setMediaSources(sources, idx, snap.positionMs);
+        player.prepare();
+        player.setPlayWhenReady(false); // volta em pausa: quem decide tocar é o usuário
+        onCurrentItemChanged(player.getCurrentMediaItem(), false);
+        setPlaybackState(PlaybackStateCompat.STATE_PAUSED);
+        setPosition(snap.positionMs);
+        update();
+        updateIdleTimer();
+    }
+
+    private void publishQueueIds() {
+        List<String> ids = new ArrayList<>();
+        for (QueueItem it : currentItems) ids.add(it.id == null ? "" : it.id);
+        cachedQueueIds = ids;
+    }
+
+    /** O serviço está em foreground agora? (o plugin só pede pra subir se não estiver) */
+    public boolean isForegroundActive() { return foregroundActive; }
+
+    /** Ids da fila carregada, na ordem do player (lido de qualquer thread). */
+    public List<String> getQueueIds() { return cachedQueueIds; }
+
+    /** Posição da faixa atual dentro de getQueueIds(). */
+    public int getCurrentIndex() { return cachedIndex; }
+
+    private void applyRepeatMode(String mode) {
+        repeatModeStr = mode == null ? "none" : mode;
+        if ("one".equals(repeatModeStr)) player.setRepeatMode(Player.REPEAT_MODE_ONE);
+        else if ("all".equals(repeatModeStr)) player.setRepeatMode(Player.REPEAT_MODE_ALL);
+        else player.setRepeatMode(Player.REPEAT_MODE_OFF);
+    }
+
+    // ── Fontes de áudio ────────────────────────────────────────────
+
+    // Faixas do Drive: o token de acesso é pedido AQUI, a cada abertura de
+    // arquivo (ver DriveAuth) — nunca fica velho, mesmo com o app fechado
+    // horas numa viagem. Os cabeçalhos que o JS mandou (se mandou) valem só
+    // até o primeiro pedido; depois o token novo substitui.
+    private DataSource.Factory buildDriveDataSourceFactory(Map<String, String> jsHeaders) {
+        DefaultHttpDataSource.Factory http = new DefaultHttpDataSource.Factory();
+        if (jsHeaders != null && !jsHeaders.isEmpty()) http.setDefaultRequestProperties(jsHeaders);
+        final android.content.Context appContext = getApplicationContext();
+        return new ResolvingDataSource.Factory(http, new ResolvingDataSource.Resolver() {
+            @Override
+            public DataSpec resolveDataSpec(DataSpec dataSpec) {
+                if (DriveAuth.isDriveUrl(dataSpec.uri.toString())) {
+                    String token = DriveAuth.getToken(appContext);
+                    if (token != null) {
+                        Map<String, String> headers = new HashMap<>(dataSpec.httpRequestHeaders);
+                        headers.put("Authorization", "Bearer " + token);
+                        return dataSpec.withRequestHeaders(headers);
+                    }
+                }
+                return dataSpec;
+            }
+        });
+    }
+
+    // Monta as fontes do ExoPlayer. 'playable' recebe só quem virou fonte
+    // (mantém o índice do player alinhado com a lista).
+    private List<MediaSource> buildSources(List<QueueItem> items, List<QueueItem> playable) {
+        List<MediaSource> sources = new ArrayList<>();
+        for (QueueItem it : items) {
+            MediaMetadata metadata = new MediaMetadata.Builder()
+                    .setTitle(it.title)
+                    .setArtist(it.artist)
+                    .setAlbumTitle(it.album)
+                    .setArtworkUri(it.artworkUrl != null ? Uri.parse(it.artworkUrl) : null)
+                    .build();
+            MediaItem.Builder itemBuilder = new MediaItem.Builder()
+                    .setMediaId(it.id != null ? it.id : "")
+                    .setMediaMetadata(metadata);
+
+            if (it.path != null && !it.path.isEmpty()) {
+                // getAudioPath() no JS já devolve uma URI "file://..." (é o que o
+                // getUri() do plugin de Filesystem retorna)
+                Uri uri = it.path.contains("://") ? Uri.parse(it.path) : Uri.fromFile(new File(it.path));
+                MediaItem mediaItem = itemBuilder.setUri(uri).build();
+                sources.add(new ProgressiveMediaSource.Factory(new androidx.media3.datasource.DefaultDataSource.Factory(this)).createMediaSource(mediaItem));
+                playable.add(it);
+            } else if (it.url != null && !it.url.isEmpty()) {
+                MediaItem mediaItem = itemBuilder.setUri(Uri.parse(it.url)).build();
+                sources.add(new ProgressiveMediaSource.Factory(buildDriveDataSourceFactory(it.headers)).createMediaSource(mediaItem));
+                playable.add(it);
+            }
+        }
+        return sources;
+    }
+
     // ── Controle de reprodução (chamado pelo NativePlayerPlugin) ────
 
     public void loadQueueAndPlay(List<QueueItem> items, long resumeMs, String repeatMode) {
+        loadQueueAndPlay(items, 0, resumeMs, repeatMode);
+    }
+
+    // startIndex: posição, dentro de 'items', da faixa que deve tocar agora —
+    // o JS manda também as faixas ANTERIORES (histórico), pra "anterior"
+    // funcionar sozinho no nativo, sem o app aberto.
+    public void loadQueueAndPlay(List<QueueItem> items, int startIndex, long resumeMs, String repeatMode) {
         postToMain(() -> {
             if (player == null || items == null || items.isEmpty()) return;
 
+            ensureForeground();
             consecutiveErrorSkips = 0; // fila nova — zera o contador de "pulou por erro" (ver onPlayerError)
+            resumeOnBluetooth = false; // o usuário escolheu o que tocar agora
 
             // Dá a volta sozinho quando a lista entregue acabar (loop de
-            // playlist/filtro, ou repetir tudo/uma faixa) — sem isso,
-            // mesmo entregando a fila inteira, ele pararia no fim dela
-            // em vez de recomeçar.
-            if ("one".equals(repeatMode)) player.setRepeatMode(Player.REPEAT_MODE_ONE);
-            else if ("all".equals(repeatMode)) player.setRepeatMode(Player.REPEAT_MODE_ALL);
-            else player.setRepeatMode(Player.REPEAT_MODE_OFF);
+            // playlist/filtro, ou repetir tudo/uma faixa).
+            applyRepeatMode(repeatMode);
 
-            List<MediaSource> sources = new ArrayList<>();
-            List<QueueItem> playable = new ArrayList<>(); // só quem virou fonte — mantém o índice do player
-            for (QueueItem it : items) {
-                MediaMetadata metadata = new MediaMetadata.Builder()
-                        .setTitle(it.title)
-                        .setArtist(it.artist)
-                        .setAlbumTitle(it.album)
-                        .setArtworkUri(it.artworkUrl != null ? Uri.parse(it.artworkUrl) : null)
-                        .build();
-                MediaItem.Builder itemBuilder = new MediaItem.Builder()
-                        .setMediaId(it.id != null ? it.id : "")
-                        .setMediaMetadata(metadata);
-
-                if (it.path != null && !it.path.isEmpty()) {
-                    // getAudioPath() no JS já devolve uma URI "file://..."
-                    // (é o que o getUri() do plugin de Filesystem retorna)
-                    Uri uri = it.path.contains("://") ? Uri.parse(it.path) : Uri.fromFile(new File(it.path));
-                    MediaItem mediaItem = itemBuilder.setUri(uri).build();
-                    sources.add(new ProgressiveMediaSource.Factory(new androidx.media3.datasource.DefaultDataSource.Factory(this)).createMediaSource(mediaItem));
-                    playable.add(it);
-                } else if (it.url != null) {
-                    MediaItem mediaItem = itemBuilder.setUri(Uri.parse(it.url)).build();
-                    DefaultHttpDataSource.Factory httpFactory = new DefaultHttpDataSource.Factory();
-                    if (it.headers != null && !it.headers.isEmpty()) httpFactory.setDefaultRequestProperties(it.headers);
-                    sources.add(new ProgressiveMediaSource.Factory(httpFactory).createMediaSource(mediaItem));
-                    playable.add(it);
-                }
-            }
+            QueueItem wanted = (startIndex >= 0 && startIndex < items.size()) ? items.get(startIndex) : items.get(0);
+            List<QueueItem> playable = new ArrayList<>();
+            List<MediaSource> sources = buildSources(items, playable);
             if (sources.isEmpty()) return;
             currentItems = playable;
+            publishQueueIds();
+            int idx = Math.max(playable.indexOf(wanted), 0);
 
-            player.setMediaSources(sources, 0, resumeMs > 0 ? resumeMs : 0);
+            player.setMediaSources(sources, idx, resumeMs > 0 ? resumeMs : 0);
             player.prepare();
             player.setPlayWhenReady(true);
-            applyNormalization(false); // volume certo já na primeira faixa
-            // A disponibilidade de "próxima"/"anterior" na notificação
-            // depende de quantos itens têm na fila (ver update() acima) —
-            // isso mudou agora que carregamos uma fila nova.
+
+            PlaybackStore.saveQueue(this, playable, idx, repeatModeStr);
+            onCurrentItemChanged(player.getCurrentMediaItem(), false); // título, capa e volume já na primeira faixa
             possibleActionsUpdate = true;
             update();
         });
@@ -549,7 +794,11 @@ public class NativePlayerService extends Service {
     }
 
     public void nativePlay() {
-        postToMain(() -> { if (player != null) player.setPlayWhenReady(true); });
+        postToMain(() -> {
+            if (player == null) return;
+            ensureForeground();
+            player.setPlayWhenReady(true);
+        });
     }
 
     public void nativePause() {
@@ -603,7 +852,7 @@ public class NativePlayerService extends Service {
     // acima, não isto.
     private void notifyJsState() {
         if (player != null) {
-            cachedPlaying = player.isPlaying();
+            cachedPlaying = wantsPlay();
             cachedPositionMs = Math.max(player.getCurrentPosition(), 0);
             long d = player.getDuration();
             cachedDurationMs = (d == C.TIME_UNSET) ? 0 : Math.max(d, 0);
@@ -621,32 +870,69 @@ public class NativePlayerService extends Service {
     // muda de tocando/pausado sozinho.
     private void syncStateFromPlayer() {
         if (player == null) return;
-        setPlaybackState(player.isPlaying() ? PlaybackStateCompat.STATE_PLAYING : PlaybackStateCompat.STATE_PAUSED);
+        // "Tocando" pra notificação = quer tocar e não acabou. Durante o
+        // carregamento (BUFFERING) continua mostrando "pausar", como o
+        // Spotify — senão o botão piscaria a cada troca de faixa.
+        int st = player.getPlaybackState();
+        boolean wantsPlay = player.getPlayWhenReady() && st != Player.STATE_ENDED && st != Player.STATE_IDLE;
+        setPlaybackState(wantsPlay ? PlaybackStateCompat.STATE_PLAYING : PlaybackStateCompat.STATE_PAUSED);
+        setDuration(cachedDurationMs);
         setPosition(cachedPositionMs);
         update();
+    }
+
+    // O usuário deslizou o app pra fora dos recentes. Tocando: continua
+    // (é o ponto do serviço). Pausado: não há motivo pra deixar a notificação
+    // pendurada — salva e encerra (exceto esperando o Bluetooth voltar).
+    @Override
+    public void onTaskRemoved(Intent rootIntent) {
+        savePlaybackState();
+        if (player != null && !player.getPlayWhenReady() && !resumeOnBluetooth) {
+            mainHandler.removeCallbacks(idleShutdown);
+            idleShutdown.run();
+        }
+        super.onTaskRemoved(rootIntent);
     }
 
     @Override
     public void onDestroy() {
         if (runningInstance == this) runningInstance = null;
+        releaseEverything();
         super.onDestroy();
+    }
+
+    private void releaseEverything() {
+        mainHandler.removeCallbacks(positionTicker);
+        mainHandler.removeCallbacks(idleShutdown);
+        if (volumeRamp != null) { mainHandler.removeCallbacks(volumeRamp); volumeRamp = null; }
+        if (bluetoothCallback != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            BluetoothAudioWatcher.unregister(this, bluetoothCallback);
+            bluetoothCallback = null;
+        }
+        if (player != null) {
+            savePlaybackState();
+            player.release();
+            player = null;
+        }
+        if (mediaSession != null) {
+            mediaSession.setActive(false);
+            mediaSession.release();
+            mediaSession = null;
+        }
     }
 
     public void destroy() {
         if (runningInstance == this) runningInstance = null;
-        mainHandler.removeCallbacks(positionTicker);
-        if (volumeRamp != null) { mainHandler.removeCallbacks(volumeRamp); volumeRamp = null; }
-        if (player != null) {
-            player.release();
-            player = null;
-        }
+        releaseEverything();
+        foregroundActive = false;
         stopForeground(true);
         stopSelf();
     }
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
-        if (mediaSession != null) MediaButtonReceiver.handleIntent(mediaSession, intent);
+        ensureForeground(); // quem nos iniciou (startForegroundService) exige isto em poucos segundos
+        if (mediaSession != null && intent != null) MediaButtonReceiver.handleIntent(mediaSession, intent);
         return START_STICKY;
     }
 
@@ -745,8 +1031,10 @@ public class NativePlayerService extends Service {
                 // JS ficasse pendurado (dangling), o botão de tocar/pausar
                 // sumia (ou travava) da notificação de vez.
                 boolean nativelyHandled = actionName.equals("play") || actionName.equals("pause");
+                // "Anterior" sempre existe (reinicia a faixa se não houver outra antes);
+                // "próxima" existe se o player tem pra onde ir (o JS cobre o fim da fila).
                 boolean nativeCanSkip = (actionName.equals("nexttrack") && player != null && player.hasNextMediaItem())
-                        || (actionName.equals("previoustrack") && player != null && player.hasPreviousMediaItem());
+                        || (actionName.equals("previoustrack") && player != null && player.getMediaItemCount() > 0);
                 boolean eligible = nativelyHandled || nativeCanSkip || (plugin != null && plugin.hasActionHandler(actionName));
                 if (eligible) {
                     if (actionName.equals("play") && playbackState != PlaybackStateCompat.STATE_PAUSED) {
@@ -771,6 +1059,10 @@ public class NativePlayerService extends Service {
                 }
             }
 
+            // Barra de progresso da notificação/tela de bloqueio/carro arrastável.
+            if (player != null && player.getMediaItemCount() > 0) {
+                activePlaybackStateActions |= PlaybackStateCompat.ACTION_SEEK_TO;
+            }
             if (playbackStateBuilder != null) {
                 playbackStateBuilder.setActions(activePlaybackStateActions);
             }
@@ -819,64 +1111,47 @@ public class NativePlayerService extends Service {
         this.update();
     }
 
-    // Botões de mídia (notificação, fone, tela de bloqueio, carro). Todos
-    // já mexem direto no ExoPlayer primeiro (resposta instantânea,
-    // funciona mesmo com o app fechado — próxima/anterior só se já
-    // tiver algo carregado ali, ver loadQueueAndPlay) E avisam o plugin,
-    // pro JS (se estiver vivo) poder ir além disso com a fila completa.
+    // Botões de mídia (notificação, fone, tela de bloqueio, carro): agem
+    // direto no ExoPlayer, funcionando com o app aberto ou fechado.
     private class MediaSessionCallback extends MediaSessionCompat.Callback {
+        // O serviço é o ÚNICO dono da reprodução: botões da notificação, fone,
+        // Bluetooth e carro agem direto no ExoPlayer, e o JS (se estiver vivo)
+        // só fica sabendo pelos eventos de estado/faixa. Antes os dois agiam
+        // ao mesmo tempo (nativo + JS) e um podia desfazer ou duplicar o outro
+        // — era o "pulou duas músicas" e a pausa que voltava sozinha.
         @Override
         public void onPlay() {
-            // Chama o callback pro JS PRIMEIRO, e só depois mexe no
-            // ExoPlayer de verdade — ver onPause() abaixo, mesmo motivo.
-            if (plugin != null) plugin.actionCallback("play");
             nativePlay();
         }
 
         @Override
         public void onPause() {
-            // Avisa o JS (play()/pause() do player.js, que marca a pausa
-            // como "pedida pelo usuário") ANTES de mexer no ExoPlayer.
-            // Se fosse na ordem inversa, o aviso nativo de "estado mudou"
-            // (assíncrono, pelo Player.Listener) podia chegar no JS ANTES
-            // desse callback, e o player.js confundiria essa pausa com
-            // uma "pausa inesperada" (ligação/GPS) e tentaria retomar a
-            // música sozinha bem na hora em que o usuário pediu pra parar.
-            if (plugin != null) plugin.actionCallback("pause");
             nativePause();
         }
 
         @Override
         public void onSeekTo(long pos) {
             nativeSeekTo(pos);
-            if (plugin != null) {
-                com.getcapacitor.JSObject data = new com.getcapacitor.JSObject();
-                data.put("seekTime", (double) pos / 1000.0);
-                plugin.actionCallback("seekto", data);
-            }
         }
 
         @Override
         public void onSkipToPrevious() {
-            // Se a faixa anterior já estiver carregada no ExoPlayer (ver
-            // loadQueueAndPlay), toca ela direto — funciona mesmo com o
-            // app fechado. Sempre avisa o JS também: se ele estiver vivo,
-            // é quem decide a fila de verdade (shuffle/repeat/modo rádio)
-            // e pode querer ir além dessa única faixa pré-carregada.
-            nativeSeekToPrevious();
-            if (plugin != null) plugin.actionCallback("previoustrack");
+            // seekToPrevious: reinicia a faixa se já passou de ~3 s, senão vai
+            // pra anterior (comportamento padrão de app de música).
+            postToMain(() -> { if (player != null && player.getMediaItemCount() > 0) player.seekToPrevious(); });
         }
 
         @Override
         public void onSkipToNext() {
-            nativeSeekToNext();
-            if (plugin != null) plugin.actionCallback("nexttrack");
+            // Só quando o ExoPlayer não tem mais pra onde ir (fim da fila
+            // carregada) o JS é chamado — ele sabe continuar sozinho com faixas
+            // do mesmo estilo (modo rádio).
+            if (!nativeSeekToNext() && plugin != null) plugin.actionCallback("nexttrack");
         }
 
         @Override
         public void onStop() {
             nativePause();
-            if (plugin != null) plugin.actionCallback("stop");
         }
     }
 }

@@ -52,10 +52,8 @@ public class HappyMusicApplication extends Application {
       registerReceiver(noisyReceiver, filter);
     }
 
-    // Ver BluetoothAudioWatcher — isolado numa classe própria por causa
-    // da checagem de versão do Android (API 23+).
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-      BluetoothAudioWatcher.start(this);
-    }
+    // (O aviso de Bluetooth conectado agora é tratado dentro do próprio
+    // NativePlayerService — ver BluetoothAudioWatcher — pra funcionar também
+    // com o app fechado.)
   }
 }

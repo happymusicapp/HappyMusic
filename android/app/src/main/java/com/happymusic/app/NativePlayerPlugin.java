@@ -99,13 +99,22 @@ public class NativePlayerPlugin extends Plugin {
     // "action". Se ainda não conectou (primeira vez), guarda a ação e
     // roda assim que o onServiceConnected disparar.
     private void ensureServiceThen(Runnable action) {
+        Intent intent = new Intent(getContext(), NativePlayerService.class);
+        // Sobe (ou re-sobe) o serviço em foreground quando preciso: ele pode ter
+        // se desligado sozinho por ociosidade (pausado há muito tempo — o estado
+        // fica salvo em PlaybackStore). Se já está em foreground, nem mexe.
+        if (service == null || !service.isForegroundActive()) {
+            try {
+                ContextCompat.startForegroundService(getContext(), intent);
+            } catch (Exception e) {
+                Log.w(TAG, "Não foi possível iniciar o serviço de áudio", e);
+            }
+        }
         if (service != null) {
             action.run();
             return;
         }
         pendingWhenReady.add(action);
-        Intent intent = new Intent(getContext(), NativePlayerService.class);
-        ContextCompat.startForegroundService(getContext(), intent);
         getContext().bindService(intent, serviceConnection, Context.BIND_AUTO_CREATE);
     }
 
@@ -163,31 +172,18 @@ public class NativePlayerPlugin extends Plugin {
         call.resolve();
     }
 
+    // Estado (tocando/pausado) e posição agora vêm SÓ do ExoPlayer, dentro do
+    // serviço — é ele quem sabe a verdade. Antes o JS também empurrava isso
+    // por cima, e um aviso atrasado do JS podia desfazer o certo (notificação
+    // mostrando "pausar" com a música parada, barra de progresso voltando).
+    // Os métodos continuam existindo só pra versões antigas do JS não quebrarem.
     @PluginMethod
     public void setPlaybackState(PluginCall call) {
-        String playbackState = call.getString("playbackState", "none");
-        if (service != null) {
-            int state;
-            if ("playing".equals(playbackState)) state = PlaybackStateCompat.STATE_PLAYING;
-            else if ("paused".equals(playbackState)) state = PlaybackStateCompat.STATE_PAUSED;
-            else state = PlaybackStateCompat.STATE_NONE;
-            service.setPlaybackState(state);
-            service.update();
-        }
         call.resolve();
     }
 
     @PluginMethod
     public void setPositionState(PluginCall call) {
-        double duration = call.getDouble("duration", 0.0);
-        double position = call.getDouble("position", 0.0);
-        Double playbackRate = call.getDouble("playbackRate");
-        if (service != null) {
-            service.setDuration(Math.round(duration * 1000));
-            service.setPosition(Math.round(position * 1000));
-            service.setPlaybackSpeed(playbackRate == null || playbackRate == 0.0 ? 1.0F : playbackRate.floatValue());
-            service.update();
-        }
         call.resolve();
     }
 
@@ -260,8 +256,9 @@ public class NativePlayerPlugin extends Plugin {
         }
 
         final String repeatMode = call.getString("repeatMode", "none");
+        final int startIndex = call.getInt("startIndex", 0);
 
-        ensureServiceThen(() -> service.loadQueueAndPlay(queueItems, resumeMs, repeatMode));
+        ensureServiceThen(() -> service.loadQueueAndPlay(queueItems, startIndex, resumeMs, repeatMode));
         call.resolve();
     }
 
@@ -272,6 +269,24 @@ public class NativePlayerPlugin extends Plugin {
         boolean enabled = call.getBoolean("enabled", true);
         VolumeNormalizer.saveEnabled(getContext(), enabled);
         if (service != null) service.onNormalizationSettingChanged();
+        call.resolve();
+    }
+
+    // Credenciais do Drive pro serviço renovar o token sozinho (ver DriveAuth).
+    // clear=true no logout: esquece as credenciais e a fila salva.
+    @PluginMethod
+    public void setAuth(PluginCall call) {
+        if (Boolean.TRUE.equals(call.getBoolean("clear", false))) {
+            DriveAuth.clear(getContext());
+            PlaybackStore.clear(getContext());
+        } else {
+            Double expiresAt = call.getDouble("expiresAt");
+            DriveAuth.save(getContext(),
+                    call.getString("refreshToken"),
+                    call.getString("apiBase"),
+                    call.getString("accessToken"),
+                    expiresAt == null ? 0L : expiresAt.longValue());
+        }
         call.resolve();
     }
 
@@ -303,18 +318,44 @@ public class NativePlayerPlugin extends Plugin {
 
     @PluginMethod
     public void nativeGetState(PluginCall call) {
+        // light=true: só tocando/posição/faixa (o JS consulta isso a cada segundo
+        // pra mover a barra de progresso — não precisa da fila toda).
+        final boolean light = Boolean.TRUE.equals(call.getBoolean("light", false));
         JSObject ret = new JSObject();
-        if (service != null) {
+        List<String> queueIds = new ArrayList<>();
+        int queueIndex = 0;
+        if (service != null && service.getCurrentMediaId() != null) {
             ret.put("playing", service.isPlayingNow());
             ret.put("positionSeconds", service.getPositionMs() / 1000.0);
             ret.put("durationSeconds", service.getDurationMs() / 1000.0);
             ret.put("trackId", service.getCurrentMediaId());
+            if (!light) {
+                queueIds = service.getQueueIds();
+                queueIndex = service.getCurrentIndex();
+            }
         } else {
-            ret.put("playing", false);
-            ret.put("positionSeconds", 0);
-            ret.put("durationSeconds", 0);
-            ret.put("trackId", null);
+            // Serviço ainda não está rodando (app recém-aberto depois de fechado
+            // ou de o sistema matar tudo): responde com o que ficou salvo no
+            // aparelho — assim a tela mostra a música e a posição certas.
+            PlaybackStore.Snapshot snap = PlaybackStore.read(getContext());
+            if (snap != null) {
+                ret.put("playing", false);
+                ret.put("positionSeconds", snap.positionMs / 1000.0);
+                ret.put("durationSeconds", 0);
+                ret.put("trackId", snap.currentId());
+                if (!light) {
+                    for (NativePlayerService.QueueItem it : snap.items) queueIds.add(it.id == null ? "" : it.id);
+                    queueIndex = snap.index;
+                }
+            } else {
+                ret.put("playing", false);
+                ret.put("positionSeconds", 0);
+                ret.put("durationSeconds", 0);
+                ret.put("trackId", null);
+            }
         }
+        ret.put("queue", new org.json.JSONArray(queueIds));
+        ret.put("index", queueIndex);
         call.resolve(ret);
     }
 
