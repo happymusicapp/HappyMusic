@@ -1,0 +1,3128 @@
+/* ═══════════════════════════════════════════════
+   HAPPY MUSIC – ui.js
+   Renderização de DOM, player UI, navegação de views
+═══════════════════════════════════════════════ */
+
+const UI = (() => {
+
+  // ── ELEMENTOS ─────────────────────────────────
+  const $ = id => document.getElementById(id);
+
+  const el = {
+    // Screens
+    screenLogin:    $('screen-login'),
+    screenApp:      $('screen-app'),
+
+    // Header
+    btnPlayerExpand: $('btn-player-expand'),
+    btnPlayerCollapse: $('btn-player-collapse'),
+    btnPlayerQueue:    $('btn-player-queue'),
+    btnPlayerMore:     $('btn-player-more'),
+    modalQueue:        $('modal-queue'),
+    btnQueueClose:     $('btn-queue-close'),
+    queueList:         $('queue-list'),
+    queueSub:          $('queue-sub'),
+    libSearch:         $('lib-search'),
+    libSearchClear:    $('lib-search-clear'),
+    btnTracksPlayAll:  $('btn-tracks-play-all'),
+    btnTracksPlayAllCount: $('btn-tracks-play-all-count'),
+    btnTracksShuffle:  $('btn-tracks-shuffle'),
+    btnLocateTrack:    $('btn-locate-track'),
+    azRail:            $('az-rail'),
+    btnUser:        $('btn-user'),
+    userAvatar:     $('user-avatar'),
+    searchBar:      $('search-bar'),
+    searchInput:    $('search-input'),
+
+    // Views
+    viewHome:       $('view-home'),
+    viewSearch:     $('view-search'),
+    viewProfile:    $('view-profile'),
+    mainContent:    $('main-content'),
+
+    // Listas
+    recentShelf:    $('recent-shelf'),
+    recentList:     $('recent-list'),
+    recentCollectionsShelf: $('recent-collections-shelf'),
+    recentCollectionsList:  $('recent-collections-list'),
+    allTracksList:  $('all-tracks-list'),
+    searchResults:  $('search-results'),
+
+    // Player
+    player:         $('player'),
+    playerArt:      $('player-art'),
+    playerTitle:    $('player-title'),
+    playerArtist:   $('player-artist'),
+    btnFav:         $('btn-fav'),
+    btnDownloadCurrent: $('btn-download-current'),
+    btnAddToLibrary:    $('btn-add-to-library'),
+    seekBar:        $('seek-bar'),
+    seekBarWrap:    $('seek-bar-wrap'),
+    seekBarFillClip: $('seek-bar-fill-clip'),
+    seekBarGlowDot: $('seek-bar-glow-dot'),
+    timeCurrent:    $('time-current'),
+    timeTotal:      $('time-total'),
+    btnPlayPause:   $('btn-play-pause'),
+    iconPlay:       $('icon-play'),
+    iconPause:      $('icon-pause'),
+    btnPrev:        $('btn-prev'),
+    btnNext:        $('btn-next'),
+    btnShuffle:     $('btn-shuffle'),
+    btnRepeat:      $('btn-repeat'),
+
+    // Perfil
+    profileAvatar:  $('profile-avatar'),
+    profileName:    $('profile-name'),
+    profileEmail:   $('profile-email'),
+    btnLogout:      $('btn-logout'),
+    btnRefresh:     $('btn-refresh'),
+    btnOpenDrive:   $('btn-open-drive'),
+    btnChooseFolder:$('btn-choose-folder'),
+    folderCurrentLabel: $('folder-current-label'),
+    btnProfileBack: $('btn-profile-back'),
+    statTracks:     $('stat-tracks'),
+    statDownloaded: $('stat-downloaded'),
+    statSize:       $('stat-size'),
+
+    // Offline / downloads
+    offlineBanner:        $('offline-banner'),
+    offlineCard:          $('offline-card'),
+    offlineStatus:        $('offline-status'),
+    offlineMeterFill:     $('offline-meter-fill'),
+    offlineProgressWrap:  $('offline-progress-wrap'),
+    offlineProgressFill:  $('offline-progress-fill'),
+    offlineProgressText:  $('offline-progress-text'),
+    btnDownloadAll:       $('btn-download-all'),
+    btnDownloadFavorites: $('btn-download-favorites'),
+    btnClearDownloads:    $('btn-clear-downloads'),
+    btnDownloadCustom:      $('btn-download-custom'),
+    chkAutoDownload:      $('chk-auto-download'),
+    chkNormalizeVolume:   $('chk-normalize-volume'),
+    rowNormalizeVolume:   $('row-normalize-volume'),
+
+    // Onboarding
+    modalOnboarding:    $('modal-onboarding'),
+    btnOnboardingDrive: $('btn-onboarding-drive'),
+    btnOnboardingClose: $('btn-onboarding-close'),
+
+    // Seletor de pasta
+    modalFolder:    $('modal-folder'),
+    folderList:     $('folder-list'),
+    folderSearchWrap: $('folder-search-wrap'),
+    folderSearch:     $('folder-search'),
+    btnFolderClose: $('btn-folder-close'),
+
+    // Nav
+    navBtns:        document.querySelectorAll('.nav-btn'),
+
+    // Toast
+    toast:          $('toast'),
+
+    // Login
+    btnLogin:       $('btn-login'),
+
+    // Filtros
+    filterBar:      $('filter-bar'),
+    filterChipGenre:  $('filter-chip-genre'),
+    filterChipArtist: $('filter-chip-artist'),
+    filterChipAlbum:  $('filter-chip-album'),
+    btnFilterClear: $('btn-filter-clear'),
+    filterSummary:  $('filter-summary'),
+    btnFilterMenu:      $('btn-filter-menu'),
+    filterMenuDot:      $('filter-menu-dot'),
+    modalFilterMenu:    $('modal-filter-menu'),
+    btnFilterMenuClose: $('btn-filter-menu-close'),
+    btnSortMenu:        $('btn-sort-menu'),
+    modalSortMenu:      $('modal-sort-menu'),
+    btnSortMenuClose:   $('btn-sort-menu-close'),
+    sortMenuList:       $('sort-menu-list'),
+    sortSummary:        $('sort-summary'),
+    modalCollectionPreview:      $('modal-collection-preview'),
+    btnCollectionPreviewClose:   $('btn-collection-preview-close'),
+    collectionPreviewTitle:      $('collection-preview-title'),
+    collectionPreviewList:       $('collection-preview-list'),
+    modalConfirm:      $('modal-confirm'),
+    confirmTitle:      $('confirm-title'),
+    confirmMessage:    $('confirm-message'),
+    btnConfirmCancel:  $('btn-confirm-cancel'),
+    btnConfirmOk:      $('btn-confirm-ok'),
+    modalFilterPicker:   $('modal-filter-picker'),
+    btnFilterPickerClose: $('btn-filter-picker-close'),
+    filterPickerTitle:  $('filter-picker-title'),
+    filterPickerHint:   $('filter-picker-hint'),
+    filterPickerSearch: $('filter-picker-search'),
+    filterPickerList:   $('filter-picker-list'),
+
+    // Baixar por categoria (playlist/artista/álbum/gênero)
+    modalDownloadPicker:      $('modal-download-picker'),
+    btnDownloadPickerClose:   $('btn-download-picker-close'),
+    downloadPickerSummary:    $('download-picker-summary'),
+    downloadPickerTitle:      $('download-picker-title'),
+    downloadPickerHint:       $('download-picker-hint'),
+    downloadPickerCategories: $('download-picker-categories'),
+    downloadPickerValuesWrap: $('download-picker-values-wrap'),
+    downloadPickerSearch:     $('download-picker-search'),
+    downloadPickerValues:     $('download-picker-values'),
+    btnDownloadPickerConfirm: $('btn-download-picker-confirm'),
+
+    // Seleção múltipla / atribuição de gênero em lote
+    btnSelectMode:          $('btn-select-mode'),
+    selectionBar:           $('selection-bar'),
+    selectionCount:         $('selection-count'),
+    btnSelectionFavorite:   $('btn-selection-favorite'),
+    btnSelectionAddPlaylist:$('btn-selection-add-playlist'),
+    btnSelectionAssignGenre:$('btn-selection-assign-genre'),
+    btnSelectionCancel:     $('btn-selection-cancel'),
+    modalBulkGenre:         $('modal-bulk-genre'),
+    bulkGenreCount:         $('bulk-genre-count'),
+    bulkGenreField:         $('bulk-genre-field'),
+    bulkGenreFieldList:     $('bulk-genre-field-list'),
+    bulkGenreProgress:      $('bulk-genre-progress'),
+    bulkGenreProgressFill:  $('bulk-genre-progress-fill'),
+    btnBulkGenreSave:       $('btn-bulk-genre-save'),
+    btnBulkGenreCancel:     $('btn-bulk-genre-cancel'),
+
+    // Upload
+    btnUploadOpen:    $('btn-upload-open'),
+    inputUploadFiles: $('input-upload-files'),
+    modalUpload:      $('modal-upload'),
+    uploadList:       $('upload-list'),
+    btnUploadAddMore: $('btn-upload-add-more'),
+    btnUploadSendAll: $('btn-upload-send-all'),
+    btnUploadClose:   $('btn-upload-close'),
+    uploadSummary:    $('upload-summary'),
+    uploadBulk:            $('upload-bulk'),
+    btnUploadBulkToggle:   $('btn-upload-bulk-toggle'),
+    btnUploadBulkApply:    $('btn-upload-bulk-apply'),
+    uploadBulkArtist:      $('upload-bulk-artist'),
+    uploadBulkAlbum:       $('upload-bulk-album'),
+    uploadBulkGenre:       $('upload-bulk-genre'),
+    uploadBulkGenreList:   $('upload-bulk-genre-list'),
+
+    // Editar faixa
+    modalTrackEdit:  $('modal-track-edit'),
+    editCoverPreview:     $('edit-cover-preview-img'),
+    editCoverPlaceholder: $('edit-cover-placeholder'),
+    editCoverInput:       $('edit-cover-input'),
+    btnEditCoverPick:     $('btn-edit-cover-pick'),
+    btnEditCoverChoose:   $('btn-edit-cover-choose'),
+    btnEditCoverRemove:   $('btn-edit-cover-remove'),
+    editFieldTitle:  $('edit-field-title'),
+    editFieldArtist: $('edit-field-artist'),
+    editFieldAlbum:  $('edit-field-album'),
+    editFieldGenre:  $('edit-field-genre'),
+    editFieldGenreList: $('edit-field-genre-list'),
+    btnEditSave:     $('btn-edit-save'),
+    btnEditCancel:   $('btn-edit-cancel'),
+
+    // Playlists
+    viewLibrary:          $('view-library'),
+    libraryTabs:          document.querySelectorAll('.library-tab'),
+    libraryPanelTracks:   $('library-panel-tracks'),
+    libraryPanelPlaylists: $('library-panel-playlists'),
+    playlistsListWrap:    $('playlists-list-wrap'),
+    playlistsList:        $('playlists-list'),
+    btnNewPlaylist:       $('btn-new-playlist'),
+    playlistDetail:       $('playlist-detail'),
+    playlistDetailTitle:  $('playlist-detail-title'),
+    btnPlaylistBack:      $('btn-playlist-back'),
+    btnPlaylistDelete:    $('btn-playlist-delete'),
+    btnPlaylistPlay:      $('btn-playlist-play'),
+    btnPlaylistPlayCount: $('btn-playlist-play-count'),
+    btnPlaylistAddTracks: $('btn-playlist-add-tracks'),
+    playlistTracksList:   $('playlist-tracks-list'),
+
+    modalNewPlaylist:     $('modal-new-playlist'),
+    newPlaylistName:      $('new-playlist-name'),
+    btnNewPlaylistCreate: $('btn-new-playlist-create'),
+    btnNewPlaylistCancel: $('btn-new-playlist-cancel'),
+
+    modalAddToPlaylist:      $('modal-add-to-playlist'),
+    addToPlaylistSubtitle:   $('add-to-playlist-subtitle'),
+    addToPlaylistList:       $('add-to-playlist-list'),
+    addToPlaylistNewName:    $('add-to-playlist-new-name'),
+    btnAddToPlaylistCreate:  $('btn-add-to-playlist-create'),
+    btnAddToPlaylistClose:   $('btn-add-to-playlist-close'),
+
+    modalAddTracksToPlaylist:  $('modal-add-tracks-to-playlist'),
+    addTracksPickerSearch:     $('add-tracks-picker-search'),
+    addTracksPickerList:       $('add-tracks-picker-list'),
+    addPickerChipGenre:        $('add-picker-chip-genre'),
+    addPickerChipArtist:       $('add-picker-chip-artist'),
+    addTracksPickerSummary:    $('add-tracks-picker-summary'),
+    btnAddTracksClearFilters:  $('btn-add-tracks-clear-filters'),
+    btnAddTracksSelectAll:     $('btn-add-tracks-select-all'),
+    btnAddTracksPickerConfirm: $('btn-add-tracks-picker-confirm'),
+    btnAddTracksPickerClose:   $('btn-add-tracks-picker-close'),
+
+    // Vídeos
+    movieGrid:            $('movie-grid'),
+    btnMovieRefresh:      $('btn-movie-refresh'),
+    btnMovieUploadOpen:   $('btn-movie-upload-open'),
+    btnMovieFilterMenu:   $('btn-movie-filter-menu'),
+    movieFilterMenuDot:   $('movie-filter-menu-dot'),
+    movieFilterSummary:   $('movie-filter-summary'),
+
+    filterChipMovieCollection: $('filter-chip-movie-collection'),
+    btnMovieNewPlaylist:     $('btn-movie-new-playlist'),
+    btnMovieCollectionDelete: $('btn-movie-collection-delete'),
+
+    modalNewMoviePlaylist:      $('modal-new-movie-playlist'),
+    newMoviePlaylistName:       $('new-movie-playlist-name'),
+    btnNewMoviePlaylistCreate:  $('btn-new-movie-playlist-create'),
+    btnNewMoviePlaylistCancel:  $('btn-new-movie-playlist-cancel'),
+
+    modalAddVideoToPlaylist:     $('modal-add-video-to-playlist'),
+    addVideoToPlaylistSubtitle:  $('add-video-to-playlist-subtitle'),
+    addVideoToPlaylistList:      $('add-video-to-playlist-list'),
+    addVideoToPlaylistNewName:   $('add-video-to-playlist-new-name'),
+    btnAddVideoToPlaylistCreate: $('btn-add-video-to-playlist-create'),
+    btnAddVideoToPlaylistClose:  $('btn-add-video-to-playlist-close'),
+
+    modalUploadMovie:       $('modal-upload-movie'),
+    movieSearchInput:       $('movie-search-input'),
+    btnMovieSearch:         $('btn-movie-search'),
+    movieSearchResults:     $('movie-search-results'),
+    movieSearchPreview:     $('movie-search-preview'),
+    moviePreviewFrame:      $('movie-preview-frame'),
+    moviePreviewTitle:      $('movie-preview-title'),
+    btnMoviePreviewBack:    $('btn-movie-preview-back'),
+    btnMoviePreviewUse:     $('btn-movie-preview-use'),
+    movieAddUrl:            $('movie-add-url'),
+    movieAddGenre:          $('movie-add-genre'),
+    movieAddGenreList:      $('movie-add-genre-list'),
+    btnMovieAddSave:        $('btn-movie-add-save'),
+    btnUploadMovieClose:    $('btn-upload-movie-close'),
+
+    modalMovieEdit:         $('modal-movie-edit'),
+    editMovieTitle:         $('edit-movie-title'),
+    editMovieGenre:         $('edit-movie-genre'),
+    editMovieGenreList:     $('edit-movie-genre-list'),
+    btnMovieEditSave:       $('btn-movie-edit-save'),
+    btnMovieEditCancel:     $('btn-movie-edit-cancel'),
+    btnMovieEditDelete:     $('btn-movie-edit-delete'),
+
+    moviePlayerOverlay:  $('movie-player-overlay'),
+    movieVideoTarget:    $('movie-video-target'),
+    moviePlayerTitle:    $('movie-player-title'),
+    btnMovieClose:       $('btn-movie-close'),
+    btnMovieFavorite:    $('btn-movie-favorite'),
+    btnMovieShuffle:     $('btn-movie-shuffle'),
+    btnMoviePrev:        $('btn-movie-prev'),
+    btnMoviePlayPause:   $('btn-movie-play-pause'),
+    btnMovieNext:        $('btn-movie-next'),
+    btnMovieRepeat:      $('btn-movie-repeat'),
+    movieIconPlay:       $('movie-icon-play'),
+    movieIconPause:      $('movie-icon-pause'),
+    movieSeekBar:        $('movie-seek-bar'),
+    movieSeekBarFillClip: $('movie-seek-bar-fill-clip'),
+    movieTimeCurrent:    $('movie-time-current'),
+    movieTimeTotal:      $('movie-time-total'),
+  };
+
+  // ── TOAST ──────────────────────────────────────
+  let _toastTimer = null;
+
+  // Nome da música encurtado pra caber num aviso curto.
+  function _shortTitle(title, max = 32) {
+    const t = String(title || '').trim();
+    return t.length > max ? t.slice(0, max - 1).trimEnd() + '…' : t;
+  }
+
+  // Balança a linha da faixa que foi recusada — liga o aviso (toast) à
+  // música em que o usuário tocou.
+  function _shakeTrackRows(trackId) {
+    document.querySelectorAll(`.track-item[data-id="${trackId}"]`).forEach(row => {
+      row.classList.remove('shake');
+      void row.offsetWidth; // reinicia a animação se tocar de novo na mesma linha
+      row.classList.add('shake');
+      setTimeout(() => row.classList.remove('shake'), 600);
+    });
+  }
+
+  // Estado de conexão: mostra a faixa "Sem internet" fixa no topo e liga a
+  // classe que esmaece as músicas não baixadas (ver style.css). Chamado por
+  // app.js no início e a cada evento online/offline do navegador.
+  function setOnlineState(online) {
+    document.body.classList.toggle('is-offline', !online);
+    el.offlineBanner?.classList.toggle('hidden', !!online);
+  }
+
+  function showToast(msg, duration = 2800) {
+    el.toast.textContent = msg;
+    el.toast.classList.add('show');
+    clearTimeout(_toastTimer);
+    _toastTimer = setTimeout(() => el.toast.classList.remove('show'), duration);
+  }
+
+  // ── SCREENS ────────────────────────────────────
+  function showLogin() {
+    el.screenLogin.classList.add('active');
+    el.screenApp.classList.remove('active');
+  }
+
+  function showApp() {
+    el.screenLogin.classList.remove('active');
+    el.screenApp.classList.add('active');
+  }
+
+  // ── NAVEGAÇÃO DE VIEWS ─────────────────────────
+  let _currentView = 'home';
+
+  function showView(name) {
+    document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+    const target = document.getElementById(`view-${name}`);
+    if (target) target.classList.add('active');
+
+    el.navBtns.forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.view === name);
+    });
+
+    _currentView = name;
+    el.btnUser?.classList.toggle('active', name === 'profile');
+
+    // Scroll pro topo ao trocar de view
+    el.mainContent.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  function getCurrentView() { return _currentView; }
+
+  // ── SUB-ABAS DA BIBLIOTECA (Músicas / Playlists) ───────
+  function showLibraryTab(name) {
+    el.libraryTabs.forEach(btn => btn.classList.toggle('active', btn.dataset.libTab === name));
+    el.libraryPanelTracks.classList.toggle('active', name === 'tracks');
+    el.libraryPanelPlaylists.classList.toggle('active', name === 'playlists');
+  }
+
+  // ── BUSCA (aba fixa — sem overlay pra abrir/fechar) ────
+  function focusSearch() {
+    showView('search');
+    el.searchInput.focus();
+  }
+
+  function clearSearchResults() {
+    el.searchResults.innerHTML = '';
+  }
+
+  // ── PERFIL ─────────────────────────────────────
+  // Ícone de fallback (pessoa, no roxo do app) usado quando o usuário
+  // não tem foto ainda ou quando a URL do Google falha ao carregar
+  // dentro do WebView (comum por causa de política de referrer) — sem
+  // isso, o <img> ficava com ícone de "imagem quebrada".
+  const _AVATAR_FALLBACK = 'data:image/svg+xml;utf8,' + encodeURIComponent(`
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40">
+      <circle cx="20" cy="20" r="20" fill="#2a1d4d"/>
+      <circle cx="20" cy="16" r="7" fill="#A06CFF"/>
+      <path d="M6 36c1.5-8.5 8.5-13 14-13s12.5 4.5 14 13" fill="#A06CFF"/>
+    </svg>`);
+
+  function _setAvatar(imgEl, pictureUrl) {
+    if (!imgEl) return;
+    imgEl.referrerPolicy = 'no-referrer';
+    imgEl.onerror = () => {
+      imgEl.onerror = null; // evita loop se o fallback também falhar
+      imgEl.src = _AVATAR_FALLBACK;
+    };
+    imgEl.src = pictureUrl || _AVATAR_FALLBACK;
+  }
+
+  function renderProfile(user) {
+    if (!user) return;
+    _setAvatar(el.userAvatar, user.picture);
+    _setAvatar(el.profileAvatar, user.picture);
+    el.profileName.textContent  = user.name  || 'Usuário';
+    el.profileEmail.textContent = user.email || '';
+  }
+
+  // ── SAUDAÇÃO DINÂMICA ──────────────────────────
+  // Sem nome da pessoa — segue o padrão Spotify/YouTube Music (só o
+  // horário). Evita casos estranhos como mostrar o nome errado da conta.
+  function setGreeting() {
+    const hour = new Date().getHours();
+    let greeting = 'Olá';
+    if (hour >= 5  && hour < 12) greeting = 'Bom dia';
+    else if (hour >= 12 && hour < 18) greeting = 'Boa tarde';
+    else greeting = 'Boa noite';
+
+    const sectionTitle = el.viewHome.querySelector('.section-title');
+    if (sectionTitle) {
+      sectionTitle.textContent = `${greeting}`;
+    }
+  }
+
+  // ── ÍCONE DE MÚSICA (fallback sem capa) ───────
+  function _musicIcon(size = 24) {
+    return `<svg width="${size}" height="${size}" fill="currentColor" viewBox="0 0 24 24">
+      <path d="M12 3v10.55A4 4 0 1 0 14 17V7h4V3h-6z"/>
+    </svg>`;
+  }
+
+  // ── DOWNLOAD OFFLINE: ícone + estado do botão ─
+  function _dlState(trackId) {
+    if (!trackId) return 'idle';
+    if (Downloads.isDownloading(trackId)) return 'downloading';
+    if (Downloads.isDownloaded(trackId))  return 'downloaded';
+    return 'idle';
+  }
+
+  function _dlIcon(state) {
+    if (state === 'downloading') return `<span class="dl-spinner"></span>`;
+    if (state === 'downloaded') {
+      return `<svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+        <polyline points="5 13 9 17 19 7"/>
+      </svg>`;
+    }
+    return `<svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+      <path d="M12 3v12m0 0l-4-4m4 4l4-4"/>
+      <path d="M20 17.58A5 5 0 0 0 18 8h-1.26A8 8 0 1 0 4 16.25"/>
+    </svg>`;
+  }
+
+  function _dlLabel(state) {
+    return {
+      downloading: 'Baixando…',
+      downloaded:  'Baixado — toque para remover do offline',
+      idle:        'Baixar para ouvir offline',
+    }[state];
+  }
+
+  function _renderDlButton(trackId) {
+    const state = _dlState(trackId);
+    return `<button class="dl-btn ${state !== 'idle' ? state : ''}" data-dl="${trackId}"
+                aria-label="${_dlLabel(state)}" title="${_dlLabel(state)}">
+              ${_dlIcon(state)}
+            </button>`;
+  }
+
+  function _setDlBtnState(btn, state) {
+    if (!btn) return;
+    btn.classList.remove('downloaded', 'downloading');
+    if (state !== 'idle') btn.classList.add(state);
+    btn.innerHTML = _dlIcon(state);
+    btn.setAttribute('aria-label', _dlLabel(state));
+    btn.title = _dlLabel(state);
+  }
+
+  // Aplica uma mudança de estado de download a todos os botões dessa
+  // faixa na tela (lista, busca, recentes, player). id === null
+  // re-sincroniza TODOS os botões presentes (usado após GET_CACHED_TRACKS
+  // ou limpeza geral).
+  function _applyDownloadState(id, state) {
+    if (id === null) {
+      document.querySelectorAll('[data-dl]').forEach(btn => {
+        const tid = btn.dataset.dl;
+        if (tid) _setDlBtnState(btn, _dlState(tid));
+      });
+      // Todas as linhas (inclui "Tocadas recentemente", que não tem botão de download)
+      document.querySelectorAll('.track-item[data-id]').forEach(row => {
+        row.classList.toggle('is-downloaded', Downloads.isDownloaded(row.dataset.id));
+      });
+      return;
+    }
+    if (state === 'error') {
+      showToast('Não deu pra baixar essa música. Tente de novo.');
+      document.querySelectorAll(`[data-dl="${id}"]`).forEach(btn => _setDlBtnState(btn, 'idle'));
+      return;
+    }
+    document.querySelectorAll(`[data-dl="${id}"]`).forEach(btn => _setDlBtnState(btn, state));
+    document.querySelectorAll(`.track-item[data-id="${id}"]`).forEach(row => {
+      row.classList.toggle('is-downloaded', state === 'downloaded');
+    });
+  }
+
+  // Força reavaliação de todos os botões de download visíveis
+  // (chamar depois de Downloads.refreshCachedIds())
+  function refreshDownloadBadges() {
+    _applyDownloadState(null, 'sync');
+  }
+
+  function _handleDownloadClick(id, tracks) {
+    if (!id) return;
+    const track = (tracks || []).find(t => t.id === id) || Drive.getCachedTracks().find(t => t.id === id);
+    if (!track) return;
+
+    if (Downloads.isDownloaded(id)) {
+      Downloads.removeTrack(id);
+      showToast('Removida do offline');
+    } else if (!Downloads.isDownloading(id)) {
+      Downloads.downloadTrack(track);
+    }
+  }
+
+  // ── CAPA EMBUTIDA (ID3/MP4): fila com concorrência limitada ──
+  const _coverQueue = [];
+  let _coverActive = 0;
+  const COVER_CONCURRENCY = 3;
+
+  function _queueCoverFetch(track, priority = false) {
+    if (!track || track.thumbnail || track._coverTried) return;
+    track._coverTried = true;
+    if (priority) _coverQueue.unshift(track);
+    else _coverQueue.push(track);
+    _drainCoverQueue();
+  }
+
+  function _drainCoverQueue() {
+    while (_coverActive < COVER_CONCURRENCY && _coverQueue.length) {
+      const track = _coverQueue.shift();
+      _coverActive++;
+      Drive.fetchEmbeddedCover(track.id, track.coverId)
+        .then(dataUrl => {
+          if (dataUrl) {
+            track.thumbnail = dataUrl;
+            _applyCoverToDom(track.id, dataUrl);
+          }
+        })
+        .catch(() => {})
+        .finally(() => {
+          _coverActive--;
+          _drainCoverQueue();
+        });
+    }
+  }
+
+  // Só busca a capa de músicas que o usuário realmente está vendo (ou
+  // prestes a ver, com uma margem de rolagem), em vez de disparar a
+  // lista inteira de uma vez — numa biblioteca de centenas de músicas
+  // isso fazia a busca de capas competir por rede/CPU muito além do que
+  // dá pra perceber na tela, deixando tudo mais lento pra aparecer.
+  // Reaproveita um único observer por lista/container, guardando as
+  // faixas conhecidas num Map que vai sendo completado a cada lote.
+  //
+  // IMPORTANTE: na lista incremental (renderTrackListIncremental), cada
+  // lote novo chama isso de novo pro MESMO container. Recriar o observer
+  // do zero a cada lote (como era antes) descartava a observação das
+  // faixas de lotes anteriores que ainda não tinham entrado na tela —
+  // elas ficavam "perdidas" e só ganhavam capa se o usuário tocasse a
+  // música manualmente. Por isso o observer e o Map de faixas agora só
+  // são recriados quando `reset` é true (redesenho completo da lista);
+  // num append incremental (`reset = false`), só adiciona ao que já existe.
+  const _coverObservers = new WeakMap(); // container -> { observer, byId }
+
+  function _observeCovers(container, tracks, reset = true) {
+    if (!('IntersectionObserver' in window)) {
+      // Sem suporte (não deveria acontecer no WebView do app) — volta
+      // ao comportamento antigo, buscando tudo de uma vez.
+      tracks.forEach(track => _queueCoverFetch(track));
+      return;
+    }
+
+    let state = _coverObservers.get(container);
+
+    if (reset && state) {
+      state.observer.disconnect();
+      state = null;
+    }
+
+    if (!state) {
+      const byId = new Map();
+      const observer = new IntersectionObserver(entries => {
+        entries.forEach(entry => {
+          if (!entry.isIntersecting) return;
+          const track = byId.get(entry.target.dataset.id);
+          if (track) _queueCoverFetch(track, true);
+          observer.unobserve(entry.target);
+        });
+      }, { root: null, rootMargin: '600px 0px', threshold: 0.01 });
+      state = { observer, byId };
+      _coverObservers.set(container, state);
+    }
+
+    tracks.forEach(t => state.byId.set(String(t.id), t));
+
+    // Observa só os elementos das faixas passadas agora — os de lotes
+    // anteriores (append incremental) continuam observados desde a
+    // chamada em que entraram, sem precisar reobservar tudo de novo.
+    tracks.forEach(t => {
+      const node = container.querySelector(`[data-id="${t.id}"]`);
+      if (node) state.observer.observe(node);
+    });
+  }
+
+  function _applyCoverToDom(trackId, dataUrl) {
+    document.querySelectorAll(`[data-id="${trackId}"]`).forEach(item => {
+      const art = item.querySelector('.track-art, .recent-art');
+      if (art) art.innerHTML = dataUrl ? `<img src="${dataUrl}" alt="" loading="lazy" />` : _musicIcon(20);
+    });
+    const current = Player.getCurrentTrack();
+    if (current && current.id === trackId) {
+      el.playerArt.innerHTML = dataUrl ? `<img src="${dataUrl}" alt="" />` : _musicIcon(24);
+    }
+  }
+
+  // Wrapper público — usado depois de salvar/remover uma capa personalizada
+  // no modal de editar informações, pra refletir na hora sem esperar re-render.
+  function refreshTrackArt(trackId, dataUrl) {
+    _applyCoverToDom(trackId, dataUrl || null);
+  }
+
+  // ── RECENT LIST (formato compacto, igual à lista) ─
+  function renderRecent(tracks) {
+    if (!tracks.length) {
+      el.recentShelf.classList.add('hidden');
+      el.recentList.innerHTML = '';
+      return;
+    }
+    el.recentShelf.classList.remove('hidden');
+
+    el.recentList.innerHTML = tracks.map(track => `
+      <div class="track-item recent-track-item ${_dlState(track.id) === 'downloaded' ? 'is-downloaded' : ''}" data-id="${track.id}" role="button" tabindex="0" aria-label="${_escape(track.title)} — ${_escape(track.artist)}">
+        <div class="track-art">
+          ${track.thumbnail
+            ? `<img src="${track.thumbnail}" alt="" loading="lazy" />`
+            : _musicIcon(20)}
+        </div>
+        <div class="track-info">
+          <span class="track-title">${_escape(track.title)}</span>
+          <span class="track-meta">${_escape(track.artist)}</span>
+        </div>
+      </div>
+    `).join('');
+
+    _observeCovers(el.recentList, tracks);
+  }
+
+  // ── COLEÇÕES RECENTES (playlists / favoritas abertas recentemente) ─
+  function renderRecentCollections(items) {
+    if (!items.length) {
+      el.recentCollectionsShelf.classList.add('hidden');
+      el.recentCollectionsList.innerHTML = '';
+      return;
+    }
+    el.recentCollectionsShelf.classList.remove('hidden');
+    el.recentCollectionsList.innerHTML = items.map(it => {
+      const fallback = it.isFavorites ? _favIcon(true, 24) : _playlistIcon();
+      const art = _collageArt(it.tracks, fallback);
+      return `
+      <div class="recent-collection-chip" data-id="${it.id}" role="button" tabindex="0" aria-label="${_escape(it.name)}">
+        <div class="recent-collection-chip-art ${it.isFavorites ? 'is-fav' : ''}">
+          ${art}
+        </div>
+        <span class="recent-collection-chip-name">${_escape(it.name)}</span>
+      </div>
+    `;
+    }).join('');
+  }
+
+  // ── TRACK LIST ─────────────────────────────────
+  function _trackItemHtml(track, i, currentId) {
+    return `
+      <div class="track-item ${track.id === currentId ? 'playing' : ''} ${_dlState(track.id) === 'downloaded' ? 'is-downloaded' : ''}"
+           data-id="${track.id}"
+           data-index="${i}"
+           role="button"
+           tabindex="0"
+           aria-label="${_escape(track.title)} — ${_escape(track.artist)}">
+        <input type="checkbox" class="track-select-cb" data-select="${track.id}" tabindex="-1" aria-hidden="true" />
+        <span class="track-num">
+          ${track.id === currentId
+            ? _equalizerIcon()
+            : String(i + 1)}
+        </span>
+        <div class="track-art">
+          ${track.thumbnail
+            ? `<img src="${track.thumbnail}" alt="" loading="lazy" />`
+            : _musicIcon(20)}
+        </div>
+        <div class="track-info">
+          <span class="track-title">${_escape(track.title)}</span>
+          <span class="track-meta">${_escape(track.artist)}${track.album ? ' · ' + _escape(track.album) : ''}${track.genre ? ' · ' + _escape(track.genre) : ''}</span>
+        </div>
+        ${track.duration ? `<span class="track-duration">${Player.formatTime(track.duration)}</span>` : ''}
+        ${_renderDlButton(track.id)}
+        <button class="track-menu-btn" data-menu="${track.id}" aria-label="Mais opções">${_menuIcon()}</button>
+      </div>
+    `;
+  }
+
+  function renderTrackList(container, tracks, currentId = null) {
+    if (!tracks.length) {
+      container.innerHTML = `<p class="empty-hint">Nenhuma música encontrada.</p>`;
+      return;
+    }
+
+    container.innerHTML = tracks.map((track, i) => _trackItemHtml(track, i, currentId)).join('');
+    _observeCovers(container, tracks);
+  }
+
+  // ── LISTA GRANDE (renderização incremental) ────
+  // Pra "Todas as músicas" com centenas de faixas, desenhar tudo de uma
+  // vez de cara (milhares de nós no DOM) deixa a abertura da Biblioteca
+  // e a rolagem visivelmente mais pesadas. Em vez disso, desenha só um
+  // primeiro lote e vai completando o resto conforme o usuário rola,
+  // bem antes de chegar no fim (com folga de ~1200px) pra nunca dar pra
+  // perceber o "carregando mais". A busca/seleção continuam funcionando
+  // normal porque usam a lista completa (_trackListData), só o desenho
+  // em tela é que é gradual.
+  const BATCH_SIZE = 60;
+  const _incrementalState = new WeakMap(); // container -> estado do lote atual
+
+  function renderTrackListIncremental(container, tracks, currentId = null, scrollParent = null) {
+    const prev = _incrementalState.get(container);
+    if (prev) prev.scrollParent.removeEventListener('scroll', prev.onScroll);
+    _incrementalState.delete(container);
+
+    if (!tracks.length) {
+      container.innerHTML = `<p class="empty-hint">Nenhuma música encontrada.</p>`;
+      return;
+    }
+
+    // Lista pequena — nem vale a pena ser incremental, evita complexidade à toa.
+    if (tracks.length <= BATCH_SIZE || !scrollParent) {
+      renderTrackList(container, tracks, currentId);
+      return;
+    }
+
+    // Se a lista está sendo redesenhada com o usuário já rolado pra baixo
+    // (ex.: favoritou algo no meio da lista), preserva a posição — sem
+    // isso, resetar pro primeiro lote faria o conteúdo sumir debaixo dele.
+    const preservedScrollTop = scrollParent.scrollTop;
+
+    container.innerHTML = '';
+    const state = { tracks, currentId, rendered: 0, scrollParent };
+
+    const appendNextBatch = (resetObserver = false) => {
+      const next = state.tracks.slice(state.rendered, state.rendered + BATCH_SIZE);
+      if (!next.length) return;
+      const html = next.map((track, i) => _trackItemHtml(track, state.rendered + i, state.currentId)).join('');
+      container.insertAdjacentHTML('beforeend', html);
+      state.rendered += next.length;
+      // reset só no 1º lote de um redesenho completo (container.innerHTML
+      // foi zerado acima) — nos lotes seguintes, mantém a observação dos
+      // anteriores em vez de descartá-la (ver comentário em _observeCovers).
+      _observeCovers(container, next, resetObserver);
+    };
+
+    const onScroll = () => {
+      if (state.rendered >= state.tracks.length) return;
+      const remaining = scrollParent.scrollHeight - scrollParent.scrollTop - scrollParent.clientHeight;
+      if (remaining < 1200) appendNextBatch();
+    };
+
+    state.appendNextBatch = appendNextBatch;
+    appendNextBatch(true); // primeiro lote, na hora — reseta o observer daqui
+
+    if (preservedScrollTop > 0) {
+      // Completa lotes extras de uma vez até cobrir onde o usuário estava.
+      let guard = 0; // segurança: nunca passa do total de lotes existentes
+      while (
+        state.rendered < state.tracks.length &&
+        container.offsetHeight < preservedScrollTop + scrollParent.clientHeight + 1200 &&
+        guard++ < Math.ceil(state.tracks.length / BATCH_SIZE)
+      ) {
+        appendNextBatch();
+      }
+      scrollParent.scrollTop = preservedScrollTop;
+    }
+
+    scrollParent.addEventListener('scroll', onScroll, { passive: true });
+    state.onScroll = onScroll;
+    _incrementalState.set(container, state);
+  }
+
+  // Rola a lista até uma faixa, renderizando os lotes que faltam (a lista
+  // é incremental: itens lá embaixo ainda nem existem no DOM).
+  function revealTrack(container, trackId, { flash = true, block = 'center', behavior = 'smooth' } = {}) {
+    if (!container || !trackId) return false;
+    const find = () => [...container.querySelectorAll('.track-item')].find(n => n.dataset.id === trackId);
+    let node = find();
+    const st = _incrementalState.get(container);
+    if (!node && st && st.appendNextBatch) {
+      let guard = 0;
+      while (!node && st.rendered < st.tracks.length && guard++ < 400) {
+        st.appendNextBatch();
+        node = find();
+      }
+    }
+    if (!node) return false;
+    node.scrollIntoView({ block, behavior });
+    if (flash) {
+      node.classList.remove('locate-flash');
+      void node.offsetWidth;
+      node.classList.add('locate-flash');
+      setTimeout(() => node.classList.remove('locate-flash'), 1300);
+    }
+    return true;
+  }
+
+  function _menuIcon() {
+    return `<svg width="18" height="18" fill="currentColor" viewBox="0 0 24 24">
+      <circle cx="12" cy="5" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="12" cy="19" r="1.8"/>
+    </svg>`;
+  }
+
+  function _editIcon() {
+    return `<svg width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
+      <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/>
+    </svg>`;
+  }
+
+  function _addToPlaylistIcon() {
+    return `<svg width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
+      <path d="M3 6h13M3 12h9M3 18h9"/><path d="M18 14v6M15 17h6"/>
+    </svg>`;
+  }
+
+  function _removeFromPlaylistIcon() {
+    return `<svg width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
+      <path d="M3 6h13M3 12h9M3 18h9"/><path d="M15 17h6"/>
+    </svg>`;
+  }
+
+  function _favIcon(active, size = 17) {
+    return `<svg width="${size}" height="${size}" fill="${active ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24" ${active ? 'style="color:var(--purple-soft)"' : ''}>
+      <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
+    </svg>`;
+  }
+
+  function _trashIcon() {
+    return `<svg width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
+      <path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+      <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+      <path d="M10 11v6"/><path d="M14 11v6"/>
+    </svg>`;
+  }
+
+  function _checkIcon(size = 14) {
+    return `<svg width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
+      <polyline points="20 6 9 17 4 12"/>
+    </svg>`;
+  }
+
+  function _playIcon(size = 14) {
+    return `<svg width="${size}" height="${size}" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>`;
+  }
+
+  // ── MENU DE AÇÕES DA FAIXA (editar / add à playlist) ──
+  // Popover simples e independente, sem framework — app.js registra o
+  // que cada ação deve fazer via setTrackMenuHandlers.
+  let _trackMenuHandlers = { onEdit: null, onAddToPlaylist: null, onDelete: null, onRemoveFromPlaylist: null, onGoToArtist: null, onGoToAlbum: null };
+
+  function setTrackMenuHandlers(handlers) {
+    _trackMenuHandlers = { ..._trackMenuHandlers, ...handlers };
+  }
+
+  function _closeTrackMenu() {
+    document.querySelector('.track-menu-popover')?.remove();
+  }
+
+  function _outsideMenuHandler(e) {
+    if (!e.target.closest('.track-menu-popover') && !e.target.closest('[data-menu]')) _closeTrackMenu();
+  }
+
+  // opts.removable: true quando o menu está sendo aberto dentro de uma
+  // playlist de verdade (não Favoritas) — só aí faz sentido "Remover da
+  // playlist", já que Favoritas usa o próprio coração pra isso.
+  function _openTrackMenu(trackId, anchorEl, tracks, opts = {}) {
+    _closeTrackMenu();
+    const track = tracks.find(t => t.id === trackId);
+    if (!track) return;
+
+    const isFav = Player.isFavorite(track.id);
+
+    const pop = document.createElement('div');
+    pop.className = 'track-menu-popover';
+    const _svg = d => `<svg width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">${d}</svg>`;
+    const canNav = !track.isExternal;
+    pop.innerHTML = `
+      <button data-action="next">${_svg('<path d="M3 6h12M3 12h8M3 18h8"/><path d="m15 14 6 4-6 4z" fill="currentColor"/>')}<span>Tocar a seguir</span></button>
+      <button data-action="queue">${_svg('<path d="M3 6h13M3 12h13M3 18h8"/><path d="M18 15v6M15 18h6"/>')}<span>Adicionar à fila</span></button>
+      <div class="track-menu-popover-divider"></div>
+      <button data-action="favorite">${_favIcon(isFav)}<span>${isFav ? 'Remover dos favoritos' : 'Adicionar aos favoritos'}</span></button>
+      <button data-action="edit">${_editIcon()}<span>Editar informações</span></button>
+      <button data-action="playlist">${_addToPlaylistIcon()}<span>Adicionar à playlist</span></button>
+      ${opts.removable ? `<button data-action="remove-playlist">${_removeFromPlaylistIcon()}<span>Remover desta playlist</span></button>` : ''}
+      ${canNav && track.artist ? `<button data-action="artist">${_svg('<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>')}<span>Ir para o artista</span></button>` : ''}
+      ${canNav && track.album ? `<button data-action="album">${_svg('<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="2.5"/>')}<span>Ir para o álbum</span></button>` : ''}
+      <div class="track-menu-popover-divider"></div>
+      <button data-action="delete" class="danger">${_trashIcon()}<span>Excluir do Drive</span></button>
+    `;
+    document.body.appendChild(pop);
+
+    // Posiciona relativo ao botão que abriu o menu, sempre dentro dos
+    // limites da tela (vira pra cima/esquerda se não couber embaixo/
+    // direita). Feito em rAF pra garantir que o popover já tem layout
+    // final (largura real) antes de medir — evita cálculo com tamanho
+    // errado quando o menu abre de dentro de um modal recém-aberto.
+    function place() {
+      const rect = anchorEl.getBoundingClientRect();
+      const popRect = pop.getBoundingClientRect();
+      const margin = 8;
+
+      let top = rect.bottom + 4;
+      if (top + popRect.height > window.innerHeight - margin) {
+        top = rect.top - popRect.height - 4;
+      }
+      top = Math.max(margin, Math.min(top, window.innerHeight - popRect.height - margin));
+
+      let left = rect.right - popRect.width;
+      if (left < margin) left = margin;
+      if (left + popRect.width > window.innerWidth - margin) {
+        left = window.innerWidth - popRect.width - margin;
+      }
+
+      pop.style.top  = `${top}px`;
+      pop.style.left = `${left}px`;
+    }
+
+    place();
+    requestAnimationFrame(place);
+
+    pop.addEventListener('click', e => {
+      const btn = e.target.closest('button');
+      if (!btn) return;
+      const action = btn.dataset.action;
+      _closeTrackMenu();
+      if (action === 'edit') _trackMenuHandlers.onEdit?.(track);
+      if (action === 'playlist') _trackMenuHandlers.onAddToPlaylist?.(track);
+      if (action === 'remove-playlist') _trackMenuHandlers.onRemoveFromPlaylist?.(track);
+      if (action === 'delete') _trackMenuHandlers.onDelete?.(track);
+      if (action === 'artist') _trackMenuHandlers.onGoToArtist?.(track);
+      if (action === 'album') _trackMenuHandlers.onGoToAlbum?.(track);
+      if (action === 'next' || action === 'queue') {
+        const res = action === 'next' ? Player.playNext(track) : Player.addToQueue(track);
+        if (res === 'current') showToast('Essa música já está tocando');
+        else if (res === 'empty') { updatePlayerTrack(track); setPlayState(false); showToast('Música pronta pra tocar'); }
+        else showToast(action === 'next' ? 'Vai tocar a seguir' : 'Adicionada ao fim da fila');
+      }
+      if (action === 'favorite') {
+        const fav = Player.toggleFavorite(track.id);
+        showToast(fav ? 'Adicionado aos favoritos' : 'Removido dos favoritos');
+        const current = Player.getCurrentTrack();
+        if (current && current.id === track.id) el.btnFav.classList.toggle('active', fav);
+        document.dispatchEvent(new CustomEvent('hm-favorite-change', { detail: { trackId: track.id, isFav: fav } }));
+      }
+    });
+
+    setTimeout(() => document.addEventListener('click', _outsideMenuHandler, { once: true }), 0);
+    // Se a lista (dentro de um modal com scroll, por exemplo) rolar
+    // com o menu aberto, o popover ficaria "grudado" na posição antiga
+    // — fecha nesse caso, em vez de deixar flutuando fora do lugar.
+    const scrollHost = anchorEl.closest('.modal-box, .main-content');
+    scrollHost?.addEventListener('scroll', _closeTrackMenu, { once: true, passive: true });
+  }
+
+  // Ícone animado de equalizer para a faixa tocando
+  function _equalizerIcon() {
+    return `<svg width="16" height="16" viewBox="0 0 16 16" fill="var(--purple-soft)">
+      <rect x="1" y="6" width="2" height="10" rx="1">
+        <animate attributeName="height" values="10;4;10" dur="0.9s" repeatCount="indefinite"/>
+        <animate attributeName="y"      values="6;12;6"  dur="0.9s" repeatCount="indefinite"/>
+      </rect>
+      <rect x="5" y="2" width="2" height="14" rx="1">
+        <animate attributeName="height" values="14;6;14" dur="0.7s" repeatCount="indefinite"/>
+        <animate attributeName="y"      values="2;8;2"   dur="0.7s" repeatCount="indefinite"/>
+      </rect>
+      <rect x="9" y="4" width="2" height="12" rx="1">
+        <animate attributeName="height" values="12;5;12" dur="1.1s" repeatCount="indefinite"/>
+        <animate attributeName="y"      values="4;10;4"  dur="1.1s" repeatCount="indefinite"/>
+      </rect>
+      <rect x="13" y="7" width="2" height="9" rx="1">
+        <animate attributeName="height" values="9;3;9"   dur="0.8s" repeatCount="indefinite"/>
+        <animate attributeName="y"      values="7;13;7"  dur="0.8s" repeatCount="indefinite"/>
+      </rect>
+    </svg>`;
+  }
+
+  // Atualiza qual item da lista está marcado como tocando
+  function setPlayingTrack(trackId) {
+    document.querySelectorAll('.track-item').forEach(item => {
+      const isPlaying = item.dataset.id === trackId;
+      item.classList.toggle('playing', isPlaying);
+      const numEl = item.querySelector('.track-num');
+      if (numEl) {
+        numEl.innerHTML = isPlaying
+          ? _equalizerIcon()
+          : item.dataset.index ? String(parseInt(item.dataset.index) + 1) : '';
+      }
+    });
+  }
+
+  // ── PLAYER UI ──────────────────────────────────
+  function showPlayer() {
+    el.player.classList.remove('hidden');
+  }
+
+  function updatePlayerTrack(track) {
+    if (!track) return;
+    showPlayer();
+
+    el.playerTitle.textContent  = track.title;
+    el.playerArtist.textContent = track.artist;
+
+    if (track.thumbnail) {
+      el.playerArt.innerHTML = `<img src="${track.thumbnail}" alt="" />`;
+    } else {
+      el.playerArt.innerHTML = _musicIcon(24);
+      // Faixa externa (aberta via "Abrir com", fora da biblioteca do
+      // Drive) não tem property nenhuma pra consultar — a única fonte
+      // de capa já foi tentada antes (tag ID3), não adianta buscar de novo.
+      if (!track.isExternal) _queueCoverFetch(track, true);
+    }
+
+    // Favoritar e baixar offline não fazem sentido pra um arquivo
+    // externo — ele não está na biblioteca do Drive, então essas ações
+    // ficariam clicáveis sem nenhum efeito real. Escondidas nesse caso,
+    // e mostra em vez disso o botão de adicionar à biblioteca de verdade.
+    el.btnFav.classList.toggle('hidden', !!track.isExternal);
+    el.btnDownloadCurrent.classList.toggle('hidden', !!track.isExternal);
+    el.btnAddToLibrary.classList.toggle('hidden', !track.isExternal);
+    el.btnPlayerMore?.classList.toggle('hidden', !!track.isExternal);
+    if (track.isExternal) el.btnAddToLibrary.disabled = false; // nova faixa externa, reabilita
+
+    if (!track.isExternal) {
+      const fav = Player.isFavorite(track.id);
+      el.btnFav.classList.toggle('active', fav);
+      el.btnDownloadCurrent.dataset.dl = track.id;
+      _setDlBtnState(el.btnDownloadCurrent, _dlState(track.id));
+    }
+  }
+
+  function setPlayState(playing) {
+    el.iconPlay.classList.toggle('hidden', playing);
+    el.iconPause.classList.toggle('hidden', !playing);
+    el.btnPlayPause.classList.toggle('is-playing', playing);
+    el.seekBarWrap.classList.toggle('is-playing', playing);
+  }
+
+  function updateProgress(current, duration) {
+    el.timeCurrent.textContent = Player.formatTime(current);
+    el.timeTotal.textContent   = Player.formatTime(duration);
+
+    const pct = duration ? (current / duration) * 100 : 0;
+    el.seekBar.value = pct;
+
+    // Gradiente da barra de progresso
+    el.seekBar.style.background =
+      `linear-gradient(to right, var(--purple) ${pct}%, var(--border) ${pct}%)`;
+
+    // O brilho corredor só pode aparecer dentro da parte já preenchida
+    el.seekBarFillClip.style.width = `${pct}%`;
+
+    // Ponto de luz vivo na ponta do progresso (item 5 dos aprimoramentos)
+    PlayerFX.updateGlowDot(el.seekBarGlowDot, pct);
+  }
+
+  function setShuffleState(active) {
+    el.btnShuffle.classList.toggle('active', active);
+    el.btnShuffle.title = active ? 'Aleatório ativado' : 'Aleatório';
+  }
+
+  function setRepeatState(mode) {
+    el.btnRepeat.classList.toggle('active', mode !== 'none');
+    el.btnRepeat.title = { none: 'Repetir', all: 'Repetir tudo', one: 'Repetir uma' }[mode];
+
+    // Troca o ícone para "repetir uma" quando mode === 'one'
+    if (mode === 'one') {
+      el.btnRepeat.innerHTML = `
+        <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <polyline points="17 1 21 5 17 9"/>
+          <path d="M3 11V9a4 4 0 0 1 4-4h14"/>
+          <polyline points="7 23 3 19 7 15"/>
+          <path d="M21 13v2a4 4 0 0 1-4 4H3"/>
+          <text x="10" y="14" font-size="7" fill="currentColor" stroke="none" font-weight="bold">1</text>
+        </svg>`;
+    } else {
+      el.btnRepeat.innerHTML = `
+        <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <polyline points="17 1 21 5 17 9"/>
+          <path d="M3 11V9a4 4 0 0 1 4-4h14"/>
+          <polyline points="7 23 3 19 7 15"/>
+          <path d="M21 13v2a4 4 0 0 1-4 4H3"/>
+        </svg>`;
+    }
+  }
+
+  // ── ONBOARDING MODAL ───────────────────────────
+  function showOnboarding() {
+    el.modalOnboarding.classList.remove('hidden');
+  }
+  function hideOnboarding() {
+    el.modalOnboarding.classList.add('hidden');
+  }
+
+  // ── SELETOR DE PASTA ───────────────────────────
+  function showFolderModal() {
+    el.modalFolder.classList.remove('hidden');
+  }
+  function hideFolderModal() {
+    el.modalFolder.classList.add('hidden');
+  }
+
+  function _folderIcon() {
+    return `<svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
+      <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+    </svg>`;
+  }
+
+  function _driveIcon() {
+    return `<svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
+      <path d="M22 12H2"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/>
+    </svg>`;
+  }
+
+  function _folderRow({ id, name, sub, selected, icon }) {
+    return `
+      <button type="button" class="folder-item ${selected ? 'selected' : ''}" data-id="${_escape(id)}" data-name="${_escape(name)}" role="radio" aria-checked="${selected ? 'true' : 'false'}">
+        <span class="folder-item-icon">${icon}</span>
+        <span class="folder-item-text">
+          <span class="folder-item-name">${_escape(name)}</span>
+          ${sub ? `<span class="folder-item-sub">${sub}</span>` : ''}
+        </span>
+        <span class="folder-item-radio">${_checkIcon(13)}</span>
+      </button>`;
+  }
+
+  function showFolderLoading() {
+    el.folderSearchWrap.classList.add('hidden');
+    el.folderList.innerHTML = `
+      <div class="track-item skeleton" style="min-height:60px; border-radius:16px;"></div>
+      <div class="track-item skeleton" style="min-height:60px; border-radius:16px;"></div>
+      <div class="track-item skeleton" style="min-height:60px; border-radius:16px;"></div>`;
+  }
+
+  function renderFolderError(onRetry) {
+    el.folderSearchWrap.classList.add('hidden');
+    el.folderList.innerHTML = `
+      <div class="folder-empty">
+        Não foi possível listar as pastas do seu Drive.<br>Confira a conexão e tente de novo.
+        <br><button type="button" class="btn-outline btn-small" data-folder-retry>Tentar novamente</button>
+      </div>`;
+    el.folderList.querySelector('[data-folder-retry]')?.addEventListener('click', onRetry);
+  }
+
+  function renderFolderList(folders, currentFolderId) {
+    const allDriveItem = _folderRow({
+      id: '', name: 'Todo o Drive',
+      sub: 'Busca músicas em qualquer pasta (padrão)',
+      selected: !currentFolderId, icon: _driveIcon(),
+    });
+
+    // Com muitas pastas, aparece a busca
+    el.folderSearch.value = '';
+    el.folderSearchWrap.classList.toggle('hidden', folders.length < 8);
+
+    if (!folders.length) {
+      el.folderList.innerHTML = allDriveItem + `
+        <p class="folder-empty">Nenhuma pasta encontrada na raiz do seu Drive.</p>`;
+      return;
+    }
+
+    el.folderList.innerHTML = allDriveItem + folders.map(f => _folderRow({
+      id: f.id, name: f.name, selected: f.id === currentFolderId, icon: _folderIcon(),
+    })).join('');
+  }
+
+  el.folderSearch?.addEventListener('input', () => {
+    const q = el.folderSearch.value.trim().toLowerCase();
+    el.folderList.querySelectorAll('.folder-item').forEach(row => {
+      const isAll = row.dataset.id === '';
+      row.classList.toggle('hidden', !!q && !isAll && !row.dataset.name.toLowerCase().includes(q));
+    });
+  });
+
+  function updateFolderLabel(name) {
+    el.folderCurrentLabel.textContent = name || 'Todo o Drive';
+  }
+
+  // ── BARRA DE FILTROS (gênero / artista / álbum / vídeo) ────
+  // Dados/estado do modal de seleção de filtro — populados por
+  // renderFilterOptions() e usados quando o usuário abre o seletor.
+  const _filterData = { genres: [], artists: [], albums: [], moviegenres: [], moviecollections: [] };
+  let _pickerOnSelect = null;
+  let _pickerAllOptions = [];
+  let _pickerShowAllRow = true;
+  let _pickerMulti = false;
+  let _pickerMultiValues = [];
+
+  const FILTER_TITLES = { genre: 'Gênero', artist: 'Artista', album: 'Álbum', moviegenre: 'Gênero', moviecollection: 'Coleção' };
+
+  function _setChip(chip, label, activeValue, placeholder) {
+    chip.querySelector('.filter-chip-label').textContent = activeValue || placeholder;
+    chip.classList.toggle('active', !!activeValue);
+  }
+
+  // Versão do _setChip pra filtro multi-valor (hoje só Artista): mostra
+  // o nome quando só 1 estiver selecionado, ou "2 artistas" etc quando
+  // for mais de um.
+  function _setChipMulti(chip, label, activeValues, placeholder) {
+    if (!chip) return;
+    const values = activeValues || [];
+    let text = placeholder;
+    if (values.length === 1) text = values[0];
+    else if (values.length > 1) text = `${values.length} ${label.toLowerCase()}s`;
+    chip.querySelector('.filter-chip-label').textContent = text;
+    chip.classList.toggle('active', values.length > 0);
+  }
+
+  function renderFilterOptions({ genres, artists, albums }, active = {}) {
+    _filterData.genres  = genres;
+    _filterData.artists = artists;
+    _filterData.albums  = albums;
+
+    _setChip(el.filterChipGenre,  'Gênero',  active.genre,  'Gênero');
+    _setChipMulti(el.filterChipArtist, 'Artista', active.artist, 'Artista');
+    _setChip(el.filterChipAlbum,  'Álbum',   active.album,  'Álbum');
+
+    const hasFilter = !!(active.genre || (active.artist && active.artist.length) || active.album);
+    el.btnFilterClear.classList.toggle('hidden', !hasFilter);
+    el.filterMenuDot?.classList.toggle('hidden', !hasFilter);
+  }
+
+  // ── MENU DE FILTROS (ícone único → escolher Gênero/Artista/Álbum) ──
+  function showFilterMenu() { el.modalFilterMenu.classList.remove('hidden'); }
+  function hideFilterMenu() { el.modalFilterMenu.classList.add('hidden'); }
+
+  function _bindFilterMenuEvents() {
+    el.btnFilterMenu?.addEventListener('click', showFilterMenu);
+    el.btnFilterMenuClose?.addEventListener('click', hideFilterMenu);
+    el.modalFilterMenu?.addEventListener('click', e => {
+      if (e.target === el.modalFilterMenu) hideFilterMenu();
+    });
+  }
+  _bindFilterMenuEvents();
+
+  // ── MENU DE ORDENAÇÃO (lista "Todas as músicas") ──
+  function showSortMenu() { el.modalSortMenu.classList.remove('hidden'); }
+  function hideSortMenu() { el.modalSortMenu.classList.add('hidden'); }
+  el.btnSortMenuClose?.addEventListener('click', hideSortMenu);
+  el.modalSortMenu?.addEventListener('click', e => {
+    if (e.target === el.modalSortMenu) hideSortMenu();
+  });
+
+  // ── PLAYER EXPANDIDO: abrir/fechar + botão voltar ──
+  // Abrir empilha uma entrada no histórico (mesmo padrão do player de
+  // vídeo e do perfil em app.js). Assim o botão/gesto "voltar" do Android
+  // recolhe o player em vez de sair do app, e o botão ⌄ do player faz o
+  // mesmo caminho (history.back() consome a entrada empilhada).
+  let _playerHistoryPushed = false;
+  let _ignoreNextPop = false;   // popstate causado pelo nosso próprio history.back()
+  let _backConsumed = false;    // "voltar" já tratado pelo player neste evento
+
+  // Outros listeners de popstate (ex.: perfil, em app.js) consultam isto
+  // pra não tratarem como deles um "voltar" que era do player.
+  function _markBackConsumed() {
+    _backConsumed = true;
+    setTimeout(() => { _backConsumed = false; }, 0);
+  }
+  function backWasConsumed() { return _backConsumed; }
+
+  function _playerIsOpen() {
+    return el.player.classList.contains('expanded') && !el.player.classList.contains('closing');
+  }
+
+  function expandPlayer() {
+    if (el.player.classList.contains('expanded')) return; // aberto ou fechando
+    PlayerFX.toggleExpand(el.player, {
+      onOpen: () => Aurora.start(),
+      onClose: () => Aurora.stop(),
+    });
+    history.pushState({ hmOverlay: 'player' }, '');
+    _playerHistoryPushed = true;
+  }
+
+  function collapsePlayer({ fromPopState = false } = {}) {
+    if (!_playerIsOpen()) return;
+    PlayerFX.toggleExpand(el.player, {
+      onOpen: () => Aurora.start(),
+      onClose: () => Aurora.stop(),
+    });
+    if (_playerHistoryPushed) {
+      _playerHistoryPushed = false;
+      if (!fromPopState) {
+        _ignoreNextPop = true;
+        history.back();
+        setTimeout(() => { _ignoreNextPop = false; }, 800); // rede de segurança
+      }
+    }
+  }
+
+  window.addEventListener('popstate', () => {
+    if (_ignoreNextPop) { _ignoreNextPop = false; _markBackConsumed(); return; }
+    // Fila aberta por cima do player: "voltar" fecha só a fila (a entrada
+    // de histórico do player é reposta pra o próximo "voltar" recolhê-lo).
+    if (_playerHistoryPushed && _playerIsOpen() && el.modalQueue && !el.modalQueue.classList.contains('hidden')) {
+      history.pushState({ hmOverlay: 'player' }, '');
+      hideQueue();
+      _markBackConsumed();
+      return;
+    }
+    if (_playerHistoryPushed && _playerIsOpen()) {
+      collapsePlayer({ fromPopState: true });
+      _markBackConsumed();
+    }
+  });
+
+  el.btnPlayerCollapse?.addEventListener('click', () => collapsePlayer());
+
+  // ── FILA "A seguir" ──
+  function _queueRow(track, idx, cur, total) {
+    const thumb = track.thumbnail ? `<img src="${track.thumbnail}" alt="" loading="lazy" />` : _musicIcon(18);
+    const isCur = idx === cur;
+    return `
+      <div class="queue-item${isCur ? ' current' : ''}" data-q="${idx}">
+        <div class="queue-thumb">${thumb}</div>
+        <div class="queue-meta">
+          <span class="queue-title">${_escape(track.title)}</span>
+          <span class="queue-artist">${_escape(track.artist || '')}</span>
+        </div>
+        ${isCur ? '' : `
+          <button class="queue-btn" data-q-up="${idx}" aria-label="Subir" ${idx - 1 <= cur ? 'disabled' : ''}>
+            <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="m18 15-6-6-6 6"/></svg>
+          </button>
+          <button class="queue-btn" data-q-down="${idx}" aria-label="Descer" ${idx + 1 >= total ? 'disabled' : ''}>
+            <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg>
+          </button>
+          <button class="queue-btn" data-q-del="${idx}" aria-label="Tirar da fila">
+            <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg>
+          </button>`}
+      </div>`;
+  }
+
+  function renderQueue() {
+    const q = Player.getQueue();
+    const cur = Player.getCurrentIndex();
+    const keepScroll = el.queueList.scrollTop;
+
+    if (!q.length || !q[cur]) {
+      el.queueList.innerHTML = '<p class="empty-hint">A fila está vazia. Toque numa música pra começar.</p>';
+      el.queueSub.textContent = '';
+      return;
+    }
+
+    const MAX = 150;
+    const end = Math.min(q.length, cur + 1 + MAX);
+    const left = q.length - end;
+    const upcoming = q.length - cur - 1;
+
+    let html = '<div class="queue-label">Tocando agora</div>' + _queueRow(q[cur], cur, cur, q.length);
+    if (upcoming > 0) {
+      html += '<div class="queue-label">A seguir</div>';
+      for (let i = cur + 1; i < end; i++) html += _queueRow(q[i], i, cur, q.length);
+      if (left > 0) html += `<p class="queue-more-hint">e mais ${left} música${left > 1 ? 's' : ''}</p>`;
+    } else {
+      html += '<p class="queue-more-hint">Não há mais músicas depois desta.</p>';
+    }
+    el.queueList.innerHTML = html;
+    el.queueSub.textContent = upcoming > 0 ? `${upcoming} música${upcoming > 1 ? 's' : ''} a seguir` : '';
+    el.queueList.scrollTop = keepScroll;
+  }
+
+  function showQueue() { renderQueue(); el.modalQueue.classList.remove('hidden'); }
+  function hideQueue() { el.modalQueue.classList.add('hidden'); }
+
+  el.btnPlayerQueue?.addEventListener('click', showQueue);
+  el.btnQueueClose?.addEventListener('click', hideQueue);
+  el.modalQueue?.addEventListener('click', e => { if (e.target === el.modalQueue) hideQueue(); });
+
+  el.queueList?.addEventListener('click', e => {
+    const up = e.target.closest('[data-q-up]');
+    const down = e.target.closest('[data-q-down]');
+    const del = e.target.closest('[data-q-del]');
+    if (up)   { const i = +up.dataset.qUp;     Player.moveInQueue(i, i - 1); renderQueue(); return; }
+    if (down) { const i = +down.dataset.qDown; Player.moveInQueue(i, i + 1); renderQueue(); return; }
+    if (del)  { Player.removeFromQueue(+del.dataset.qDel); renderQueue(); return; }
+    const row = e.target.closest('.queue-item');
+    if (!row) return;
+    const idx = +row.dataset.q;
+    if (idx !== Player.getCurrentIndex()) { Player.jumpTo(idx); hideQueue(); }
+  });
+
+  // ── MENU ⋮ DO PLAYER (mesmas ações do menu da lista, na faixa atual) ──
+  el.btnPlayerMore?.addEventListener('click', e => {
+    e.stopPropagation();
+    const track = Player.getCurrentTrack();
+    if (!track) return;
+    _openTrackMenu(track.id, el.btnPlayerMore, [track]);
+  });
+
+  // ── ARRASTAR PRA BAIXO FECHA O PLAYER ──
+  (function bindDragDownToClose() {
+    const p = el.player;
+    let sx = 0, sy = 0, dy = 0, tracking = false, dragging = false;
+
+    p.addEventListener('touchstart', e => {
+      tracking = false; dragging = false; dy = 0;
+      if (!_playerIsOpen() || e.touches.length !== 1) return;
+      // Ignora gestos que começam em controles ou na capa (a capa já usa o
+      // arrasto horizontal pra trocar de faixa).
+      if (e.target.closest('input, button, a, .player-art')) return;
+      sx = e.touches[0].clientX; sy = e.touches[0].clientY;
+      tracking = true;
+    }, { passive: true });
+
+    p.addEventListener('touchmove', e => {
+      if (!tracking) return;
+      const t = e.touches[0];
+      const dx = t.clientX - sx;
+      dy = t.clientY - sy;
+      if (!dragging) {
+        if (dy > 12 && Math.abs(dy) > Math.abs(dx) * 1.3) dragging = true;
+        else if (Math.abs(dx) > 14 || dy < -12) tracking = false;
+        else return;
+        if (!dragging) return;
+      }
+      p.style.transition = 'none';
+      p.style.transform = `translateY(${Math.max(0, dy) * 0.7}px)`;
+    }, { passive: true });
+
+    function end() {
+      if (!tracking) return;
+      tracking = false;
+      if (!dragging) return;
+      dragging = false;
+      const close = dy > 110;
+      p.style.transition = close ? 'none' : 'transform 0.2s ease';
+      p.style.transform = '';
+      if (close) collapsePlayer();
+      else setTimeout(() => { p.style.transition = ''; }, 220);
+    }
+    p.addEventListener('touchend', end, { passive: true });
+    p.addEventListener('touchcancel', end, { passive: true });
+  })();
+
+  document.addEventListener('keydown', e => {
+    if (e.key !== 'Escape' || !_playerIsOpen()) return;
+    if (document.querySelector('.modal-overlay:not(.hidden)')) return;
+    collapsePlayer();
+  });
+
+  // ── PRÉVIA DE COLEÇÃO (modal, aberto pelos balões de "Coleções
+  // recentes" no topo da Home — em vez de navegar pra outra tela) ──
+  function showCollectionPreview(name, tracks, currentTrackId) {
+    el.collectionPreviewTitle.textContent = name;
+    if (!tracks.length) {
+      el.collectionPreviewList.innerHTML = `<p class="empty-hint">Nada por aqui ainda.</p>`;
+    } else {
+      renderTrackList(el.collectionPreviewList, tracks, currentTrackId);
+      // loop: true — mesma playlist/Favoritas por trás dessa prévia, então
+      // ao acabar a lista continua girando nela (ver Player._queueLoops).
+      bindTrackListEvents(el.collectionPreviewList, tracks, { loop: true });
+    }
+    el.modalCollectionPreview.classList.remove('hidden');
+  }
+
+  function hideCollectionPreview() {
+    el.modalCollectionPreview.classList.add('hidden');
+  }
+
+  function _bindCollectionPreviewEvents() {
+    el.btnCollectionPreviewClose?.addEventListener('click', hideCollectionPreview);
+    el.modalCollectionPreview?.addEventListener('click', e => {
+      if (e.target === el.modalCollectionPreview) hideCollectionPreview();
+    });
+  }
+  _bindCollectionPreviewEvents();
+
+  // ── CONFIRMAÇÃO CUSTOMIZADA (substitui window.confirm) ─────────
+  // window.confirm() abre um alerta genérico do sistema, fora da
+  // identidade visual do app — isso resolve com um modal próprio.
+  // Uso: if (!(await UI.confirmDialog('Excluir isso?'))) return;
+  let _confirmResolve = null;
+
+  function confirmDialog(message, { title = 'Confirmar', okLabel = 'Confirmar', danger = true } = {}) {
+    el.confirmTitle.textContent = title;
+    el.confirmMessage.textContent = message;
+    el.btnConfirmOk.textContent = okLabel;
+    el.btnConfirmOk.classList.toggle('btn-danger', danger);
+    el.modalConfirm.classList.remove('hidden');
+
+    return new Promise(resolve => { _confirmResolve = resolve; });
+  }
+
+  function _settleConfirm(value) {
+    el.modalConfirm.classList.add('hidden');
+    const resolve = _confirmResolve;
+    _confirmResolve = null;
+    resolve?.(value);
+  }
+
+  el.btnConfirmOk?.addEventListener('click', () => _settleConfirm(true));
+  el.btnConfirmCancel?.addEventListener('click', () => _settleConfirm(false));
+  el.modalConfirm?.addEventListener('click', e => {
+    if (e.target === el.modalConfirm) _settleConfirm(false);
+  });
+
+  // Aceita tanto uma lista de strings (gênero/artista/álbum de música —
+  // valor e rótulo são a mesma coisa) quanto uma lista de objetos
+  // {value, label} (coleções de vídeo, onde o rótulo mostra contagem
+  // e o valor é o id da playlist/favoritos).
+  function _normalizePickerItems(items) {
+    return items.map(o => (typeof o === 'string' ? { value: o, label: o } : o));
+  }
+
+  // Alguns pickers (coleções de vídeo) já trazem a opção "Todos" como um
+  // item normal da lista — nesse caso não precisamos da linha extra.
+  // `activeValue` pode ser uma string (seleção única) ou um array
+  // (multi-seleção, hoje usado só pelo filtro de Artista).
+  function _renderPickerList(items, activeValue, query, showAllRow = true) {
+    const norm = _normalizePickerItems(items);
+    const q = (query || '').trim().toLowerCase();
+    const filtered = q ? norm.filter(o => o.label.toLowerCase().includes(q)) : norm;
+    const isActive = v => Array.isArray(activeValue) ? activeValue.includes(v) : v === activeValue;
+    const noneActive = Array.isArray(activeValue) ? activeValue.length === 0 : !activeValue;
+
+    if (!filtered.length) {
+      el.filterPickerList.innerHTML = `<p class="filter-picker-empty">Nada encontrado.</p>`;
+      return;
+    }
+
+    const allRow = (showAllRow && !q) ? `
+      <button type="button" class="filter-picker-item ${noneActive ? 'active' : ''}" data-value="">
+        <span>Todos</span>
+        <svg class="picker-check" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg>
+      </button>` : '';
+
+    el.filterPickerList.innerHTML = allRow + filtered.map(item => `
+      <button type="button" class="filter-picker-item ${isActive(item.value) ? 'active' : ''}" data-value="${_escape(item.value)}">
+        <span>${_escape(item.label)}</span>
+        <svg class="picker-check" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg>
+      </button>`).join('');
+  }
+
+  // Abre o modal listando as opções de um filtro (gênero/artista/álbum
+  // de música, gênero de vídeo ou coleção de vídeo), com busca.
+  //
+  // Modo padrão (seleção única): onSelect(value) é chamado uma vez, com
+  // '' pra "Todos" ou o valor escolhido, e o modal fecha na hora.
+  //
+  // Modo multi (passe { multi: true }, usado pelo filtro de Artista —
+  // útil pra quando um artista aparece em faixas creditadas tipo
+  // "Fulano - Beltrano"): activeValues é um array, cada toque
+  // liga/desliga um valor sem fechar o modal, e onSelect(arrayAtual) é
+  // chamado a cada mudança. O usuário fecha manualmente quando terminar.
+  //
+  // { options }: lista própria de opções (strings ou {value, label}) em
+  // vez da lista geral da biblioteca — usado pelo seletor "Adicionar
+  // músicas", que mostra só o que sobra depois do outro filtro, com contagem.
+  function showFilterPicker(type, activeValue, onSelect, { multi = false, options: customOptions = null } = {}) {
+    const options = customOptions || _filterData[type + 's'] || [];
+    const showAllRow = type !== 'moviecollection'; // coleções já tem "Todos os vídeos" na própria lista
+    _pickerAllOptions = options;
+    _pickerOnSelect = onSelect;
+    _pickerShowAllRow = showAllRow;
+    _pickerMulti = multi;
+    _pickerMultiValues = multi ? [...(activeValue || [])] : [];
+
+    el.filterPickerTitle.textContent = FILTER_TITLES[type] || '';
+    if (el.filterPickerHint) {
+      el.filterPickerHint.textContent = `Toque para selecionar mais de um ${(FILTER_TITLES[type] || '').toLowerCase()}`;
+    }
+    el.filterPickerSearch.value = '';
+    _renderPickerList(options, multi ? _pickerMultiValues : activeValue, '', showAllRow);
+
+    el.modalFilterPicker.classList.remove('hidden');
+    el.modalFilterPicker.classList.toggle('filter-picker-multi', multi);
+    el.modalFilterPicker.dataset.activeValue = multi ? '' : (activeValue || '');
+    // sem foco automático no campo de busca — evita abrir o teclado
+    // imediatamente numa lista que às vezes é curta o bastante pra não precisar
+  }
+
+  function hideFilterPicker() {
+    el.modalFilterPicker.classList.add('hidden');
+    _pickerOnSelect = null;
+    _pickerMulti = false;
+  }
+
+  function _bindFilterPickerEvents() {
+    el.btnFilterPickerClose.addEventListener('click', hideFilterPicker);
+    el.modalFilterPicker.addEventListener('click', e => {
+      if (e.target === el.modalFilterPicker) hideFilterPicker();
+    });
+
+    el.filterPickerSearch.addEventListener('input', () => {
+      const active = _pickerMulti ? _pickerMultiValues : (el.modalFilterPicker.dataset.activeValue || '');
+      _renderPickerList(_pickerAllOptions, active, el.filterPickerSearch.value, _pickerShowAllRow);
+    });
+
+    el.filterPickerList.addEventListener('click', e => {
+      const item = e.target.closest('.filter-picker-item');
+      if (!item) return;
+      const value = item.dataset.value || '';
+
+      if (_pickerMulti) {
+        // "Todos" limpa a seleção inteira; qualquer outro item liga/desliga
+        // — o modal continua aberto pra escolher mais de um.
+        if (!value) {
+          _pickerMultiValues = [];
+        } else {
+          const idx = _pickerMultiValues.indexOf(value);
+          if (idx === -1) _pickerMultiValues.push(value);
+          else _pickerMultiValues.splice(idx, 1);
+        }
+        _renderPickerList(_pickerAllOptions, _pickerMultiValues, el.filterPickerSearch.value, _pickerShowAllRow);
+        _pickerOnSelect?.([..._pickerMultiValues]);
+        return;
+      }
+
+      // hideFilterPicker() zera _pickerOnSelect como limpeza — captura a
+      // referência ANTES de fechar, senão a seleção nunca chega a
+      // quem chamou (esse era o bug do filtro não aplicar nada).
+      const onSelect = _pickerOnSelect;
+      hideFilterPicker();
+      onSelect?.(value);
+    });
+  }
+  _bindFilterPickerEvents();
+
+  // ── ESCOLHER O QUE BAIXAR (playlist/artista/álbum/gênero) ──
+  // Sheet de tela única: abas por categoria, lista marcável com busca e
+  // um rodapé que diz quantas músicas isso vai baixar ANTES de confirmar.
+  // A seleção vale entre abas (dá pra marcar uma playlist + um artista).
+  //
+  // `categoriesData`: { playlist: [{value,label,count}], artist: [...], ... }
+  //   (fornecido por app.js, que tem acesso a playlists/faixas)
+  // `onConfirm(selections)`: selections = { playlist: [ids], artist: [nomes], ... }
+  // `countTracks(selections)`: → { total, pending, bytes } pro resumo do rodapé
+  const _DL_CATEGORIES = ['playlist', 'artist', 'album', 'genre'];
+  let _dlPickerData = {};
+  let _dlPickerOnConfirm = null;
+  let _dlPickerCount = null;
+  let _dlPickerCategory = null;
+  let _dlPickerSel = {};
+
+  const _plural = (n, one, many) => (n === 1 ? one : many);
+
+  function _dlSelections() {
+    const out = {};
+    _DL_CATEGORIES.forEach(c => { if (_dlPickerSel[c]?.length) out[c] = [..._dlPickerSel[c]]; });
+    return out;
+  }
+
+  function showDownloadPicker(categoriesData, onConfirm, { countTracks } = {}) {
+    _dlPickerData = categoriesData || {};
+    _dlPickerOnConfirm = onConfirm;
+    _dlPickerCount = countTracks || null;
+    _dlPickerSel = { playlist: [], artist: [], album: [], genre: [] };
+
+    el.downloadPickerCategories.querySelectorAll('.seg-btn').forEach(btn => {
+      btn.disabled = !(_dlPickerData[btn.dataset.category] || []).length;
+    });
+
+    const first = _DL_CATEGORIES.find(c => (_dlPickerData[c] || []).length);
+    if (!first) { showToast('Ainda não há nada pra escolher aqui.'); return; }
+
+    el.modalDownloadPicker.classList.remove('hidden');
+    _setDlCategory(first);
+  }
+
+  function hideDownloadPicker() {
+    el.modalDownloadPicker.classList.add('hidden');
+    _dlPickerOnConfirm = null;
+    _dlPickerCount = null;
+  }
+
+  function _setDlCategory(cat) {
+    _dlPickerCategory = cat;
+    el.downloadPickerCategories.querySelectorAll('.seg-btn').forEach(btn => {
+      const on = btn.dataset.category === cat;
+      btn.classList.toggle('active', on);
+      btn.setAttribute('aria-selected', on ? 'true' : 'false');
+    });
+    el.downloadPickerSearch.value = '';
+    _renderDownloadValues('');
+    _updateDownloadFooter();
+  }
+
+  function _renderDownloadValues(query) {
+    const items = _dlPickerData[_dlPickerCategory] || [];
+    const q = (query || '').trim().toLowerCase();
+    const filtered = q ? items.filter(o => o.label.toLowerCase().includes(q)) : items;
+    const selected = _dlPickerSel[_dlPickerCategory] || [];
+
+    if (!filtered.length) {
+      el.downloadPickerValues.innerHTML = `<p class="filter-picker-empty">Nada encontrado.</p>`;
+      return;
+    }
+
+    el.downloadPickerValues.innerHTML = filtered.map(item => `
+      <button type="button" class="pick-row ${selected.includes(item.value) ? 'active' : ''}" data-value="${_escape(item.value)}" role="checkbox" aria-checked="${selected.includes(item.value) ? 'true' : 'false'}">
+        <span class="pick-box">${_checkIcon(14)}</span>
+        <span class="pick-label">${_escape(item.label)}</span>
+        ${item.count != null ? `<span class="pick-count">${item.count}</span>` : ''}
+      </button>`).join('');
+  }
+
+  function _updateDownloadFooter() {
+    // Selo com a contagem em cada aba
+    el.downloadPickerCategories.querySelectorAll('.seg-btn').forEach(btn => {
+      const n = (_dlPickerSel[btn.dataset.category] || []).length;
+      const badge = btn.querySelector('.seg-badge');
+      badge.textContent = n;
+      badge.classList.toggle('hidden', !n);
+    });
+
+    const sel = _dlSelections();
+    const nItems = Object.values(sel).reduce((n, a) => n + a.length, 0);
+    const btn = el.btnDownloadPickerConfirm;
+
+    if (!nItems) {
+      el.downloadPickerSummary.textContent = 'Nada selecionado';
+      btn.textContent = 'Selecione o que baixar';
+      btn.disabled = true;
+      return;
+    }
+
+    const c = _dlPickerCount ? _dlPickerCount(sel) : null;
+    if (!c) {
+      el.downloadPickerSummary.textContent = `${nItems} ${_plural(nItems, 'item marcado', 'itens marcados')}`;
+      btn.textContent = 'Baixar';
+      btn.disabled = false;
+      return;
+    }
+
+    const size = c.bytes ? ` · ≈ ${_fmtBytes(c.bytes)}` : '';
+    el.downloadPickerSummary.textContent =
+      `${c.total} ${_plural(c.total, 'música', 'músicas')} · ${c.pending} ${_plural(c.pending, 'nova', 'novas')}${size}`;
+    if (!c.pending) {
+      btn.textContent = 'Tudo isso já está baixado';
+      btn.disabled = true;
+    } else {
+      btn.textContent = `Baixar ${c.pending} ${_plural(c.pending, 'música', 'músicas')}`;
+      btn.disabled = false;
+    }
+  }
+
+  function _bindDownloadPickerEvents() {
+    el.btnDownloadPickerClose?.addEventListener('click', hideDownloadPicker);
+    el.modalDownloadPicker?.addEventListener('click', e => {
+      if (e.target === el.modalDownloadPicker) hideDownloadPicker();
+    });
+
+    el.downloadPickerCategories?.addEventListener('click', e => {
+      const btn = e.target.closest('.seg-btn');
+      if (!btn || btn.disabled) return;
+      _setDlCategory(btn.dataset.category);
+    });
+
+    el.downloadPickerSearch?.addEventListener('input', () => {
+      _renderDownloadValues(el.downloadPickerSearch.value);
+    });
+
+    el.downloadPickerValues?.addEventListener('click', e => {
+      const row = e.target.closest('.pick-row');
+      if (!row) return;
+      const list = _dlPickerSel[_dlPickerCategory];
+      const idx = list.indexOf(row.dataset.value);
+      if (idx === -1) list.push(row.dataset.value);
+      else list.splice(idx, 1);
+      row.classList.toggle('active', idx === -1);
+      row.setAttribute('aria-checked', idx === -1 ? 'true' : 'false');
+      _updateDownloadFooter();
+    });
+
+    el.btnDownloadPickerConfirm?.addEventListener('click', () => {
+      const sel = _dlSelections();
+      if (!Object.keys(sel).length) return;
+      const onConfirm = _dlPickerOnConfirm;
+      hideDownloadPicker();
+      onConfirm?.(sel);
+    });
+  }
+  _bindDownloadPickerEvents();
+
+  function setFilterSummary(text) {
+    if (!text) {
+      el.filterSummary.classList.add('hidden');
+      el.filterSummary.textContent = '';
+    } else {
+      el.filterSummary.classList.remove('hidden');
+      el.filterSummary.textContent = text;
+    }
+  }
+
+  // ── MODAL: EDITAR METADADOS DA FAIXA ───────────
+  // Estado do seletor de capa — não dá pra guardar um File num <input
+  // type=text>, então fica numa variável do módulo enquanto o modal
+  // está aberto. `_editCoverAction` diz o que fazer ao salvar:
+  // null = não mexe na capa · 'set' = subir _editCoverFile · 'remove' = tirar a capa atual.
+  let _editCoverFile   = null;
+  let _editCoverAction = null;
+
+  function _setCoverPreview(dataUrl) {
+    if (dataUrl) {
+      el.editCoverPreview.src = dataUrl;
+      el.editCoverPreview.classList.remove('hidden');
+      el.editCoverPlaceholder.classList.add('hidden');
+      el.btnEditCoverRemove.classList.remove('hidden');
+    } else {
+      el.editCoverPreview.src = '';
+      el.editCoverPreview.classList.add('hidden');
+      el.editCoverPlaceholder.classList.remove('hidden');
+      el.btnEditCoverRemove.classList.add('hidden');
+    }
+  }
+
+  let _musicKnownGenres = [];
+
+  function showTrackEditModal(track, knownGenres = []) {
+    el.editFieldTitle.value  = track.title  || '';
+    el.editFieldArtist.value = track.artist === 'Desconhecido' ? '' : (track.artist || '');
+    el.editFieldAlbum.value  = track.album  || '';
+    el.editFieldGenre.value  = track.genre  || '';
+    _musicKnownGenres = knownGenres;
+
+    _editCoverFile   = null;
+    _editCoverAction = null;
+    el.editCoverInput.value = '';
+    _setCoverPreview(track.thumbnail || null);
+
+    el.modalTrackEdit.classList.remove('hidden');
+    el.modalTrackEdit.dataset.trackId = track.id;
+    el.editFieldTitle.focus();
+  }
+  function hideTrackEditModal() {
+    el.modalTrackEdit.classList.add('hidden');
+    delete el.modalTrackEdit.dataset.trackId;
+    _editCoverFile   = null;
+    _editCoverAction = null;
+  }
+  function getTrackEditForm() {
+    return {
+      title:  el.editFieldTitle.value.trim(),
+      artist: el.editFieldArtist.value.trim(),
+      album:  el.editFieldAlbum.value.trim(),
+      genre:  el.editFieldGenre.value.trim(),
+      coverAction: _editCoverAction, // null | 'set' | 'remove'
+      coverFile:   _editCoverFile,   // File, só quando coverAction === 'set'
+    };
+  }
+
+  // Escolher imagem (toca na miniatura ou no botão "Escolher imagem")
+  function _bindCoverPickerEvents() {
+    const openPicker = () => el.editCoverInput.click();
+    el.btnEditCoverPick.addEventListener('click', openPicker);
+    el.btnEditCoverChoose.addEventListener('click', openPicker);
+
+    el.editCoverInput.addEventListener('change', () => {
+      const file = el.editCoverInput.files && el.editCoverInput.files[0];
+      if (!file) return;
+      if (!file.type.startsWith('image/')) {
+        showToast('Escolha um arquivo de imagem.');
+        return;
+      }
+      _editCoverFile   = file;
+      _editCoverAction = 'set';
+
+      const reader = new FileReader();
+      reader.onload = () => _setCoverPreview(reader.result);
+      reader.readAsDataURL(file);
+    });
+
+    el.btnEditCoverRemove.addEventListener('click', () => {
+      _editCoverFile   = null;
+      _editCoverAction = 'remove';
+      el.editCoverInput.value = '';
+      _setCoverPreview(null);
+    });
+  }
+  _bindCoverPickerEvents();
+
+  // ── UPLOAD DE MÚSICAS ──────────────────────────
+  function showUploadModal() { el.modalUpload.classList.remove('hidden'); }
+  function hideUploadModal() { el.modalUpload.classList.add('hidden'); }
+
+  // ── PLAYLISTS ───────────────────────────────────
+  function _playlistIcon() {
+    return `<svg width="26" height="26" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+      <path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>
+    </svg>`;
+  }
+
+  // Capa em colagem (estilo Spotify): usa a capa de até 4 faixas da
+  // coleção num grid 2x2. Com menos de 4 faixas com capa, repete as que
+  // existem pra preencher o quadrado; sem nenhuma, cai no ícone genérico.
+  function _collageArt(tracks, fallbackIcon) {
+    const covers = (tracks || [])
+      .map(t => t?.thumbnail)
+      .filter(Boolean);
+
+    if (!covers.length) return fallbackIcon;
+
+    const slots = [];
+    for (let i = 0; i < 4; i++) slots.push(covers[i % covers.length]);
+
+    return `<div class="collage-art">${slots.map(src =>
+      `<div class="collage-art-cell" style="background-image:url('${src}')"></div>`
+    ).join('')}</div>`;
+  }
+
+  function renderPlaylists(playlists) {
+    const favTracks = Player.getFavorites().slice(0, 4);
+    const favCount  = favTracks.length;
+    const favArt    = _collageArt(favTracks, _favIcon(true, 26));
+    const favCard = `
+      <div class="playlist-card playlist-card-fav" data-id="__favorites__" role="button" tabindex="0">
+        <div class="playlist-card-art playlist-card-art-fav">${favArt}</div>
+        <span class="playlist-card-name">Favoritas</span>
+        <span class="playlist-card-count">${favCount} música${favCount === 1 ? '' : 's'}</span>
+      </div>`;
+
+    if (!playlists.length) {
+      el.playlistsList.innerHTML = favCard + `<p class="empty-hint">Nenhuma playlist ainda. Crie a primeira!</p>`;
+      return;
+    }
+    el.playlistsList.innerHTML = favCard + playlists.map(p => {
+      const tracks = window.HMResolvePlaylistTracks ? window.HMResolvePlaylistTracks(p).slice(0, 4) : [];
+      const art = _collageArt(tracks, _playlistIcon());
+      return `
+      <div class="playlist-card" data-id="${p.id}" role="button" tabindex="0">
+        <div class="playlist-card-art">${art}</div>
+        <span class="playlist-card-name">${_escape(p.name)}</span>
+        <span class="playlist-card-count">${p.trackIds.length} música${p.trackIds.length === 1 ? '' : 's'}</span>
+      </div>
+    `;
+    }).join('');
+  }
+
+  function showPlaylistsRoot() {
+    el.playlistsListWrap.classList.remove('hidden');
+    el.playlistDetail.classList.add('hidden');
+  }
+  function showPlaylistDetail(playlist, opts = {}) {
+    el.playlistsListWrap.classList.add('hidden');
+    el.playlistDetail.classList.remove('hidden');
+    el.playlistDetailTitle.textContent = playlist.name;
+    el.playlistDetail.dataset.id = playlist.id;
+    const isFav = !!opts.isFavorites;
+    el.btnPlaylistDelete.classList.toggle('hidden', isFav);
+    el.btnPlaylistAddTracks.classList.toggle('hidden', isFav);
+  }
+
+  function renderPlaylistTracks(tracks, currentId = null, isFavorites = false) {
+    // "Tocar tudo" só faz sentido com músicas na lista; mostra quantas são.
+    // (Tudo com ?. de propósito: se o index.html estiver desatualizado e
+    // faltar algum desses elementos, a LISTA da playlist tem que ser
+    // desenhada do mesmo jeito — nunca pode quebrar por causa de enfeite.)
+    el.btnPlaylistPlay?.classList.toggle('hidden', !tracks.length);
+    if (el.btnPlaylistPlayCount) {
+      el.btnPlaylistPlayCount.textContent = tracks.length
+        ? `· ${tracks.length} ${tracks.length === 1 ? 'música' : 'músicas'}`
+        : '';
+    }
+
+    if (!tracks.length) {
+      el.playlistTracksList.innerHTML = isFavorites
+        ? `<p class="empty-hint">Você ainda não tem favoritas.<br>Toque no ❤ do menu de qualquer faixa para adicionar.</p>`
+        : `<p class="empty-hint">Essa playlist ainda está vazia.<br>Toque em "Adicionar músicas" acima ou use o menu de qualquer faixa.</p>`;
+      return;
+    }
+    renderTrackList(el.playlistTracksList, tracks, currentId);
+    // "Remover desta playlist" só faz sentido numa playlist de verdade —
+    // em Favoritas, o coração já cumpre esse papel.
+    // loop: true — ao tocar uma faixa daqui e a lista acabar, continua
+    // girando nela mesma em vez de emendar músicas de fora (modo rádio).
+    bindTrackListEvents(el.playlistTracksList, tracks, { removable: !isFavorites, loop: true });
+  }
+
+  // ── MODAL: NOVA PLAYLIST ───────────────────────
+  function showNewPlaylistModal() {
+    el.newPlaylistName.value = '';
+    el.modalNewPlaylist.classList.remove('hidden');
+    el.newPlaylistName.focus();
+  }
+  function hideNewPlaylistModal() { el.modalNewPlaylist.classList.add('hidden'); }
+
+  // ── MODAL: ADICIONAR À PLAYLIST ────────────────
+  function showAddToPlaylistModal(playlists, trackIdOrIds) {
+    const ids = Array.isArray(trackIdOrIds) ? trackIdOrIds : [trackIdOrIds];
+    el.addToPlaylistNewName.value = '';
+    el.modalAddToPlaylist.dataset.trackIds = JSON.stringify(ids);
+
+    if (ids.length > 1) {
+      el.addToPlaylistSubtitle.textContent = `${ids.length} músicas selecionadas`;
+      el.addToPlaylistSubtitle.classList.remove('hidden');
+    } else {
+      el.addToPlaylistSubtitle.classList.add('hidden');
+    }
+
+    if (!playlists.length) {
+      el.addToPlaylistList.innerHTML = `<p class="empty-hint">Você ainda não tem playlists.</p>`;
+    } else {
+      el.addToPlaylistList.innerHTML = playlists.map(p => {
+        const allIn  = ids.every(id => p.trackIds.includes(id));
+        const someIn = !allIn && ids.some(id => p.trackIds.includes(id));
+        const hint = allIn ? (_checkIcon(13) + ' na playlist') : someIn ? 'algumas na playlist' : 'adicionar';
+        return `
+          <div class="folder-item playlist-pick-item ${allIn ? 'selected' : ''}" data-id="${p.id}">
+            ${_playlistIcon()}
+            <span style="flex:1;">${_escape(p.name)}</span>
+            <span class="profile-section-hint" style="margin:0; display:flex; align-items:center; gap:4px;">${hint}</span>
+          </div>
+        `;
+      }).join('');
+    }
+    el.modalAddToPlaylist.classList.remove('hidden');
+  }
+  function hideAddToPlaylistModal() {
+    el.modalAddToPlaylist.classList.add('hidden');
+    delete el.modalAddToPlaylist.dataset.trackIds;
+  }
+
+  // ── MODAL: ADICIONAR MÚSICAS A UMA PLAYLIST (picker) ──
+  function showAddTracksPickerModal(tracks, selectedIds) {
+    el.addTracksPickerSearch.value = '';
+    renderAddTracksPicker(tracks, selectedIds);
+    el.modalAddTracksToPlaylist.classList.remove('hidden');
+    // sem foco automático na busca: o teclado cobriria os filtros e a lista
+    el.addTracksPickerList.scrollTop = 0;
+  }
+  function hideAddTracksPickerModal() {
+    el.modalAddTracksToPlaylist.classList.add('hidden');
+  }
+  function renderAddTracksPicker(tracks, selectedIds) {
+    if (!tracks.length) {
+      el.addTracksPickerList.innerHTML = `<p class="empty-hint">Nenhuma música encontrada.</p>`;
+      return;
+    }
+    el.addTracksPickerList.innerHTML = tracks.map(t => `
+      <div class="folder-item track-picker-item ${selectedIds.has(t.id) ? 'selected' : ''}" data-id="${t.id}">
+        <input type="checkbox" ${selectedIds.has(t.id) ? 'checked' : ''} tabindex="-1" />
+        <span style="flex:1; min-width:0; overflow:hidden;">
+          <span class="track-title" style="display:block;">${_escape(t.title)}</span>
+          <span class="track-meta" style="display:block;">${_escape(t.artist)}</span>
+        </span>
+      </div>
+    `).join('');
+  }
+
+  // Barra de filtros do seletor "Adicionar músicas": rótulos dos chips,
+  // contagem, "Limpar", "Selecionar todas" e o total no botão "Concluir".
+  function setAddTracksPickerToolbar({ shown, total, genres = [], artists = [], allShownSelected = false, selectedCount = 0 }) {
+    _setChipMulti(el.addPickerChipGenre,  'Gênero',  genres,  'Gênero');
+    _setChipMulti(el.addPickerChipArtist, 'Artista', artists, 'Artista');
+
+    const hasChipFilter = genres.length > 0 || artists.length > 0;
+    el.btnAddTracksClearFilters?.classList.toggle('hidden', !hasChipFilter);
+
+    // Filtrado: "16 de 92" (curto, pra caber ao lado do "Limpar" em tela pequena)
+    if (el.addTracksPickerSummary) {
+      el.addTracksPickerSummary.textContent = shown !== total
+        ? `${shown} de ${total}`
+        : `${total} ${total === 1 ? 'música' : 'músicas'}`;
+    }
+
+    if (el.btnAddTracksSelectAll) {
+      el.btnAddTracksSelectAll.classList.toggle('hidden', shown === 0);
+      el.btnAddTracksSelectAll.textContent = `${allShownSelected ? 'Desmarcar' : 'Marcar'} todas (${shown})`;
+    }
+
+    el.btnAddTracksPickerConfirm.textContent = selectedCount
+      ? `Concluir · ${selectedCount} ${selectedCount === 1 ? 'selecionada' : 'selecionadas'}`
+      : 'Concluir';
+  }
+
+  // ── VÍDEOS ──────────────────────────────────────
+  function _filmIcon(size = 26) {
+    return `<svg width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
+      <rect x="2.5" y="5" width="19" height="14" rx="2"/>
+      <path d="M7 5v14M17 5v14M2.5 9.5H7M17 9.5h4.5M2.5 14.5H7M17 14.5h4.5"/>
+    </svg>`;
+  }
+
+  function _formatChannelGenre(video) {
+    return [video.channel, video.genre].filter(Boolean).join(' · ') || 'Sem informações';
+  }
+
+  function renderMovieGrid(videos) {
+    if (!videos.length) {
+      el.movieGrid.innerHTML = `<p class="empty-hint">Nenhum vídeo ainda.<br>Toque no ➕ acima pra enviar o primeiro.</p>`;
+      return;
+    }
+    el.movieGrid.innerHTML = videos.map((v, i) => `
+      <div class="track-item movie-row" data-id="${v.id}" role="button" tabindex="0"
+           aria-label="${_escape(v.title)}">
+        <span class="track-num">${i + 1}</span>
+        <div class="track-art">
+          ${v.thumbnail
+            ? `<img src="${v.thumbnail}" alt="" loading="lazy" />`
+            : _filmIcon(20)}
+        </div>
+        <div class="track-info">
+          <span class="track-title">${_escape(v.title)}</span>
+          <span class="track-meta">${_escape(_formatChannelGenre(v))}</span>
+        </div>
+        <button class="track-menu-btn" data-menu="${v.id}" aria-label="Mais opções">${_menuIcon()}</button>
+      </div>
+    `).join('');
+  }
+
+  const _movieGridData = new WeakMap();
+  let _movieMenuHandlers = { onEdit: null, onPlay: null, onFavorite: null, onAddToPlaylist: null };
+
+  function setMovieMenuHandlers(handlers) {
+    _movieMenuHandlers = { ..._movieMenuHandlers, ...handlers };
+  }
+
+  function bindMovieGridEvents(container, videos) {
+    _movieGridData.set(container, videos);
+    if (container.dataset.hmBound) return;
+    container.dataset.hmBound = '1';
+
+    container.addEventListener('click', e => {
+      const currentVideos = _movieGridData.get(container) || [];
+
+      const menuBtn = e.target.closest('[data-menu]');
+      if (menuBtn) {
+        e.stopPropagation();
+        _openMovieMenu(menuBtn.dataset.menu, menuBtn, currentVideos);
+        return;
+      }
+
+      const row = e.target.closest('.movie-row');
+      if (!row) return;
+      const video = currentVideos.find(v => v.id === row.dataset.id);
+      if (video) _movieMenuHandlers.onPlay?.(video);
+    });
+  }
+
+  // ── MENU DE AÇÕES DO VÍDEO (favoritar / editar / playlist) ─────
+  // Mesmo popover usado nas faixas (_openTrackMenu), só que ligado aos
+  // handlers de vídeo.
+  function _closeMovieMenu() {
+    document.querySelector('.track-menu-popover')?.remove();
+  }
+
+  function _outsideMovieMenuHandler(e) {
+    if (!e.target.closest('.track-menu-popover') && !e.target.closest('[data-menu]')) _closeMovieMenu();
+  }
+
+  function _openMovieMenu(videoId, anchorEl, videos) {
+    _closeMovieMenu();
+    const video = videos.find(v => v.id === videoId);
+    if (!video) return;
+
+    const isFav = Player_isVideoFavorite(videoId);
+
+    const pop = document.createElement('div');
+    pop.className = 'track-menu-popover';
+    pop.innerHTML = `
+      <button data-action="favorite">${_favIcon(isFav)}<span>${isFav ? 'Remover dos favoritos' : 'Adicionar aos favoritos'}</span></button>
+      <button data-action="edit">${_editIcon()}<span>Editar informações</span></button>
+      <button data-action="playlist">${_addToPlaylistIcon()}<span>Adicionar à playlist</span></button>
+    `;
+    document.body.appendChild(pop);
+
+    function place() {
+      const rect = anchorEl.getBoundingClientRect();
+      const popRect = pop.getBoundingClientRect();
+      const margin = 8;
+
+      let top = rect.bottom + 4;
+      if (top + popRect.height > window.innerHeight - margin) {
+        top = rect.top - popRect.height - 4;
+      }
+      top = Math.max(margin, Math.min(top, window.innerHeight - popRect.height - margin));
+
+      let left = rect.right - popRect.width;
+      if (left < margin) left = margin;
+      if (left + popRect.width > window.innerWidth - margin) {
+        left = window.innerWidth - popRect.width - margin;
+      }
+
+      pop.style.top  = `${top}px`;
+      pop.style.left = `${left}px`;
+    }
+
+    place();
+    requestAnimationFrame(place);
+
+    pop.addEventListener('click', e => {
+      const btn = e.target.closest('button');
+      if (!btn) return;
+      const action = btn.dataset.action;
+      _closeMovieMenu();
+      if (action === 'edit') _movieMenuHandlers.onEdit?.(video);
+      if (action === 'playlist') _movieMenuHandlers.onAddToPlaylist?.(video);
+      if (action === 'favorite') _movieMenuHandlers.onFavorite?.(video);
+    });
+
+    setTimeout(() => document.addEventListener('click', _outsideMovieMenuHandler, { once: true }), 0);
+    const scrollHost = anchorEl.closest('.modal-box, .main-content');
+    scrollHost?.addEventListener('scroll', _closeMovieMenu, { once: true, passive: true });
+  }
+
+  // O popover precisa saber se o vídeo já é favorito pra escolher o
+  // ícone certo — como o estado mora em app.js (não em ui.js), o
+  // próprio app.js registra essa função assim que inicializa.
+  let Player_isVideoFavorite = () => false;
+  function setIsVideoFavoriteFn(fn) { Player_isVideoFavorite = fn; }
+
+  // ── FILTRO DE VÍDEOS (gênero) ───────────────────
+  function renderMovieFilterOptions(genres, activeGenre = '') {
+    _filterData.moviegenres = genres;
+    el.movieFilterMenuDot?.classList.toggle('hidden', !activeGenre);
+    if (el.movieFilterSummary) {
+      el.movieFilterSummary.classList.toggle('hidden', !activeGenre);
+      el.movieFilterSummary.textContent = activeGenre ? `Filtrando por: ${activeGenre}` : '';
+    }
+  }
+
+  // ── COLEÇÕES DE VÍDEO (favoritos + playlists) ───
+  const MOVIE_FAVORITES_ID = '__movie_favorites__';
+
+  function renderMovieCollectionOptions(playlists, activeId, favCount = 0) {
+    const prevValue = activeId || '__all__';
+    const items = [
+      { value: '__all__', label: 'Todos os vídeos' },
+      { value: MOVIE_FAVORITES_ID, label: `❤ Favoritos (${favCount})` },
+      ...playlists.map(p => ({ value: p.id, label: `${p.name} (${p.videoIds.length})` })),
+    ];
+    _filterData.moviecollections = items;
+
+    const active = items.find(i => i.value === prevValue);
+    el.filterChipMovieCollection.querySelector('.filter-chip-label').textContent = active ? active.label : 'Todos os vídeos';
+    el.filterChipMovieCollection.classList.toggle('active', prevValue !== '__all__');
+    el.btnMovieCollectionDelete.classList.toggle('hidden', !playlists.some(p => p.id === prevValue));
+  }
+
+  // ── MODAL: NOVA PLAYLIST DE VÍDEO ───────────────
+  function showNewMoviePlaylistModal() {
+    el.newMoviePlaylistName.value = '';
+    el.modalNewMoviePlaylist.classList.remove('hidden');
+    el.newMoviePlaylistName.focus();
+  }
+  function hideNewMoviePlaylistModal() { el.modalNewMoviePlaylist.classList.add('hidden'); }
+
+  // ── MODAL: ADICIONAR VÍDEO À PLAYLIST ───────────
+  function showAddVideoToPlaylistModal(playlists, videoIdOrIds) {
+    const ids = Array.isArray(videoIdOrIds) ? videoIdOrIds : [videoIdOrIds];
+    el.addVideoToPlaylistNewName.value = '';
+    el.modalAddVideoToPlaylist.dataset.videoIds = JSON.stringify(ids);
+
+    if (ids.length > 1) {
+      el.addVideoToPlaylistSubtitle.textContent = `${ids.length} vídeos selecionados`;
+      el.addVideoToPlaylistSubtitle.classList.remove('hidden');
+    } else {
+      el.addVideoToPlaylistSubtitle.classList.add('hidden');
+    }
+
+    if (!playlists.length) {
+      el.addVideoToPlaylistList.innerHTML = `<p class="empty-hint">Você ainda não tem playlists de vídeo.</p>`;
+    } else {
+      el.addVideoToPlaylistList.innerHTML = playlists.map(p => {
+        const allIn  = ids.every(id => p.videoIds.includes(id));
+        const someIn = !allIn && ids.some(id => p.videoIds.includes(id));
+        const hint = allIn ? (_checkIcon(13) + ' na playlist') : someIn ? 'alguns na playlist' : 'adicionar';
+        return `
+          <div class="folder-item playlist-pick-item ${allIn ? 'selected' : ''}" data-id="${p.id}">
+            ${_playlistIcon()}
+            <span style="flex:1;">${_escape(p.name)}</span>
+            <span class="profile-section-hint" style="margin:0; display:flex; align-items:center; gap:4px;">${hint}</span>
+          </div>
+        `;
+      }).join('');
+    }
+    el.modalAddVideoToPlaylist.classList.remove('hidden');
+  }
+  function hideAddVideoToPlaylistModal() {
+    el.modalAddVideoToPlaylist.classList.add('hidden');
+    delete el.modalAddVideoToPlaylist.dataset.videoIds;
+  }
+
+  // ── FAVORITO NO PLAYER DE VÍDEO ─────────────────
+  function setMovieFavoriteState(active) {
+    el.btnMovieFavorite.classList.toggle('active', active);
+  }
+
+  // ── MODAL: ADICIONAR VÍDEO (link do YouTube) ───
+  let _movieAddKnownGenres = [];
+
+  function showMovieAddModal(knownGenres = []) {
+    el.movieAddUrl.value = '';
+    el.movieAddGenre.value = '';
+    _movieAddKnownGenres = knownGenres;
+    el.movieSearchInput.value = '';
+    hideMovieSearchResults();
+    hideMoviePreview();
+    el.modalUploadMovie.classList.remove('hidden');
+    el.movieSearchInput.focus();
+  }
+  function hideMovieAddModal() {
+    el.modalUploadMovie.classList.add('hidden');
+    hideMoviePreview(); // remove o iframe pra garantir que o vídeo pare de tocar
+  }
+  function getMovieAddForm() {
+    return {
+      url:   el.movieAddUrl.value.trim(),
+      genre: el.movieAddGenre.value.trim(),
+    };
+  }
+  function setMovieAddSaving(saving) {
+    el.btnMovieAddSave.disabled = saving;
+    el.btnMovieAddSave.textContent = saving ? 'Adicionando…' : 'Adicionar';
+  }
+
+  // ── BUSCA DE VÍDEOS NO YOUTUBE (dentro do modal) ─
+  function setMovieSearchLoading(loading) {
+    el.btnMovieSearch.disabled = loading;
+    el.btnMovieSearch.classList.toggle('is-loading', loading);
+  }
+  function hideMovieSearchResults() {
+    el.movieSearchResults.classList.add('hidden');
+    el.movieSearchResults.innerHTML = '';
+  }
+  function renderMovieSearchResults(results) {
+    hideMoviePreview();
+    if (!results || !results.length) {
+      el.movieSearchResults.innerHTML = `<p class="yt-search-empty">Nada encontrado. Tente outro termo.</p>`;
+      el.movieSearchResults.classList.remove('hidden');
+      return;
+    }
+    el.movieSearchResults.innerHTML = results.map(r => `
+      <button type="button" class="yt-search-result" data-video-id="${_escape(r.id)}" data-video-title="${_escape(r.title)}">
+        <div class="yt-search-result-thumb" style="background-image:url('${_escape(r.thumbnail)}')"></div>
+        <span class="yt-search-result-title">${_escape(r.title)}</span>
+      </button>
+    `).join('');
+    el.movieSearchResults.classList.remove('hidden');
+  }
+  function showMovieSearchError(message) {
+    el.movieSearchResults.innerHTML = `<p class="yt-search-empty">${_escape(message)}</p>`;
+    el.movieSearchResults.classList.remove('hidden');
+  }
+
+  // ── PRÉVIA DE UM VÍDEO PESQUISADO (áudio + vídeo) ─
+  // Toca o vídeo de verdade dentro do modal antes de confirmar a
+  // adição, pra pessoa decidir se é o vídeo certo antes de salvar.
+  function showMoviePreview(videoId, title) {
+    el.movieSearchResults.classList.add('hidden');
+    el.movieSearchPreview.dataset.videoId = videoId;
+    el.moviePreviewFrame.innerHTML =
+      `<iframe src="https://www.youtube.com/embed/${encodeURIComponent(videoId)}?autoplay=1&playsinline=1" ` +
+      `allow="autoplay; encrypted-media" allowfullscreen title="${_escape(title || '')}"></iframe>`;
+    el.moviePreviewTitle.textContent = title || '';
+    el.movieSearchPreview.classList.remove('hidden');
+  }
+  function hideMoviePreview() {
+    // Trocar o innerHTML (em vez de só esconder) garante que o iframe
+    // seja destruído e o áudio/vídeo pare de tocar de verdade.
+    el.moviePreviewFrame.innerHTML = '';
+    delete el.movieSearchPreview.dataset.videoId;
+    el.movieSearchPreview.classList.add('hidden');
+  }
+  function backFromMoviePreview() {
+    hideMoviePreview();
+    el.movieSearchResults.classList.remove('hidden');
+  }
+  function confirmMoviePreview() {
+    const videoId = el.movieSearchPreview.dataset.videoId;
+    if (!videoId) return;
+    el.movieAddUrl.value = `https://www.youtube.com/watch?v=${videoId}`;
+    hideMoviePreview();
+    hideMovieSearchResults();
+    el.movieAddGenre.focus();
+  }
+
+  // ── MODAL: EDITAR INFORMAÇÕES DO VÍDEO ─────────
+  let _movieEditKnownGenres = [];
+
+  function showMovieEditModal(video, knownGenres = []) {
+    el.editMovieTitle.value = video.title || '';
+    el.editMovieGenre.value = video.genre || '';
+    _movieEditKnownGenres = knownGenres;
+    el.modalMovieEdit.classList.remove('hidden');
+    el.modalMovieEdit.dataset.videoId = video.id;
+    el.editMovieTitle.focus();
+  }
+  function hideMovieEditModal() {
+    el.modalMovieEdit.classList.add('hidden');
+    delete el.modalMovieEdit.dataset.videoId;
+  }
+  function getMovieEditForm() {
+    return {
+      title: el.editMovieTitle.value.trim(),
+      genre: el.editMovieGenre.value.trim(),
+    };
+  }
+
+  // ── PLAYER DE VÍDEO (tela cheia) ────────────────
+  // O vídeo em si é carregado à parte (YTPlayer.load, chamado pelo
+  // app.js) — aqui só cuidamos da tela: título, overlay e resetar os
+  // controles customizados (mesmo visual neon da barra do player de
+  // música) pro estado inicial.
+  function openMoviePlayer(title) {
+    el.moviePlayerTitle.textContent = title;
+    el.moviePlayerOverlay.classList.remove('hidden');
+    setMoviePlayState(false);
+    updateMovieProgress(0, 0);
+  }
+  function closeMoviePlayer() {
+    el.moviePlayerOverlay.classList.add('hidden');
+  }
+
+  function setMoviePlayState(playing) {
+    el.movieIconPlay.classList.toggle('hidden', playing);
+    el.movieIconPause.classList.toggle('hidden', !playing);
+    el.btnMoviePlayPause.classList.toggle('is-playing', playing);
+  }
+
+  function updateMovieProgress(current, duration) {
+    el.movieTimeCurrent.textContent = Player.formatTime(current);
+    el.movieTimeTotal.textContent   = Player.formatTime(duration);
+
+    const pct = duration ? (current / duration) * 100 : 0;
+    el.movieSeekBar.value = pct;
+    el.movieSeekBar.style.background =
+      `linear-gradient(to right, var(--purple) ${pct}%, var(--border) ${pct}%)`;
+    el.movieSeekBarFillClip.style.width = `${pct}%`;
+  }
+
+  function setMovieShuffleState(active) {
+    el.btnMovieShuffle.classList.toggle('active', active);
+    el.btnMovieShuffle.title = active ? 'Aleatório ativado' : 'Aleatório';
+  }
+
+  function setMovieRepeatState(mode) {
+    el.btnMovieRepeat.classList.toggle('active', mode !== 'none');
+    el.btnMovieRepeat.title = { none: 'Repetir', all: 'Repetir tudo', one: 'Repetir um' }[mode];
+
+    if (mode === 'one') {
+      el.btnMovieRepeat.innerHTML = `
+        <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <polyline points="17 1 21 5 17 9"/>
+          <path d="M3 11V9a4 4 0 0 1 4-4h14"/>
+          <polyline points="7 23 3 19 7 15"/>
+          <path d="M21 13v2a4 4 0 0 1-4 4H3"/>
+          <text x="10" y="14" font-size="7" fill="currentColor" stroke="none" font-weight="bold">1</text>
+        </svg>`;
+    } else {
+      el.btnMovieRepeat.innerHTML = `
+        <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <polyline points="17 1 21 5 17 9"/>
+          <path d="M3 11V9a4 4 0 0 1 4-4h14"/>
+          <polyline points="7 23 3 19 7 15"/>
+          <path d="M21 13v2a4 4 0 0 1-4 4H3"/>
+        </svg>`;
+    }
+  }
+
+  // ── SELEÇÃO MÚLTIPLA (atribuir gênero em lote) ─
+  function isSelectMode(container) {
+    return container.classList.contains('select-mode');
+  }
+
+  function setSelectMode(container, on) {
+    container.classList.toggle('select-mode', on);
+    if (!on) {
+      container.querySelectorAll('.track-item.selected').forEach(item => {
+        item.classList.remove('selected');
+        const cb = item.querySelector('.track-select-cb');
+        if (cb) cb.checked = false;
+      });
+    }
+  }
+
+  function getSelectedIds(container) {
+    return [...container.querySelectorAll('.track-item.selected')].map(item => item.dataset.id);
+  }
+
+  function updateSelectionBar(count) {
+    el.selectionCount.textContent = count === 1 ? '1 selecionada' : `${count} selecionadas`;
+    el.btnSelectionAssignGenre.disabled = count === 0;
+    el.btnSelectionFavorite.disabled = count === 0;
+    el.btnSelectionAddPlaylist.disabled = count === 0;
+  }
+
+  function showSelectionBar() { el.selectionBar.classList.remove('hidden'); }
+  function hideSelectionBar() { el.selectionBar.classList.add('hidden'); }
+
+  // ── MODAL: ATRIBUIR GÊNERO EM LOTE ─────────────
+  function showBulkGenreModal(count, knownGenres = []) {
+    el.bulkGenreCount.textContent = count === 1 ? '1 música selecionada' : `${count} músicas selecionadas`;
+    el.bulkGenreField.value = '';
+    _musicKnownGenres = knownGenres;
+    el.bulkGenreProgress.classList.add('hidden');
+    el.bulkGenreProgressFill.style.width = '0%';
+    el.btnBulkGenreSave.disabled = false;
+    el.modalBulkGenre.classList.remove('hidden');
+    el.bulkGenreField.focus();
+  }
+  function hideBulkGenreModal() { el.modalBulkGenre.classList.add('hidden'); }
+  function setBulkGenreProgress(done, total) {
+    el.bulkGenreProgress.classList.remove('hidden');
+    el.bulkGenreProgressFill.style.width = `${total ? Math.round((done / total) * 100) : 0}%`;
+  }
+
+  // ── LOADING STATE ──────────────────────────────
+  function showLoading(container, rows = 5) {
+    container.innerHTML = Array(rows).fill(0).map(() => `
+      <div class="track-item skeleton" style="min-height:66px; border-radius:8px;"></div>
+    `).join('');
+  }
+
+  // ── ESCAPE XSS ────────────────────────────────
+  // ── SUGESTÕES DE GÊNERO (substitui <datalist>) ─────────────────
+  // No WebView do Android, o <datalist> nativo renderiza a lista fora
+  // do lugar (por cima do campo de texto) — esse dropdown próprio
+  // resolve isso e fica com a cara do resto do app.
+  // options: array de strings, ou função que retorna esse array (pra
+  // pegar a lista mais atual na hora de abrir, sem precisar re-wire).
+  function _attachGenreSuggest(input, listEl, options) {
+    if (!input || !listEl) return;
+
+    function getOptions() {
+      return typeof options === 'function' ? (options() || []) : (options || []);
+    }
+
+    // Reposiciona a lista com detecção de colisão: por padrão abre pra
+    // baixo do campo, mas vira pra cima se não houver espaço embaixo —
+    // e nunca deixa passar da borda do modal/tela. Sem isso ela ficava
+    // sempre fixa embaixo do input, cobrindo o resto do formulário
+    // (botão salvar, outros campos) quando não cabia no espaço restante.
+    function reposition() {
+      const wrap = listEl.closest('.genre-suggest-wrap') || input.parentElement;
+      const modal = input.closest('.sheet-body') || input.closest('.modal-box');
+      const boundBottom = modal ? modal.getBoundingClientRect().bottom : window.innerHeight;
+      const rect = input.getBoundingClientRect();
+      const spaceBelow = boundBottom - rect.bottom;
+      const maxH = 180;
+
+      listEl.style.maxHeight = `${maxH}px`;
+
+      if (spaceBelow < Math.min(maxH, 120) && rect.top > spaceBelow) {
+        // Não cabe embaixo — abre pra cima do campo
+        listEl.style.top = 'auto';
+        listEl.style.bottom = 'calc(100% + 4px)';
+        listEl.style.maxHeight = `${Math.min(maxH, rect.top - 16)}px`;
+      } else {
+        listEl.style.top = 'calc(100% + 4px)';
+        listEl.style.bottom = 'auto';
+        listEl.style.maxHeight = `${Math.min(maxH, Math.max(80, spaceBelow - 16))}px`;
+      }
+    }
+
+    function render() {
+      const q = input.value.trim().toLowerCase();
+      const opts = getOptions()
+        .filter(g => !q || g.toLowerCase().includes(q))
+        .slice(0, 8);
+
+      if (!opts.length) { listEl.classList.add('hidden'); return; }
+
+      listEl.innerHTML = opts.map(g =>
+        `<div class="genre-suggest-item" data-value="${_escape(g)}">${_escape(g)}</div>`
+      ).join('');
+      listEl.classList.remove('hidden');
+      reposition();
+      // Garante que o campo (e a lista aberta) fiquem visíveis dentro
+      // do modal, em vez da lista simplesmente cobrir o que tiver embaixo.
+      input.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    }
+
+    input.addEventListener('focus', render);
+    input.addEventListener('input', render);
+    // blur com um delay pequeno — senão o clique na sugestão nunca
+    // registra, porque o blur esconde a lista antes do click disparar
+    input.addEventListener('blur', () => setTimeout(() => listEl.classList.add('hidden'), 150));
+
+    // Se o modal tiver scroll e o usuário rolar com a lista aberta,
+    // reposiciona (ou fecha, se saiu muito da área visível) em vez de
+    // deixar a lista flutuando fora do lugar.
+    const scrollHost = input.closest('.sheet-body') || input.closest('.modal-box');
+    scrollHost?.addEventListener('scroll', () => {
+      if (!listEl.classList.contains('hidden')) reposition();
+    }, { passive: true });
+
+    listEl.addEventListener('mousedown', e => {
+      const item = e.target.closest('.genre-suggest-item');
+      if (!item) return;
+      e.preventDefault(); // evita o blur do input antes de aplicar o valor
+      input.value = item.dataset.value;
+      listEl.classList.add('hidden');
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+  }
+
+  // Tocar em qualquer lugar fora do campo fecha a lista de sugestões (tocar
+  // num texto ou botão comum não tira o foco do input no WebView, então só o
+  // blur não basta — a lista ficava por cima do botão de baixo). Um único
+  // listener global serve pra todas as listas, inclusive as recriadas.
+  document.addEventListener('pointerdown', e => {
+    document.querySelectorAll('.genre-suggest-list:not(.hidden)').forEach(list => {
+      if (!list.parentElement.contains(e.target)) list.classList.add('hidden');
+    });
+  }, true);
+
+  _attachGenreSuggest(el.editFieldGenre,  el.editFieldGenreList,  () => _musicKnownGenres);
+  _attachGenreSuggest(el.bulkGenreField,  el.bulkGenreFieldList,  () => _musicKnownGenres);
+  _attachGenreSuggest(el.movieAddGenre,   el.movieAddGenreList,   () => _movieAddKnownGenres);
+  _attachGenreSuggest(el.editMovieGenre,  el.editMovieGenreList,  () => _movieEditKnownGenres);
+
+  function _escape(str) {
+    return String(str || '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  // ── BIND EVENTOS DO PLAYER ─────────────────────
+  function bindPlayerEvents() {
+
+    // Play / Pause
+    el.btnPlayPause.addEventListener('click', () => {
+      Player.togglePlay();
+      setPlayState(Player.isPlaying());
+    });
+
+    // Próxima
+    el.btnNext.addEventListener('click', () => Player.next());
+
+    // Anterior
+    el.btnPrev.addEventListener('click', () => Player.prev());
+
+    // Seek
+    el.seekBar.addEventListener('input', () => {
+      Player.seekPercent(parseFloat(el.seekBar.value));
+    });
+
+    // Shuffle
+    el.btnShuffle.addEventListener('click', () => {
+      const active = Player.toggleShuffle();
+      setShuffleState(active);
+      showToast(active ? 'Aleatório ativado' : 'Aleatório desativado');
+    });
+
+    // Repeat
+    el.btnRepeat.addEventListener('click', () => {
+      const mode = Player.cycleRepeat();
+      setRepeatState(mode);
+      const labels = { none: 'Repetir desativado', all: 'Repetir tudo', one: 'Repetir uma música' };
+      showToast(labels[mode]);
+    });
+
+    // Favorito
+    el.btnFav.addEventListener('click', () => {
+      const track = Player.getCurrentTrack();
+      if (!track) return;
+      const fav = Player.toggleFavorite(track.id);
+      el.btnFav.classList.toggle('active', fav);
+      showToast(fav ? 'Adicionado aos favoritos' : 'Removido dos favoritos');
+      document.dispatchEvent(new CustomEvent('hm-favorite-change', { detail: { trackId: track.id, isFav: fav } }));
+    });
+
+    // Download offline da faixa atual
+    el.btnDownloadCurrent.addEventListener('click', () => {
+      const track = Player.getCurrentTrack();
+      if (!track) return;
+      if (Downloads.isDownloaded(track.id)) {
+        Downloads.removeTrack(track.id);
+        showToast('Removida do offline');
+      } else if (!Downloads.isDownloading(track.id)) {
+        Downloads.downloadTrack(track);
+        showToast('Baixando para ouvir offline…');
+      }
+    });
+
+    // Mantém todos os botões de download da tela sincronizados
+    // com o estado real (idle / baixando / baixada)
+    Downloads.onChange((id, state) => _applyDownloadState(id, state));
+
+    // Nav inferior
+    el.navBtns.forEach(btn => {
+      btn.addEventListener('click', () => showView(btn.dataset.view));
+    });
+
+    // Player: toque na capa/título expande o player em tela cheia,
+    // com transição elástica (PlayerFX.toggleExpand). Se o toque veio
+    // logo depois de um swipe na capa (troca de faixa), ignora —
+    // senão cada swipe também abriria/fecharia o player.
+    el.btnPlayerExpand.addEventListener('click', () => {
+      if (PlayerFX.consumeSuppressedClick()) return;
+      if (_playerIsOpen()) collapsePlayer(); else expandPlayer();
+    });
+
+    // Arrastar a capa expandida troca de faixa (item 9)
+    PlayerFX.initSwipe({
+      artEl: el.playerArt,
+      playerEl: el.player,
+      getPrevTrack: () => _peekTrack(-1),
+      getNextTrack: () => _peekTrack(1),
+      onCommit: (direction) => {
+        if (direction === 1) Player.next(); else Player.prev();
+      },
+      iconFallbackHtml: _musicIcon(28),
+    });
+
+    // Sub-abas da Biblioteca: Músicas / Playlists
+    el.libraryTabs.forEach(btn => {
+      btn.addEventListener('click', () => showLibraryTab(btn.dataset.libTab));
+    });
+
+    // Avatar → perfil: ligado em app.js (_toggleProfile), porque precisa
+    // mexer no histórico pro botão "voltar" do Android.
+
+    // Player callbacks
+    Player.onPlay(track => {
+      updatePlayerTrack(track);
+      setPlayState(true);
+      setPlayingTrack(track.id);
+    });
+
+    Player.on('onLoading', track => {
+      updatePlayerTrack(track);
+      showToast('Carregando música…', 1500);
+    });
+
+    // Faixa pulada automaticamente por erro (ver _handlePlaybackFailure em
+    // player.js) — mostra qual faixa falhou, mas NÃO troca capa/título do
+    // player (isso só acontece de verdade em onPlay, quando uma faixa
+    // consegue tocar). Ajuda a identificar no toast quais músicas
+    // específicas estão com problema no Drive (removidas, sem permissão etc.).
+    Player.on('onTrackSkipped', (track, err) => {
+      const motivo = err?.message ? ` (${err.message})` : '';
+      showToast(`Não foi possível tocar "${track.title}"${motivo} — pulando…`, 2500);
+    });
+
+    Player.on('onPause', () => setPlayState(false));
+
+    Player.on('onProgress', (current, duration) => {
+      updateProgress(current, duration);
+    });
+
+    Player.on('onError', () => {
+      showToast('Erro ao carregar música. Tente novamente.');
+      setPlayState(false);
+    });
+
+    // Sem internet: pulou automaticamente pra próxima faixa já baixada
+    // (só acontece em next/prev/fim da faixa/tocar playlist — quando o
+    // usuário toca numa faixa específica NÃO troca, ver onOfflineBlocked)
+    Player.on('onOfflineSkip', track => {
+      showToast(`Sem internet — pulando as não baixadas. Tocando "${_shortTitle(track.title)}"`, 3500);
+    });
+
+    // O usuário escolheu uma faixa que não toca sem internet. O player NÃO
+    // troca por outra: só explica o motivo, e o que já estava tocando
+    // continua tocando (ver _blockIfUnavailableOffline / _abortExplicit em player.js).
+    Player.on('onOfflineBlocked', (track, info = {}) => {
+      // Falha de conexão no meio do carregamento: o onLoading já tinha
+      // trocado título/capa do player pra faixa que falhou — desfaz.
+      if (info.reason === 'network') {
+        if (info.restore) {
+          updatePlayerTrack(info.restore);
+          setPlayingTrack(info.restore.id);
+        }
+        setPlayState(!!info.wasPlaying);
+      }
+
+      const nome = _shortTitle(track.title);
+      showToast(
+        info.reason === 'offline'
+          ? `Sem internet — "${nome}" não foi baixada. Só as baixadas tocam offline.`
+          : `Sem conexão — não deu pra carregar "${nome}". Só as baixadas tocam offline.`,
+        4000
+      );
+      _shakeTrackRows(track.id);
+    });
+
+    // Sem internet e nenhuma faixa da fila está baixada: não tem pra onde pular
+    Player.on('onAllOffline', () => {
+      showToast('Sem internet e nenhuma música dessa lista está baixada.', 3500);
+      setPlayState(false);
+    });
+
+    // A fila acabou e o player completou sozinho com mais músicas
+    // parecidas (mesmo estilo) — avisa o usuário do que está rolando.
+    Player.on('onAutoContinue', () => {
+      showToast('Continuando com músicas parecidas…', 2000);
+    });
+  }
+
+  // ── BIND EVENTOS DE LISTA ──────────────────────
+  // As listas são re-renderizadas várias vezes (filtro, busca, upload,
+  // edição...). Sem isso, cada chamada empilhava outro listener no mesmo
+  // container e um clique disparava a ação repetida vezes — é o que
+  // fazia a seleção de músicas "não funcionar" (selecionava e
+  // desselecionava no mesmo clique). Agora o listener é criado uma
+  // única vez por container; só a referência de tracks é atualizada.
+  const _trackListData = new WeakMap();
+
+  const _trackListOpts = new WeakMap(); // container -> opts (ex.: { removable })
+
+  function bindTrackListEvents(container, tracks, opts = {}) {
+    _trackListData.set(container, tracks);
+    _trackListOpts.set(container, opts);
+    if (container.dataset.hmBound) return;
+    container.dataset.hmBound = '1';
+
+    container.addEventListener('click', e => {
+      const currentTracks = _trackListData.get(container) || [];
+      const currentOpts = _trackListOpts.get(container) || {};
+
+      const dlBtn = e.target.closest('[data-dl]');
+      if (dlBtn) {
+        e.stopPropagation();
+        _handleDownloadClick(dlBtn.dataset.dl, currentTracks);
+        return;
+      }
+
+      const menuBtn = e.target.closest('[data-menu]');
+      if (menuBtn) {
+        e.stopPropagation();
+        _openTrackMenu(menuBtn.dataset.menu, menuBtn, currentTracks, currentOpts);
+        return;
+      }
+
+      const item = e.target.closest('.track-item');
+      if (!item) return;
+
+      if (container.classList.contains('select-mode')) {
+        e.stopPropagation();
+        const cb = item.querySelector('.track-select-cb');
+        if (cb) {
+          // Se o toque foi direto no quadradinho, o navegador já inverteu o
+          // estado dele sozinho (comportamento nativo do checkbox) — inverter
+          // de novo aqui cancelaria o toque. Só inverte manualmente quando o
+          // clique veio de outro lugar da linha (nome, foto, etc.).
+          if (e.target !== cb) cb.checked = !cb.checked;
+          item.classList.toggle('selected', cb.checked);
+        }
+        document.dispatchEvent(new CustomEvent('hm-selection-change'));
+        return;
+      }
+
+      const index = parseInt(item.dataset.index, 10);
+      if (isNaN(index)) return;
+      Player.loadQueue(currentTracks, index, { loop: !!currentOpts.loop });
+    });
+
+    container.addEventListener('keydown', e => {
+      if (e.target.closest('[data-dl]')) return; // deixa o botão lidar com seu próprio Enter/Espaço
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        e.target.closest('.track-item')?.click();
+      }
+    });
+  }
+
+  function bindRecentEvents(tracks) {
+    _trackListData.set(el.recentList, tracks);
+    if (el.recentList.dataset.hmBound) return;
+    el.recentList.dataset.hmBound = '1';
+
+    el.recentList.addEventListener('click', e => {
+      const currentTracks = _trackListData.get(el.recentList) || [];
+      const item = e.target.closest('.track-item');
+      if (!item) return;
+      const id = item.dataset.id;
+      const track = currentTracks.find(t => t.id === id);
+      if (!track) return;
+      const index = currentTracks.indexOf(track);
+      Player.loadQueue(currentTracks, index >= 0 ? index : 0);
+    });
+  }
+
+  // ── OFFLINE: RESUMO E PROGRESSO DE LOTE ────────
+  function setOfflineSummary(text) {
+    el.offlineStatus.textContent = text;
+  }
+
+  function _fmtBytes(bytes) {
+    if (!bytes) return '0 MB';
+    if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))} KB`;
+    if (bytes < 1024 * 1024 * 1024) return `${Math.round(bytes / (1024 * 1024))} MB`;
+    return `${(bytes / (1024 * 1024 * 1024)).toFixed(1).replace('.', ',')} GB`;
+  }
+
+  // Números do topo do perfil + barra fixa "quanto já está baixado"
+  function setLibraryStats({ total = 0, downloaded = 0, bytes = 0 } = {}) {
+    el.statTracks.textContent     = total ? String(total) : '—';
+    el.statDownloaded.textContent = total ? String(downloaded) : '—';
+    el.statSize.textContent       = total ? _fmtBytes(bytes) : '—';
+    el.offlineMeterFill.style.width = total ? `${Math.round((downloaded / total) * 100)}%` : '0%';
+  }
+
+  // Os botões do Modo offline são linhas com ícone + texto; só o rótulo muda
+  // (trocar o textContent do botão inteiro apagaria o ícone).
+  function _setRowLabel(btn, text) {
+    const label = btn.querySelector('.set-row-label');
+    (label || btn).textContent = text;
+  }
+  function _rowLabel(btn) {
+    return (btn.querySelector('.set-row-label') || btn).textContent;
+  }
+
+  // Ajusta o botão "Baixar tudo" conforme quanto já foi baixado:
+  // nada baixado → "Baixar tudo"; parte baixada → "Baixar restante";
+  // tudo já baixado → o botão some (não tem mais o que baixar).
+  function updateDownloadAllButton(downloadedCount, totalCount) {
+    const allDone = totalCount > 0 && downloadedCount >= totalCount;
+    el.btnDownloadAll.classList.toggle('hidden', allDone);
+    if (allDone) return;
+
+    const label = downloadedCount > 0 ? 'Baixar restante' : 'Baixar tudo';
+    el.btnDownloadAll.dataset.idleLabel = label;
+    if (!el.btnDownloadAll.classList.contains('btn-cancel')) {
+      _setRowLabel(el.btnDownloadAll, label);
+    }
+  }
+
+  // which: 'all' | 'fav' | 'custom' | null — controla qual linha vira "Cancelar"
+  function setDownloadBatchUI(running, done = 0, total = 0, which = null) {
+    el.btnDownloadAll.disabled       = running && which !== 'all';
+    el.btnDownloadFavorites.disabled = running && which !== 'fav';
+    el.btnDownloadCustom.disabled    = running && which !== 'custom';
+    el.btnClearDownloads.disabled    = !!running;
+
+    if (which === 'all') _setRowLabel(el.btnDownloadAll, running ? 'Cancelar download' : el.btnDownloadAll.dataset.idleLabel || 'Baixar tudo');
+    _setRowLabel(el.btnDownloadFavorites, (running && which === 'fav') ? 'Cancelar download' : 'Baixar favoritas');
+    el.btnDownloadCustom.dataset.idleLabel = el.btnDownloadCustom.dataset.idleLabel || _rowLabel(el.btnDownloadCustom);
+    _setRowLabel(el.btnDownloadCustom, (running && which === 'custom') ? 'Cancelar download' : el.btnDownloadCustom.dataset.idleLabel);
+
+    el.btnDownloadAll.classList.toggle('btn-cancel', running && which === 'all');
+    el.btnDownloadFavorites.classList.toggle('btn-cancel', running && which === 'fav');
+    el.btnDownloadCustom.classList.toggle('btn-cancel', running && which === 'custom');
+
+    el.offlineCard.classList.toggle('is-batch', !!running);
+    if (running) {
+      el.offlineProgressWrap.classList.remove('hidden');
+      const pct = total ? Math.round((done / total) * 100) : 0;
+      el.offlineProgressFill.style.width = pct + '%';
+      el.offlineProgressText.textContent = `Baixando ${done} de ${total}`;
+    } else {
+      el.offlineProgressWrap.classList.add('hidden');
+    }
+  }
+
+  // ── EXPORT ────────────────────────────────────
+  return {
+    el,
+    showToast,
+    showLogin,
+    showApp,
+    showView,
+    getCurrentView,
+    showLibraryTab,
+    clearSearchResults,
+    focusSearch,
+    renderProfile,
+    setGreeting,
+    renderRecent,
+    renderRecentCollections,
+    renderTrackList,
+    renderTrackListIncremental,
+    setPlayingTrack,
+    updatePlayerTrack,
+    setPlayState,
+    updateProgress,
+    setShuffleState,
+    setRepeatState,
+    showLoading,
+    showOnboarding,
+    hideOnboarding,
+    showFolderModal,
+    hideFolderModal,
+    renderFolderList,
+    updateFolderLabel,
+    bindPlayerEvents,
+    bindTrackListEvents,
+    bindRecentEvents,
+    refreshDownloadBadges,
+    setOfflineSummary,
+    setOnlineState,
+    updateDownloadAllButton,
+    setDownloadBatchUI,
+
+    // Filtros
+    renderFilterOptions,
+    showFilterMenu,
+    hideFilterMenu,
+    showSortMenu,
+    hideSortMenu,
+    expandPlayer,
+    collapsePlayer,
+    backWasConsumed,
+    revealTrack,
+    showQueue,
+    hideQueue,
+    renderQueue,
+    showCollectionPreview,
+    hideCollectionPreview,
+    confirmDialog,
+    showFilterPicker,    hideFilterPicker,
+    setFilterSummary,
+    showDownloadPicker,
+    setLibraryStats,
+    showFolderLoading,
+    renderFolderError,
+    attachGenreSuggest: _attachGenreSuggest,
+    fmtBytes: _fmtBytes,
+    hideDownloadPicker,
+
+    // Menu da faixa
+    setTrackMenuHandlers,
+    checkIcon: _checkIcon,
+
+    // Seleção múltipla / gênero em lote
+    isSelectMode,
+    setSelectMode,
+    getSelectedIds,
+    updateSelectionBar,
+    showSelectionBar,
+    hideSelectionBar,
+    showBulkGenreModal,
+    hideBulkGenreModal,
+    setBulkGenreProgress,
+
+    // Edição de metadados
+    showTrackEditModal,
+    hideTrackEditModal,
+    getTrackEditForm,
+    refreshTrackArt,
+
+    // Upload
+    showUploadModal,
+    hideUploadModal,
+
+    // Playlists
+    renderPlaylists,
+    showPlaylistsRoot,
+    showPlaylistDetail,
+    renderPlaylistTracks,
+    showNewPlaylistModal,
+    hideNewPlaylistModal,
+    showAddToPlaylistModal,
+    hideAddToPlaylistModal,
+    showAddTracksPickerModal,
+    hideAddTracksPickerModal,
+    renderAddTracksPicker,
+    setAddTracksPickerToolbar,
+
+    // Vídeos
+    renderMovieGrid,
+    bindMovieGridEvents,
+    setMovieMenuHandlers,
+    renderMovieFilterOptions,
+    showMovieAddModal,
+    hideMovieAddModal,
+    getMovieAddForm,
+    setMovieAddSaving,
+    setMovieSearchLoading,
+    hideMovieSearchResults,
+    renderMovieSearchResults,
+    showMovieSearchError,
+    showMoviePreview,
+    hideMoviePreview,
+    backFromMoviePreview,
+    confirmMoviePreview,
+    showMovieEditModal,
+    hideMovieEditModal,
+    getMovieEditForm,
+    openMoviePlayer,
+    closeMoviePlayer,
+    setMoviePlayState,
+    updateMovieProgress,
+    setMovieShuffleState,
+    setMovieRepeatState,
+    setMovieFavoriteState,
+    setIsVideoFavoriteFn,
+    renderMovieCollectionOptions,
+    showNewMoviePlaylistModal,
+    hideNewMoviePlaylistModal,
+    showAddVideoToPlaylistModal,
+    hideAddVideoToPlaylistModal,
+  };
+
+})();
