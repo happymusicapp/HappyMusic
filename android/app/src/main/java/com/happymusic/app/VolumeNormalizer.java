@@ -119,6 +119,16 @@ final class VolumeNormalizer {
         if (!enabled) wanted = Collections.emptySet(); // para análises pendentes
     }
 
+    /**
+     * Encerra a thread de análise (chamado quando o serviço é destruído).
+     * Sem isso, cada vez que o serviço era recriado sobrava uma thread
+     * parada, e uma medição em andamento continuava decodificando à toa.
+     */
+    void shutdown() {
+        wanted = Collections.emptySet(); // a medição em curso se cancela sozinha (ver checkAlive)
+        executor.shutdownNow();
+    }
+
     // ── Ganho ─────────────────────────────────────────────────────
 
     /** Ganho em dB (≤ 0) para uma faixa de volume 'lufs'. Pública pra teste. */

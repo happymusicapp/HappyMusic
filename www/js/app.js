@@ -306,6 +306,21 @@ const App = (() => {
       navigator.storage.persist().catch(() => {});
     }
 
+    // Restaura fila + ponto exato JÁ, com a última lista de músicas salva no
+    // aparelho, sem esperar a rede (igual ao Spotify: abre pronto pra dar
+    // play). Antes isso só acontecia depois de a lista terminar de carregar
+    // do Drive — com sinal fraco, o play ficava sem a fila certa por um bom
+    // tempo. Quando a lista de verdade chega, _loadTracks() refaz o processo.
+    try {
+      const cachedTracks = Drive.getOfflineTracks ? Drive.getOfflineTracks() : [];
+      if (cachedTracks.length) {
+        await Drive.preloadCachedCovers(cachedTracks);
+        await _primeLastPlayed(cachedTracks);
+      }
+    } catch (err) {
+      console.warn('[App] Restauração rápida do player falhou:', err);
+    }
+
     await _loadTracks();
     _updateOfflineSummary();
     _loadPlaylists();
@@ -442,7 +457,7 @@ const App = (() => {
   // completa montada (pra next/prev funcionarem) — só falta apertar
   // play, igual ao Spotify. Não toca sozinho (autoplay sem gesto do
   // usuário é bloqueado pelo navegador mesmo).
-  async function _primeLastPlayed() {
+  async function _primeLastPlayed(pool = _tracks) {
     try {
       // Se a versão instantânea já não deixou nada tocando, isso só
       // troca a fila internamente (sem UI piscar) — se por acaso já
@@ -459,7 +474,7 @@ const App = (() => {
       // confere com o ExoPlayer se ele já avançou sozinho pra outra
       // faixa (FASE 3) enquanto o app estava fechado — por isso pode
       // já vir TOCANDO, não só pausado esperando o play.
-      const restored = await Player.restoreResumeState(_tracks);
+      const restored = await Player.restoreResumeState(pool);
       if (restored) {
         UI.updatePlayerTrack(restored);
         UI.setPlayState(Player.isPlaying());
@@ -472,10 +487,10 @@ const App = (() => {
       const recent = Player.getRecent();
       if (!recent.length) return;
 
-      const track = _tracks.find(t => t.id === recent[0].id);
+      const track = pool.find(t => t.id === recent[0].id);
       if (!track) return; // pode ter sido apagada/movida no Drive
 
-      Player.primeQueue(_tracks, _tracks.indexOf(track));
+      Player.primeQueue(pool, pool.indexOf(track));
       UI.updatePlayerTrack(track);
       UI.setPlayState(false);
     } catch (err) {

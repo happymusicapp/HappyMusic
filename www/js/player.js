@@ -411,6 +411,17 @@ const Player = (() => {
     }
   }
 
+  // Faixa vizinha sem tocar (1 = próxima, -1 = anterior), espelhando
+  // next()/prev() — usada pelo arrastar da capa (ui.js). null se não há.
+  function peekTrack(direction) {
+    if (!_queue.length) return null;
+    const loops = _repeat === 'all' || _queueLoops;
+    let t = _index + direction;
+    if (t < 0) t = loops ? _queue.length - 1 : -1;
+    else if (t >= _queue.length) t = loops ? 0 : -1;
+    return t === -1 ? null : (_queue[t] || null);
+  }
+
   function getQueue()        { return _queue; }
   function getCurrentTrack() { return _queue[_index] || null; }
   function getCurrentIndex() { return _index; }
@@ -1414,7 +1425,6 @@ const Player = (() => {
   }
 
   // Sobrescreve onPlay para também atualizar Media Session
-  const _origOn = on;
   function onPlay(fn) {
     _listeners.onPlay = (track) => {
       fn(track);
@@ -1430,6 +1440,7 @@ const Player = (() => {
     restoreResumeState,
     syncWithNative,
     getQueue,
+    peekTrack,
     playNext,
     addToQueue,
     moveInQueue,

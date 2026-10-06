@@ -889,10 +889,6 @@ const UI = (() => {
     </svg>`;
   }
 
-  function _playIcon(size = 14) {
-    return `<svg width="${size}" height="${size}" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>`;
-  }
-
   // ── MENU DE AÇÕES DA FAIXA (editar / add à playlist) ──
   // Popover simples e independente, sem framework — app.js registra o
   // que cada ação deve fazer via setTrackMenuHandlers.
@@ -2571,7 +2567,6 @@ const UI = (() => {
     // sempre fixa embaixo do input, cobrindo o resto do formulário
     // (botão salvar, outros campos) quando não cabia no espaço restante.
     function reposition() {
-      const wrap = listEl.closest('.genre-suggest-wrap') || input.parentElement;
       const modal = input.closest('.sheet-body') || input.closest('.modal-box');
       const boundBottom = modal ? modal.getBoundingClientRect().bottom : window.innerHeight;
       const rect = input.getBoundingClientRect();
@@ -2737,8 +2732,8 @@ const UI = (() => {
     PlayerFX.initSwipe({
       artEl: el.playerArt,
       playerEl: el.player,
-      getPrevTrack: () => _peekTrack(-1),
-      getNextTrack: () => _peekTrack(1),
+      getPrevTrack: () => Player.peekTrack(-1),
+      getNextTrack: () => Player.peekTrack(1),
       onCommit: (direction) => {
         if (direction === 1) Player.next(); else Player.prev();
       },

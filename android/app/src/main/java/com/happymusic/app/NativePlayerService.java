@@ -922,6 +922,7 @@ public class NativePlayerService extends Service {
         mainHandler.removeCallbacks(positionTicker);
         mainHandler.removeCallbacks(idleShutdown);
         if (volumeRamp != null) { mainHandler.removeCallbacks(volumeRamp); volumeRamp = null; }
+        if (normalizer != null) normalizer.shutdown();
         if (bluetoothCallback != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             BluetoothAudioWatcher.unregister(this, bluetoothCallback);
             bluetoothCallback = null;
