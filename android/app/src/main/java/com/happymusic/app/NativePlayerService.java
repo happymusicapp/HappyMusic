@@ -854,19 +854,76 @@ public class NativePlayerService extends Service {
             return;
         }
 
-        if (streaming && (http == 401 || http == 403 || http == 429 || http >= 500)) {
-            // Token vencido (renovado de novo na próxima abertura) ou Drive instável/limitando.
-            if (http == 401 || http == 403) DriveAuth.invalidate(this);
-            if (retriesOnCurrent < MAX_RETRIES_SAME_TRACK) {
-                scheduleRetry();
+        if (streaming && http > 0) {
+            if (http == 401 || http == 403 || http == 429 || http >= 500) {
+                // Token vencido (renovado de novo na próxima abertura) ou Drive instável/limitando.
+                if (http == 401 || http == 403) DriveAuth.invalidate(this);
+                if (retriesOnCurrent < MAX_RETRIES_SAME_TRACK) {
+                    scheduleRetry();
+                    return;
+                }
+            }
+            // O Drive respondeu com erro mesmo após tentar de novo. O motivo vem no corpo
+            // da resposta (ex.: authError, downloadQuotaExceeded, rateLimitExceeded).
+            String reason = driveReasonOf(error);
+            String r = reason.toLowerCase(Locale.ROOT);
+            if (plugin != null) {
+                plugin.notifyNotice("Drive: HTTP " + http + (reason.isEmpty() ? "" : " (" + reason + ")"));
+            }
+            boolean authProblem = http == 401 || r.contains("autherror") || r.contains("invalidcredentials");
+            boolean limitProblem = http == 429 || (http == 403
+                    && (r.contains("ratelimit") || r.contains("quota") || r.contains("dailylimit")));
+            // Sessão vencida ou limite do Drive valem pra TODAS as faixas: pular de uma
+            // pra outra só gastaria a fila — melhor explicar o motivo e ir pras baixadas.
+            if (authProblem) {
+                stopWithReason("A sessão do Google venceu. Abra o app e entre de novo.");
                 return;
             }
-        }
-        // Detalhe técnico só na tela (a voz fala o resumo): ajuda a descobrir a causa real.
-        if (plugin != null) {
-            plugin.notifyNotice("Erro: " + error.getErrorCodeName() + (http > 0 ? " (HTTP " + http + ")" : ""));
+            if (limitProblem) {
+                stopWithReason("O Google Drive limitou o acesso. Tente de novo mais tarde.");
+                return;
+            }
+        } else if (plugin != null) {
+            // Detalhe técnico só na tela (a voz fala o resumo): ajuda a descobrir a causa real.
+            plugin.notifyNotice("Erro: " + error.getErrorCodeName());
         }
         skipAfterFailure(http == 404 || http == 410);
+    }
+
+    // Motivo que o Google manda no corpo do erro HTTP ("reason": "..."), ou "".
+    private static String driveReasonOf(Throwable t) {
+        int guard = 0;
+        while (t != null && guard++ < 10) {
+            if (t instanceof HttpDataSource.InvalidResponseCodeException) {
+                byte[] body = ((HttpDataSource.InvalidResponseCodeException) t).responseBody;
+                if (body != null && body.length > 0) {
+                    String text = new String(body, java.nio.charset.StandardCharsets.UTF_8);
+                    java.util.regex.Matcher m = java.util.regex.Pattern
+                            .compile("\"reason\"\\s*:\\s*\"([^\"]+)\"").matcher(text);
+                    if (m.find()) return m.group(1);
+                }
+                return "";
+            }
+            t = t.getCause();
+        }
+        return "";
+    }
+
+    // Falha que vale pra qualquer faixa do Drive (sessão, limite): fala o motivo; toca uma
+    // baixada se houver, senão pausa (não adianta pular a fila inteira).
+    private void stopWithReason(String message) {
+        if (player == null) return;
+        int cur = Math.max(player.getCurrentMediaItemIndex(), 0);
+        int target = findDownloadedIndex(cur);
+        if (target != -1) {
+            announce(message + " Vou tocar as músicas baixadas.");
+            player.seekTo(target, 0L);
+            player.prepare();
+            player.setPlayWhenReady(true);
+            return;
+        }
+        announce(message);
+        player.setPlayWhenReady(false);
     }
 
     private void skipAfterFailure(boolean gone) {
