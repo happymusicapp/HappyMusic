@@ -783,6 +783,32 @@ public class NativePlayerService extends Service {
         return -1;
     }
 
+    // Falha de leitura que costuma ser passageira (sinal fraco, conexão caindo,
+    // timeout). Resposta HTTP de erro (404, 403...) NÃO entra aqui: tem tratamento próprio.
+    private static boolean isTransientIoError(PlaybackException e) {
+        Throwable t = e;
+        int guard = 0;
+        while (t != null && guard++ < 10) {
+            if (t instanceof HttpDataSource.InvalidResponseCodeException) return false;
+            t = t.getCause();
+        }
+        int code = e.errorCode;
+        if (code == PlaybackException.ERROR_CODE_IO_UNSPECIFIED
+                || code == PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED
+                || code == PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT) return true;
+        t = e;
+        guard = 0;
+        while (t != null && guard++ < 10) {
+            if (t instanceof java.net.SocketException
+                    || t instanceof java.net.UnknownHostException
+                    || t instanceof java.io.InterruptedIOException
+                    || t instanceof javax.net.ssl.SSLException
+                    || t instanceof java.io.EOFException) return true;
+            t = t.getCause();
+        }
+        return false;
+    }
+
     private void scheduleRetry() {
         retriesOnCurrent++;
         if (retryRunnable != null) mainHandler.removeCallbacks(retryRunnable);
@@ -805,9 +831,12 @@ public class NativePlayerService extends Service {
         int http = httpStatusOf(error);
         boolean netAvailable = isNetworkAvailable();
         networkUp = netAvailable;
-        boolean connectivity = streaming && (!netAvailable
-                || code == PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED
-                || code == PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT);
+        // Sinal fraco raramente aparece como "sem rede": costuma vir como conexão
+        // derrubada no meio, SSL cortado, fim de dados inesperado ou timeout —
+        // erros genéricos de leitura. Tudo isso é CONEXÃO (passageiro), não
+        // "música ruim": tenta de novo e, se não adiantar, vai pra uma baixada
+        // em vez de pular de música em música (todas falhariam do mesmo jeito).
+        boolean connectivity = streaming && (!netAvailable || isTransientIoError(error));
 
         if (!Objects.equals(id, retryingMediaId)) {
             retryingMediaId = id;
@@ -833,7 +862,11 @@ public class NativePlayerService extends Service {
                 return;
             }
         }
-        skipAfterFailure(http == 404);
+        // Detalhe técnico só na tela (a voz fala o resumo): ajuda a descobrir a causa real.
+        if (plugin != null) {
+            plugin.notifyNotice("Erro: " + error.getErrorCodeName() + (http > 0 ? " (HTTP " + http + ")" : ""));
+        }
+        skipAfterFailure(http == 404 || http == 410);
     }
 
     private void skipAfterFailure(boolean gone) {
