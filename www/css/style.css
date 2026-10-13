@@ -2667,10 +2667,10 @@ body.is-offline .main-content {
 .track-item { transition: background var(--transition), opacity 0.2s var(--ease); }
 
 body.is-offline .track-item:not(.is-downloaded):not(.playing):not(.skeleton):not(.movie-row) {
-  opacity: 0.4;
+  opacity: 0.7;
 }
 body.is-offline .track-item:not(.is-downloaded):not(.playing):not(.skeleton):not(.movie-row) .track-art {
-  filter: grayscale(0.85);
+  filter: grayscale(0.4);
 }
 
 /* linha recusada balança pra ligar o aviso à música tocada */
