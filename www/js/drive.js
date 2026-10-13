@@ -296,6 +296,13 @@ const Drive = (() => {
     }
   }
 
+  // Precisa logar de novo: avisa por voz (como nas músicas puladas) e na tela.
+  function _sessionLost(msg) {
+    const text = msg || 'A sessão do Google venceu. Entre de novo no app.';
+    try { if (window.NativeMedia && window.NativeMedia.isNative) window.NativeMedia.speak(text); } catch (_) {}
+    try { if (typeof UI !== 'undefined' && UI.showToast) UI.showToast(text, 6000); } catch (_) {}
+  }
+
   // ── PERMISSÕES: o token tem acesso aos arquivos do Drive? ──
   // No login o Google deixa desmarcar cada permissão. Se a de "ver os arquivos do
   // Drive" ficou desmarcada, a lista até aparece do cache, mas tocar e baixar
@@ -360,6 +367,7 @@ const Drive = (() => {
       }
     }
 
+    if (_lastRefreshWasRevoked) _sessionLost();
     _clearSession();
     return false;
   }
@@ -542,6 +550,7 @@ const Drive = (() => {
       }
       if (res.status === 401) {
         if (_lastRefreshWasRevoked) {
+          _sessionLost();
           _clearSession();
           throw new Error('UNAUTHORIZED');
         }
@@ -1218,7 +1227,7 @@ const Drive = (() => {
         }
         if (xhr.status === 401) {
           const refreshed = await _refreshAccessToken();
-          if (!refreshed && _lastRefreshWasRevoked) { _clearSession(); reject(new Error('UNAUTHORIZED')); return; }
+          if (!refreshed && _lastRefreshWasRevoked) { _sessionLost(); _clearSession(); reject(new Error('UNAUTHORIZED')); return; }
           if (attempt >= 3) { reject(new Error('Falha no envio: sessão indisponível no momento. Tente novamente.')); return; }
           try {
             await _sleep(1000 * (attempt + 1));
@@ -1707,6 +1716,7 @@ const Drive = (() => {
     isLoggedIn,
     syncAuthToNative: _syncAuthToNative,
     checkScopes,
+    sessionLost: _sessionLost,
     readAudioTags,
     registerExternalAudio,
     logout,

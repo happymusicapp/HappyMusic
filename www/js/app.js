@@ -259,6 +259,7 @@ const App = (() => {
     Drive.checkScopes?.().then(ok => {
       if (ok === false) {
         UI.showToast('Faltam permissões do Google Drive. Vá em Configurações › Sair da conta, entre de novo e marque TODAS as caixas de permissão.', 10000);
+        try { window.NativeMedia?.isNative && window.NativeMedia.speak('Faltam permissões do Google Drive. Saia da conta e entre de novo, marcando todas as permissões.'); } catch (_) {}
       }
     });
 

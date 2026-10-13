@@ -151,6 +151,13 @@
       }
     },
 
+    // Fala um aviso (respeita a chave "Avisos por voz").
+    async speak(text) {
+      if (!plugin || !text) return;
+      try { await plugin.speak({ text }); }
+      catch (err) { console.warn('[NativeMedia] speak falhou:', err); }
+    },
+
     // Avisos por voz do serviço nativo (sem internet, música pulada...).
     async getVoiceAlerts() {
       if (!plugin) return null;
