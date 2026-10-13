@@ -290,6 +290,45 @@ public class NativePlayerPlugin extends Plugin {
         call.resolve();
     }
 
+    // Fala um aviso do app (ex.: "sessão venceu, entre de novo"), respeitando a
+    // chave "Avisos por voz". Funciona mesmo sem música tocando.
+    @PluginMethod
+    public void speak(PluginCall call) {
+        final String text = call.getString("text");
+        if (text == null || text.isEmpty() || !NativePlayerService.readVoiceAlerts(getContext())) {
+            call.resolve();
+            return;
+        }
+        NativePlayerService running = NativePlayerService.getRunningInstance();
+        if (running != null) {
+            running.speakNotice(text);
+        } else {
+            speakStandalone(text);
+        }
+        call.resolve();
+    }
+
+    private android.speech.tts.TextToSpeech standaloneTts;
+
+    private void speakStandalone(final String text) {
+        if (getActivity() == null) return;
+        getActivity().runOnUiThread(() -> {
+            try {
+                if (standaloneTts != null) {
+                    standaloneTts.stop();
+                    standaloneTts.shutdown();
+                }
+                final android.speech.tts.TextToSpeech[] holder = new android.speech.tts.TextToSpeech[1];
+                holder[0] = new android.speech.tts.TextToSpeech(getContext().getApplicationContext(), status -> {
+                    if (status != android.speech.tts.TextToSpeech.SUCCESS || holder[0] == null) return;
+                    holder[0].setLanguage(new java.util.Locale("pt", "BR"));
+                    holder[0].speak(text, android.speech.tts.TextToSpeech.QUEUE_FLUSH, null, "hm-login");
+                });
+                standaloneTts = holder[0];
+            } catch (Exception ignored) { }
+        });
+    }
+
     // Avisos por voz (sem internet, música pulada...): ligado/desligado nas configurações.
     @PluginMethod
     public void setVoiceAlerts(PluginCall call) {

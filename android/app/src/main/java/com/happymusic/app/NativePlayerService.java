@@ -955,6 +955,11 @@ public class NativePlayerService extends Service {
 
     // ── Aviso por voz (e na tela) ──────────────────────────────────
 
+    // Aviso vindo do JS (ex.: "entre de novo"): só a voz — o JS já mostra na tela.
+    public void speakNotice(final String text) {
+        mainHandler.post(() -> { if (readVoiceAlerts(this)) speak(text); });
+    }
+
     private void announce(final String text) {
         mainHandler.post(() -> {
             long now = android.os.SystemClock.uptimeMillis();
