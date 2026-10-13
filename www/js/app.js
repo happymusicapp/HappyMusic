@@ -111,21 +111,11 @@ const App = (() => {
   const KEY_FILTERS = 'hm_filters';
   const KEY_LAST_VIEW = 'hm_last_view';
   const KEY_LAST_LIBTAB = 'hm_last_libtab';
-  let _filters = (() => {
-    const empty = { genre: '', artist: [], album: '' };
-    try {
-      const f = JSON.parse(localStorage.getItem(KEY_FILTERS) || 'null');
-      if (!f || typeof f !== 'object') return empty;
-      return {
-        genre:  typeof f.genre === 'string' ? f.genre : '',
-        artist: Array.isArray(f.artist) ? f.artist.filter(a => typeof a === 'string') : [],
-        album:  typeof f.album === 'string' ? f.album : '',
-      };
-    } catch (_) { return empty; }
-  })();
-  function _saveFilters() {
-    try { localStorage.setItem(KEY_FILTERS, JSON.stringify(_filters)); } catch (_) {}
-  }
+  // Filtros NÃO são mais lembrados entre aberturas do app: abriu do zero = lista
+  // completa, sem filtro. (Apaga o que versões antigas tinham salvo.)
+  let _filters = { genre: '', artist: [], album: '' };
+  try { localStorage.removeItem(KEY_FILTERS); } catch (_) {}
+  function _saveFilters() { /* de propósito não salva mais */ }
   // Filtro salvo pode apontar pra artista/álbum/gênero que já não existe
   // (música apagada ou renomeada): descarta, senão a lista abriria vazia.
   function _sanitizeFilters() {
@@ -934,6 +924,32 @@ const App = (() => {
     UI.el.mainContent.scrollTo({ top: 0 });
     UI.showToast(`Mostrando: ${value}`);
   }
+
+  // Limpa TODOS os filtros e pesquisas (biblioteca, busca geral, vídeos).
+  // Usada quando o app volta depois de um tempo fora. Não mexe no que está tocando.
+  function _resetFiltersAndSearches() {
+    const hadSomething = _activeFilterCount() > 0 || _libQuery || _movieFilterGenre
+      || (UI.el.searchInput && UI.el.searchInput.value);
+    if (!hadSomething) return;
+    _filters = { genre: '', artist: [], album: '' };
+    _libQuery = '';
+    if (UI.el.libSearch) UI.el.libSearch.value = '';
+    UI.el.libSearchClear?.classList.add('hidden');
+    _movieFilterGenre = '';
+    if (UI.el.searchInput) UI.el.searchInput.value = '';
+    UI.clearSearchResults();
+    try {
+      _refreshFilterBar();
+      _renderAllTracksList();
+      _refreshMovieFilterBar();
+      _renderMovieGrid();
+    } catch (_) { /* telas ainda não carregadas: nada a redesenhar */ }
+  }
+
+  // Quanto tempo o app precisa ficar em segundo plano pra voltar "zerado".
+  // (Trocar rapidinho pro mapa/WhatsApp e voltar NÃO limpa; fechar o app limpa sempre.)
+  const AWAY_RESET_MS = 10 * 60 * 1000;
+  let _hiddenAt = 0;
 
   function _bindLibraryExtras() {
     let timer = null;
@@ -2886,6 +2902,13 @@ const App = (() => {
           _renderRecent();
         }
       });
+    });
+
+    // Voltou depois de um tempo fora: limpa filtros e pesquisas
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) { _hiddenAt = Date.now(); return; }
+      if (_hiddenAt && Date.now() - _hiddenAt >= AWAY_RESET_MS) _resetFiltersAndSearches();
+      _hiddenAt = 0;
     });
 
     // Visibilidade da página (volta do plano de fundo)
