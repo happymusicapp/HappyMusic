@@ -106,6 +106,8 @@ const Downloads = (() => {
   function isDownloading(id) { return _downloading.has(id); }
 
   // ── BAIXAR UMA FAIXA ───────────────────────────
+  let _lastErrToast = 0;
+
   async function downloadTrack(track) {
     if (!track?.id || _cached.has(track.id) || _downloading.has(track.id)) return;
 
@@ -128,6 +130,14 @@ const Downloads = (() => {
       _notify(track.id, 'downloaded');
     } catch (err) {
       console.error('[Downloads] Erro ao baixar', track.id, err);
+      // Mostra o motivo que o Drive deu (no máx. 1 aviso a cada 8 s, mesmo em lote).
+      if (typeof UI !== 'undefined' && UI.showToast && /^Drive HTTP/.test((err && err.message) || '')) {
+        const now = Date.now();
+        if (now - _lastErrToast > 8000) {
+          _lastErrToast = now;
+          UI.showToast('Download falhou: ' + err.message, 4500);
+        }
+      }
       _downloading.delete(track.id);
       _notify(track.id, 'error');
     }

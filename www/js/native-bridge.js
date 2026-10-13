@@ -291,6 +291,22 @@
     _audioDirReady = true;
   }
 
+  // Quando um download falha, pergunta ao Drive o porquê (código + motivo).
+  async function _probeDriveStatus(url, headers) {
+    try {
+      const r = await fetch(url, { headers: { ...(headers || {}), Range: 'bytes=0-0' } });
+      if (r.ok) return null;
+      let reason = '';
+      try {
+        const j = await r.json();
+        reason = (j && j.error && ((j.error.errors && j.error.errors[0] && j.error.errors[0].reason) || j.error.message)) || '';
+      } catch (_) { /* corpo sem JSON */ }
+      return { status: r.status, reason };
+    } catch (_) {
+      return null;
+    }
+  }
+
   const NativeFS = {
     isNative: !!fsPlugin,
 
@@ -302,13 +318,38 @@
       // pasta de destino sozinho. Sem isso, todo primeiro download
       // falhava (pasta "audio" não existia ainda) de forma silenciosa.
       await _ensureAudioDir();
-      await fsPlugin.downloadFile({
-        url,
-        headers,
-        path: _audioPath(id),
-        directory: 'DATA',
-        recursive: true,
-      });
+      let failure = null;
+      try {
+        await fsPlugin.downloadFile({
+          url,
+          headers,
+          path: _audioPath(id),
+          directory: 'DATA',
+          recursive: true,
+        });
+      } catch (err) {
+        failure = err;
+      }
+      // O downloadFile não confere o código HTTP: se o Drive responde 401/403, a
+      // mensagem de erro (poucos bytes) pode ser gravada como se fosse a música —
+      // aí ela aparece como "baixada" e nunca toca. Arquivo minúsculo = erro.
+      if (!failure) {
+        try {
+          const st = await fsPlugin.stat({ path: _audioPath(id), directory: 'DATA' });
+          if (typeof st.size === 'number' && st.size < 8192) {
+            failure = new Error('arquivo baixado pequeno demais (' + st.size + ' bytes)');
+          }
+        } catch (err) {
+          failure = err;
+        }
+      }
+      if (failure) {
+        try { await fsPlugin.deleteFile({ path: _audioPath(id), directory: 'DATA' }); } catch (_) { /* nada gravado */ }
+        const probe = await _probeDriveStatus(url, headers);
+        throw new Error(probe
+          ? 'Drive HTTP ' + probe.status + (probe.reason ? ' (' + probe.reason + ')' : '')
+          : ((failure && failure.message) || 'falha no download'));
+      }
     },
 
     // URL que o <audio> consegue tocar direto do arquivo no disco.
