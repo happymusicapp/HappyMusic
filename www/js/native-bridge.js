@@ -151,6 +151,24 @@
       }
     },
 
+    // Avisos por voz do serviço nativo (sem internet, música pulada...).
+    async getVoiceAlerts() {
+      if (!plugin) return null;
+      try {
+        const r = await plugin.getVoiceAlerts();
+        return !!(r && r.enabled);
+      } catch (err) {
+        console.warn('[NativeMedia] getVoiceAlerts falhou:', err);
+        return null;
+      }
+    },
+
+    async setVoiceAlerts(enabled) {
+      if (!plugin) return;
+      try { await plugin.setVoiceAlerts({ enabled: !!enabled }); }
+      catch (err) { console.warn('[NativeMedia] setVoiceAlerts falhou:', err); }
+    },
+
     async setVolumeNormalization(enabled) {
       if (!plugin) return;
       try { await plugin.setVolumeNormalization({ enabled: !!enabled }); }
@@ -178,6 +196,11 @@
     });
     plugin.addListener('ended', () => {
       global.dispatchEvent(new CustomEvent('hmNativeEnded'));
+    });
+    // Aviso do serviço ("Sem internet. Vou tocar as músicas baixadas." etc.):
+    // além de falado, aparece na tela quando o app está aberto.
+    plugin.addListener('notice', (data) => {
+      if (data && data.text && typeof UI !== 'undefined' && UI.showToast) UI.showToast(data.text, 4000);
     });
     plugin.addListener('error', (data) => {
       global.dispatchEvent(new CustomEvent('hmNativeError', { detail: data }));

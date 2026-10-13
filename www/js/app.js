@@ -2777,6 +2777,20 @@ const App = (() => {
       });
     }
 
+    // Avisos por voz (sem internet, música pulada...): só no app nativo
+    const chkVoice = document.getElementById('chk-voice-alerts');
+    if (window.NativeMedia && NativeMedia.isNative && chkVoice) {
+      document.getElementById('row-voice-alerts')?.classList.remove('hidden');
+      NativeMedia.getVoiceAlerts().then(v => {
+        if (v !== null) chkVoice.checked = v;
+      });
+      chkVoice.addEventListener('change', () => {
+        const on = chkVoice.checked;
+        NativeMedia.setVoiceAlerts(on);
+        UI.showToast(on ? 'Avisos por voz ligados' : 'Avisos por voz desligados');
+      });
+    }
+
     // Mantém o resumo "X de Y músicas baixadas" sempre atualizado
     Downloads.onChange(() => _updateOfflineSummary());
 

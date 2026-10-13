@@ -492,6 +492,10 @@ const Player = (() => {
   // pra afirmar que a faixa "não foi baixada" — então não bloqueia, deixa
   // tentar (se falhar por conexão, _abortExplicit avisa do mesmo jeito).
   function _isPlayableOffline(track) {
+    // App nativo: SEMPRE tenta tocar, baixada ou não. Quem lida com a falta de
+    // internet é o serviço nativo (NativePlayerService.handlePlayerError): tenta o
+    // streaming, e se não der vai pra próxima baixada AVISANDO o motivo por voz.
+    if (_useNative) return true;
     if (typeof Downloads !== 'undefined' && Downloads.isSynced && !Downloads.isSynced()) return true;
     return _isKnownPlayableOffline(track);
   }
@@ -963,7 +967,11 @@ const Player = (() => {
     let all = Drive.getCachedTracks() || [];
     // Sem internet, só continua com faixas que tocam offline — senão a
     // "rádio" sugeriria músicas que vão falhar.
-    if (_isOffline()) all = all.filter(_isPlayableOffline);
+    // (Prefere as baixadas, mas se não houver nenhuma continua com o resto: tenta.)
+    if (_isOffline()) {
+      const downloaded = all.filter(_isKnownPlayableOffline);
+      if (downloaded.length) all = downloaded;
+    }
     if (!all.length) return [];
 
     const exclude = new Set(excludeIds);
@@ -1316,6 +1324,10 @@ const Player = (() => {
 
   audio.addEventListener('error', (e) => {
     console.error('[Player] Erro de áudio:', e);
+    // Motor nativo: o serviço é o dono da recuperação (tentar de novo, ir pra uma
+    // baixada, pular, avisar). Se o JS também pulasse, os dois brigariam e a fila
+    // inteira podia ser percorrida em silêncio.
+    if (_useNative) return;
     _errorSkipStreak++;
     // Falha no meio da reprodução (ex.: conexão caiu durante o stream)
     // também deve acionar o auto-skip, e não travar o player.

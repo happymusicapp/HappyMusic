@@ -935,7 +935,15 @@ const Drive = (() => {
   // sem passar pelo fetch()/blob do JS. Garante que o token está válido
   // antes (o download nativo não sabe renovar token sozinho).
   async function getAudioDownloadInfo(fileId) {
-    await _ensureValidToken();
+    // Sem internet / sinal fraco isto NÃO pode travar nem derrubar a faixa: o
+    // serviço nativo renova o token sozinho a cada abertura (DriveAuth), então
+    // aqui é só uma tentativa rápida (até 3 s); sem ela, segue com o que houver.
+    try {
+      await Promise.race([
+        _ensureValidToken(),
+        new Promise(resolve => setTimeout(resolve, 3000)),
+      ]);
+    } catch (_) { /* segue com o token que tiver */ }
     return {
       url: `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`,
       headers: { Authorization: `Bearer ${_token}` },
