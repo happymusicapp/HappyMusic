@@ -870,11 +870,16 @@ public class NativePlayerService extends Service {
             if (plugin != null) {
                 plugin.notifyNotice("Drive: HTTP " + http + (reason.isEmpty() ? "" : " (" + reason + ")"));
             }
+            boolean noScope = http == 403 && r.contains("insufficientpermissions");
             boolean authProblem = http == 401 || r.contains("autherror") || r.contains("invalidcredentials");
             boolean limitProblem = http == 429 || (http == 403
                     && (r.contains("ratelimit") || r.contains("quota") || r.contains("dailylimit")));
             // Sessão vencida ou limite do Drive valem pra TODAS as faixas: pular de uma
             // pra outra só gastaria a fila — melhor explicar o motivo e ir pras baixadas.
+            if (noScope) {
+                stopWithReason("Faltam permissões do Google Drive. Saia da conta e entre de novo, marcando todas as permissões.");
+                return;
+            }
             if (authProblem) {
                 stopWithReason("A sessão do Google venceu. Abra o app e entre de novo.");
                 return;
