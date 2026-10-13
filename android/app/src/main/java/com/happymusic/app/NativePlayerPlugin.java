@@ -290,6 +290,20 @@ public class NativePlayerPlugin extends Plugin {
         call.resolve();
     }
 
+    // Avisos por voz (sem internet, música pulada...): ligado/desligado nas configurações.
+    @PluginMethod
+    public void setVoiceAlerts(PluginCall call) {
+        NativePlayerService.saveVoiceAlerts(getContext(), call.getBoolean("enabled", true));
+        call.resolve();
+    }
+
+    @PluginMethod
+    public void getVoiceAlerts(PluginCall call) {
+        JSObject ret = new JSObject();
+        ret.put("enabled", NativePlayerService.readVoiceAlerts(getContext()));
+        call.resolve(ret);
+    }
+
     @PluginMethod
     public void getVolumeNormalization(PluginCall call) {
         JSObject ret = new JSObject();
@@ -372,6 +386,13 @@ public class NativePlayerPlugin extends Plugin {
 
     public void notifyEnded() {
         notifyListeners("ended", new JSObject());
+    }
+
+    // Aviso falado pelo serviço (ex.: "Sem internet...") — o JS mostra também na tela.
+    public void notifyNotice(String text) {
+        JSObject data = new JSObject();
+        data.put("text", text);
+        notifyListeners("notice", data);
     }
 
     public void notifyError(String message) {

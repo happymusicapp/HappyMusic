@@ -5,13 +5,21 @@ import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.app.Service;
+import android.content.Context;
 import android.content.Intent;
 import android.content.pm.ServiceInfo;
 import android.graphics.Bitmap;
+import android.net.ConnectivityManager;
+import android.net.Network;
+import android.net.NetworkCapabilities;
+import android.net.NetworkInfo;
+import android.net.NetworkRequest;
 import android.net.Uri;
 import android.os.Binder;
 import android.os.Build;
 import android.os.IBinder;
+import android.speech.tts.TextToSpeech;
+import android.speech.tts.UtteranceProgressListener;
 import android.support.v4.media.MediaMetadataCompat;
 import android.support.v4.media.session.MediaSessionCompat;
 import android.support.v4.media.session.PlaybackStateCompat;
@@ -27,11 +35,13 @@ import androidx.media3.common.PlaybackException;
 import androidx.media3.common.Player;
 import androidx.media3.datasource.DataSource;
 import androidx.media3.datasource.DataSpec;
+import androidx.media3.datasource.HttpDataSource;
 import androidx.media3.datasource.DefaultHttpDataSource;
 import androidx.media3.datasource.ResolvingDataSource;
 import androidx.media3.exoplayer.ExoPlayer;
 import androidx.media3.exoplayer.source.MediaSource;
 import androidx.media3.exoplayer.source.ProgressiveMediaSource;
+import androidx.media3.exoplayer.upstream.DefaultLoadErrorHandlingPolicy;
 
 import java.io.File;
 import java.io.InputStream;
@@ -42,7 +52,9 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
 // Serviço que toca o áudio de VERDADE (ExoPlayer), fora do WebView — é
@@ -180,7 +192,7 @@ public class NativePlayerService extends Service {
     // trecho longo sem cobertura numa viagem) — depois de algumas
     // tentativas, para e espera o usuário interagir de novo.
     private int consecutiveErrorSkips = 0;
-    private static final int MAX_CONSECUTIVE_ERROR_SKIPS = 3;
+    private static final int MAX_CONSECUTIVE_ERROR_SKIPS = 5;
 
     // onIsPlayingChanged/onPlaybackStateChanged só disparam quando o
     // ESTADO muda — sem isso a posição ficaria parada entre um evento e
@@ -266,6 +278,7 @@ public class NativePlayerService extends Service {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             bluetoothCallback = BluetoothAudioWatcher.register(this, mainHandler, this::onBluetoothAudioConnected);
         }
+        registerNetworkWatcher();
     }
 
     // PendingIntent genérico (abre o app do jeito normal) usado como
@@ -306,6 +319,7 @@ public class NativePlayerService extends Service {
                 notifyJsState();
                 syncStateFromPlayer();
                 updateIdleTimer();
+                checkStallOffline();
             }
 
             // Ligação/áudio do WhatsApp/GPS tomou o foco (ou devolveu): atualiza
@@ -351,7 +365,16 @@ public class NativePlayerService extends Service {
 
             @Override
             public void onIsPlayingChanged(boolean isPlaying) {
-                if (isPlaying) consecutiveErrorSkips = 0; // tocou de verdade — zera o contador de pulos por erro
+                if (isPlaying) {
+                    consecutiveErrorSkips = 0; // tocou de verdade — zera o contador de pulos por erro
+                    retriesOnCurrent = 0;
+                    // Voltou a tocar do Drive depois de um período sem internet.
+                    if (offlineAnnounced && networkUp && player != null
+                            && isStreamingIndex(player.getCurrentMediaItemIndex())) {
+                        offlineAnnounced = false;
+                        announce("Internet voltou.");
+                    }
+                }
                 notifyJsState();
                 savePlaybackState();
                 // Atualiza a notificação (ícone tocar/pausar) a partir do
@@ -376,19 +399,10 @@ public class NativePlayerService extends Service {
             @Override
             public void onPlayerError(PlaybackException error) {
                 if (plugin != null) plugin.notifyError(error.getMessage());
-
-                // Uma faixa da fila falhou (ex.: trecho sem sinal numa
-                // viagem, pra quem está tocando por streaming) — em vez
-                // de simplesmente parar, tenta pular pra próxima já
-                // preparada e continuar a viagem. Só até um limite (ver
-                // MAX_CONSECUTIVE_ERROR_SKIPS): se o sinal sumiu de vez,
-                // não adianta ficar tentando a fila inteira à toa.
-                consecutiveErrorSkips++;
-                if (consecutiveErrorSkips <= MAX_CONSECUTIVE_ERROR_SKIPS && player != null && player.hasNextMediaItem()) {
-                    player.seekToNextMediaItem();
-                    player.prepare();
-                    player.setPlayWhenReady(true);
-                }
+                // O serviço é o ÚNICO que decide o que fazer com a falha (tentar de
+                // novo, ir pra uma baixada, pular) e AVISA o motivo — ver
+                // handlePlayerError. O JS só reflete o estado na tela.
+                handlePlayerError(error);
             }
         });
     }
@@ -551,6 +565,7 @@ public class NativePlayerService extends Service {
     private void onCurrentItemChanged(MediaItem item, boolean notifyPlugin) {
         if (item == null || player == null) return;
         cachedMediaId = item.mediaId; // já, sem esperar o próximo tick
+        cancelWaiting(); // mudou de faixa: não está mais esperando a internet pela anterior
         cachedIndex = Math.max(player.getCurrentMediaItemIndex(), 0);
         MediaMetadata meta = item.mediaMetadata;
         setTitle(meta.title != null ? meta.title.toString() : "");
@@ -568,6 +583,363 @@ public class NativePlayerService extends Service {
         // Cada faixa tem o seu ajuste de volume (ver VolumeNormalizer).
         applyNormalization(false);
         savePlaybackState();
+    }
+
+    // ── Falhas, internet e avisos por voz ──────────────────────────
+    // Regra de ouro: a música NÃO baixada SEMPRE é tentada (streaming do Drive).
+    // Só quando a tentativa falha é que se decide o que fazer, sabendo o MOTIVO:
+    //  - sem internet     -> vai pra próxima música BAIXADA da fila; se não há
+    //                        nenhuma, espera a internet voltar e tenta a MESMA de novo
+    //  - sinal fraco, erro passageiro, token vencido, Drive instável -> tenta de
+    //                        novo a mesma faixa (até MAX_RETRIES_SAME_TRACK) antes de desistir
+    //  - arquivo com problema (404 etc.) -> pula pra próxima
+    // E em todos os casos AVISA por voz (e na tela, se o app estiver aberto).
+
+    private static final String PREFS_NATIVE_SETTINGS = "hm_native_settings";
+    private static final String KEY_VOICE_ALERTS = "voice_alerts";
+    private static final int MAX_RETRIES_SAME_TRACK = 2;
+    private static final long RETRY_BASE_DELAY_MS = 2000L;
+    private static final long WAIT_NETWORK_POLL_MS = 15000L;
+    private static final float DUCK_VOLUME = 0.25f;
+
+    private ConnectivityManager connectivityManager;
+    private ConnectivityManager.NetworkCallback networkCallback;
+    private volatile boolean networkUp = true;
+    private boolean waitingForNetwork = false;
+    private boolean offlineAnnounced = false;
+    private int retriesOnCurrent = 0;
+    private String retryingMediaId = null;
+    private Runnable retryRunnable = null;
+
+    private TextToSpeech tts;
+    private boolean ttsReady = false;
+    private String pendingSpeech = null;
+    private boolean speakingDuck = false;
+    private String lastAnnounced = null;
+    private long lastAnnouncedAt = 0L;
+
+    private final Runnable endDuck = this::finishSpeakingDuck;
+
+    private final Runnable waitPoll = new Runnable() {
+        @Override
+        public void run() {
+            if (!waitingForNetwork || player == null) return;
+            if (isNetworkAvailable()) {
+                networkUp = true;
+                resumeAfterNetwork();
+                return;
+            }
+            mainHandler.postDelayed(this, WAIT_NETWORK_POLL_MS);
+        }
+    };
+
+    // Avisos por voz ligados/desligados nas configurações (padrão: ligado).
+    static boolean readVoiceAlerts(Context ctx) {
+        return ctx.getApplicationContext()
+                .getSharedPreferences(PREFS_NATIVE_SETTINGS, Context.MODE_PRIVATE)
+                .getBoolean(KEY_VOICE_ALERTS, true);
+    }
+
+    static void saveVoiceAlerts(Context ctx, boolean enabled) {
+        ctx.getApplicationContext()
+                .getSharedPreferences(PREFS_NATIVE_SETTINGS, Context.MODE_PRIVATE)
+                .edit().putBoolean(KEY_VOICE_ALERTS, enabled).apply();
+    }
+
+    // A faixa nesse índice vem do streaming (não está baixada)? Fora da lista: false.
+    private boolean isStreamingIndex(int idx) {
+        if (idx < 0 || idx >= currentItems.size()) return false;
+        QueueItem it = currentItems.get(idx);
+        return it.path == null || it.path.isEmpty();
+    }
+
+    // Próxima faixa BAIXADA depois de 'from' (dando a volta: melhor repetir uma
+    // baixada do que ficar em silêncio). -1 se nenhuma da fila está baixada.
+    private int findDownloadedIndex(int from) {
+        int n = currentItems.size();
+        for (int i = 1; i < n; i++) {
+            int idx = (from + i) % n;
+            if (!isStreamingIndex(idx)) return idx;
+        }
+        return -1;
+    }
+
+    // Há rede com acesso à internet agora? Na dúvida (sem permissão, sem dado), diz que sim.
+    private boolean isNetworkAvailable() {
+        try {
+            if (connectivityManager == null) return true;
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                Network n = connectivityManager.getActiveNetwork();
+                if (n == null) return false;
+                NetworkCapabilities c = connectivityManager.getNetworkCapabilities(n);
+                return c == null || c.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET);
+            }
+            NetworkInfo ni = connectivityManager.getActiveNetworkInfo();
+            return ni != null && ni.isConnected();
+        } catch (Exception e) {
+            return true;
+        }
+    }
+
+    private void registerNetworkWatcher() {
+        try {
+            connectivityManager = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
+            if (connectivityManager == null) return;
+            networkUp = isNetworkAvailable();
+            networkCallback = new ConnectivityManager.NetworkCallback() {
+                @Override public void onAvailable(Network network) { mainHandler.post(() -> onNetworkChanged()); }
+                // Pequena espera: logo após onLost o sistema ainda pode listar a rede antiga.
+                @Override public void onLost(Network network) { mainHandler.postDelayed(() -> onNetworkChanged(), 400); }
+            };
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                connectivityManager.registerDefaultNetworkCallback(networkCallback);
+            } else {
+                connectivityManager.registerNetworkCallback(
+                        new NetworkRequest.Builder().addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET).build(),
+                        networkCallback);
+            }
+        } catch (Exception e) {
+            networkCallback = null; // sem monitor: o tratamento de erro continua funcionando
+        }
+    }
+
+    private void onNetworkChanged() {
+        boolean up = isNetworkAvailable();
+        boolean was = networkUp;
+        networkUp = up;
+        if (up == was) return;
+        if (up) {
+            if (waitingForNetwork) resumeAfterNetwork();
+            else if (offlineAnnounced) {
+                offlineAnnounced = false;
+                announce("Internet voltou.");
+            }
+        } else {
+            checkStallOffline();
+        }
+    }
+
+    // Travou carregando uma faixa do streaming e já se sabe que não há internet:
+    // não espera o erro (pode levar vários segundos de silêncio) — age agora.
+    private void checkStallOffline() {
+        if (player == null || waitingForNetwork || networkUp) return;
+        if (!player.getPlayWhenReady() || player.getPlaybackState() != Player.STATE_BUFFERING) return;
+        if (!isStreamingIndex(player.getCurrentMediaItemIndex())) return;
+        switchToDownloadedOrWait(false);
+    }
+
+    private void cancelWaiting() {
+        waitingForNetwork = false;
+        mainHandler.removeCallbacks(waitPoll);
+    }
+
+    private void resumeAfterNetwork() {
+        cancelWaiting();
+        retriesOnCurrent = 0;
+        if (player == null) return;
+        player.prepare(); // se já estava preparado, não faz nada
+        player.setPlayWhenReady(true);
+    }
+
+    // Sem internet (ou sinal que não aguenta): toca a próxima baixada; se não há
+    // nenhuma, fica esperando a conexão voltar pra tentar a MESMA faixa de novo.
+    private void switchToDownloadedOrWait(boolean weakSignal) {
+        if (player == null) return;
+        if (retryRunnable != null) mainHandler.removeCallbacks(retryRunnable);
+        int cur = Math.max(player.getCurrentMediaItemIndex(), 0);
+        int target = findDownloadedIndex(cur);
+        boolean firstTime = !offlineAnnounced;
+        offlineAnnounced = true;
+        if (target != -1) {
+            cancelWaiting();
+            if (firstTime) {
+                announce(weakSignal
+                        ? "Sinal fraco. Vou tocar as músicas baixadas."
+                        : "Sem internet. Vou tocar as músicas baixadas.");
+            }
+            player.seekTo(target, 0L);
+            player.prepare();
+            player.setPlayWhenReady(true);
+            return;
+        }
+        if (!waitingForNetwork) {
+            waitingForNetwork = true;
+            announce(weakSignal
+                    ? "Sinal fraco e nenhuma música baixada na fila. Vou continuar tentando."
+                    : "Sem internet e nenhuma música baixada na fila. Vou tentar de novo quando a conexão voltar.");
+        }
+        mainHandler.removeCallbacks(waitPoll);
+        mainHandler.postDelayed(waitPoll, WAIT_NETWORK_POLL_MS);
+    }
+
+    private static int httpStatusOf(Throwable t) {
+        int guard = 0;
+        while (t != null && guard++ < 10) {
+            if (t instanceof HttpDataSource.InvalidResponseCodeException) {
+                return ((HttpDataSource.InvalidResponseCodeException) t).responseCode;
+            }
+            t = t.getCause();
+        }
+        return -1;
+    }
+
+    private void scheduleRetry() {
+        retriesOnCurrent++;
+        if (retryRunnable != null) mainHandler.removeCallbacks(retryRunnable);
+        retryRunnable = () -> {
+            if (player == null) return;
+            player.prepare(); // volta da posição em que parou
+            player.setPlayWhenReady(true);
+        };
+        mainHandler.postDelayed(retryRunnable, RETRY_BASE_DELAY_MS * retriesOnCurrent);
+    }
+
+    // Todas as falhas de reprodução passam por aqui (thread principal).
+    private void handlePlayerError(PlaybackException error) {
+        if (player == null) return;
+        int idx = Math.max(player.getCurrentMediaItemIndex(), 0);
+        MediaItem cur = player.getCurrentMediaItem();
+        String id = cur != null ? cur.mediaId : null;
+        boolean streaming = isStreamingIndex(idx);
+        int code = error.errorCode;
+        int http = httpStatusOf(error);
+        boolean netAvailable = isNetworkAvailable();
+        networkUp = netAvailable;
+        boolean connectivity = streaming && (!netAvailable
+                || code == PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED
+                || code == PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_TIMEOUT);
+
+        if (!Objects.equals(id, retryingMediaId)) {
+            retryingMediaId = id;
+            retriesOnCurrent = 0;
+        }
+
+        if (connectivity) {
+            // Tem rede, mas a conexão falhou (sinal fraco, troca de torre): tenta a MESMA
+            // faixa de novo antes de desistir. Sem rede nenhuma, não adianta insistir.
+            if (netAvailable && retriesOnCurrent < MAX_RETRIES_SAME_TRACK) {
+                scheduleRetry();
+                return;
+            }
+            switchToDownloadedOrWait(netAvailable);
+            return;
+        }
+
+        if (streaming && (http == 401 || http == 403 || http == 429 || http >= 500)) {
+            // Token vencido (renovado de novo na próxima abertura) ou Drive instável/limitando.
+            if (http == 401 || http == 403) DriveAuth.invalidate(this);
+            if (retriesOnCurrent < MAX_RETRIES_SAME_TRACK) {
+                scheduleRetry();
+                return;
+            }
+        }
+        skipAfterFailure(http == 404);
+    }
+
+    private void skipAfterFailure(boolean gone) {
+        if (player == null) return;
+        consecutiveErrorSkips++;
+        if (consecutiveErrorSkips > MAX_CONSECUTIVE_ERROR_SKIPS) {
+            announce("Várias músicas não carregaram. Parei a reprodução.");
+            player.setPlayWhenReady(false);
+            return;
+        }
+        announce(gone
+                ? "Essa música não está mais disponível. Pulando."
+                : "Não consegui carregar essa música. Pulando.");
+        if (player.hasNextMediaItem()) {
+            player.seekToNextMediaItem();
+            player.prepare();
+            player.setPlayWhenReady(true);
+        } else if (plugin != null) {
+            plugin.notifyEnded(); // fim da fila carregada: o JS continua (modo rádio)
+        } else {
+            player.setPlayWhenReady(false);
+        }
+    }
+
+    // ── Aviso por voz (e na tela) ──────────────────────────────────
+
+    private void announce(final String text) {
+        mainHandler.post(() -> {
+            long now = android.os.SystemClock.uptimeMillis();
+            if (text.equals(lastAnnounced) && now - lastAnnouncedAt < 20000L) return; // não repete a mesma frase
+            lastAnnounced = text;
+            lastAnnouncedAt = now;
+            if (plugin != null) plugin.notifyNotice(text);
+            if (readVoiceAlerts(this)) speak(text);
+        });
+    }
+
+    private void speak(String text) {
+        if (tts == null) {
+            pendingSpeech = text;
+            try {
+                tts = new TextToSpeech(getApplicationContext(), status -> mainHandler.post(() -> onTtsInit(status)));
+            } catch (Exception e) {
+                tts = null;
+                pendingSpeech = null;
+            }
+            return;
+        }
+        if (!ttsReady) {
+            pendingSpeech = text;
+            return;
+        }
+        doSpeak(text);
+    }
+
+    private void onTtsInit(int status) {
+        if (tts == null) return;
+        if (status != TextToSpeech.SUCCESS) {
+            try { tts.shutdown(); } catch (Exception ignored) { }
+            tts = null;
+            pendingSpeech = null;
+            return;
+        }
+        try {
+            tts.setLanguage(new Locale("pt", "BR"));
+            tts.setAudioAttributes(new android.media.AudioAttributes.Builder()
+                    .setUsage(android.media.AudioAttributes.USAGE_ASSISTANCE_NAVIGATION_GUIDANCE)
+                    .setContentType(android.media.AudioAttributes.CONTENT_TYPE_SPEECH)
+                    .build());
+            tts.setOnUtteranceProgressListener(new UtteranceProgressListener() {
+                @Override public void onStart(String utteranceId) { }
+                @Override public void onDone(String utteranceId) { mainHandler.post(NativePlayerService.this::finishSpeakingDuck); }
+                @Override public void onError(String utteranceId) { mainHandler.post(NativePlayerService.this::finishSpeakingDuck); }
+            });
+        } catch (Exception ignored) { }
+        ttsReady = true;
+        if (pendingSpeech != null) {
+            String s = pendingSpeech;
+            pendingSpeech = null;
+            doSpeak(s);
+        }
+    }
+
+    private void doSpeak(String text) {
+        try {
+            // A música (se estiver tocando) abaixa enquanto a voz fala.
+            speakingDuck = true;
+            if (player != null) player.setVolume(duckCap(player.getVolume()));
+            mainHandler.removeCallbacks(endDuck);
+            mainHandler.postDelayed(endDuck, 15000L); // segurança: nunca deixa o volume preso
+            int r = tts.speak(text, TextToSpeech.QUEUE_FLUSH, null, "hm-notice");
+            if (r != TextToSpeech.SUCCESS) finishSpeakingDuck();
+        } catch (Exception e) {
+            finishSpeakingDuck();
+        }
+    }
+
+    private void finishSpeakingDuck() {
+        mainHandler.removeCallbacks(endDuck);
+        if (!speakingDuck) return;
+        speakingDuck = false;
+        applyNormalization(false); // volta ao volume normal da faixa
+    }
+
+    private float duckCap(float v) {
+        return speakingDuck ? Math.min(v, DUCK_VOLUME) : v;
     }
 
     // ── Persistência ───────────────────────────────────────────────
@@ -677,7 +1049,11 @@ public class NativePlayerService extends Service {
                 playable.add(it);
             } else if (it.url != null && !it.url.isEmpty()) {
                 MediaItem mediaItem = itemBuilder.setUri(Uri.parse(it.url)).build();
-                sources.add(new ProgressiveMediaSource.Factory(buildDriveDataSourceFactory(it.headers)).createMediaSource(mediaItem));
+                // Só 1 retentativa interna do ExoPlayer: as demais (e a decisão de ir pra uma
+                // baixada) são do handlePlayerError, que sabe o motivo e avisa por voz.
+                sources.add(new ProgressiveMediaSource.Factory(buildDriveDataSourceFactory(it.headers))
+                        .setLoadErrorHandlingPolicy(new DefaultLoadErrorHandlingPolicy(1))
+                        .createMediaSource(mediaItem));
                 playable.add(it);
             }
         }
@@ -700,6 +1076,10 @@ public class NativePlayerService extends Service {
             ensureForeground();
             consecutiveErrorSkips = 0; // fila nova — zera o contador de "pulou por erro" (ver onPlayerError)
             resumeOnBluetooth = false; // o usuário escolheu o que tocar agora
+            cancelWaiting();
+            if (retryRunnable != null) mainHandler.removeCallbacks(retryRunnable);
+            retriesOnCurrent = 0;
+            retryingMediaId = null;
 
             // Dá a volta sozinho quando a lista entregue acabar (loop de
             // playlist/filtro, ou repetir tudo/uma faixa).
@@ -749,11 +1129,12 @@ public class NativePlayerService extends Service {
 
     private void setVolumeNow(float volume) {
         if (volumeRamp != null) { mainHandler.removeCallbacks(volumeRamp); volumeRamp = null; }
-        if (player != null) player.setVolume(volume);
+        if (player != null) player.setVolume(duckCap(volume));
     }
 
-    private void rampVolume(final float to, final int durationMs) {
+    private void rampVolume(final float requested, final int durationMs) {
         if (player == null) return;
+        final float to = duckCap(requested);
         if (volumeRamp != null) { mainHandler.removeCallbacks(volumeRamp); volumeRamp = null; }
         final float from = player.getVolume();
         if (Math.abs(from - to) < 0.01f) { player.setVolume(to); return; }
@@ -816,6 +1197,11 @@ public class NativePlayerService extends Service {
         postToMain(() -> {
             if (player == null) return;
             ensureForeground();
+            // O usuário mandou tocar: recomeça a contagem de falhas e, se o player
+            // tinha parado por erro (IDLE), prepara de novo — senão "tocar" não fazia nada.
+            consecutiveErrorSkips = 0;
+            retriesOnCurrent = 0;
+            if (player.getPlaybackState() == Player.STATE_IDLE && player.getMediaItemCount() > 0) player.prepare();
             player.setPlayWhenReady(true);
         });
     }
@@ -923,6 +1309,18 @@ public class NativePlayerService extends Service {
         mainHandler.removeCallbacks(idleShutdown);
         if (volumeRamp != null) { mainHandler.removeCallbacks(volumeRamp); volumeRamp = null; }
         if (normalizer != null) normalizer.shutdown();
+        mainHandler.removeCallbacks(waitPoll);
+        mainHandler.removeCallbacks(endDuck);
+        if (retryRunnable != null) mainHandler.removeCallbacks(retryRunnable);
+        if (networkCallback != null && connectivityManager != null) {
+            try { connectivityManager.unregisterNetworkCallback(networkCallback); } catch (Exception ignored) { }
+            networkCallback = null;
+        }
+        if (tts != null) {
+            try { tts.stop(); tts.shutdown(); } catch (Exception ignored) { }
+            tts = null;
+            ttsReady = false;
+        }
         if (bluetoothCallback != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             BluetoothAudioWatcher.unregister(this, bluetoothCallback);
             bluetoothCallback = null;

@@ -54,6 +54,11 @@ final class DriveAuth {
         e.apply();
     }
 
+    /** Marca o token atual como vencido: o próximo getToken() renova (usado após 401/403 do Drive). */
+    static synchronized void invalidate(Context ctx) {
+        prefs(ctx).edit().putLong(KEY_EXPIRY, 0L).apply();
+    }
+
     static void clear(Context ctx) {
         prefs(ctx).edit().clear().apply();
     }
