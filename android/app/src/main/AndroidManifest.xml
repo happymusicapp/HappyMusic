@@ -96,6 +96,18 @@
 
     <uses-permission android:name="android.permission.INTERNET" />
 
+    <!-- Saber se há rede (sem internet x sinal fraco) pra decidir o que fazer
+         quando uma música não baixada falha, e avisar o motivo. -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+
+    <!-- Android 11+: sem isto o app não enxerga o motor de voz (TextToSpeech)
+         instalado no aparelho e os avisos por voz não funcionam. -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.TTS_SERVICE" />
+        </intent>
+    </queries>
+
     <!-- Necessárias pro serviço nativo de áudio manter a música tocando
          com o app em segundo plano / fechado / tela bloqueada (Android 14+
          exige declarar o tipo do foreground service explicitamente). -->
