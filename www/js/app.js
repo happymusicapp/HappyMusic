@@ -254,6 +254,14 @@ const App = (() => {
     // token sozinho, então a música com o app fechado não para quando vence).
     Drive.syncAuthToNative?.();
 
+    // Login feito sem a permissão dos arquivos do Drive = nada toca nem baixa
+    // (HTTP 403 insufficientPermissions). Avisa o que fazer.
+    Drive.checkScopes?.().then(ok => {
+      if (ok === false) {
+        UI.showToast('Faltam permissões do Google Drive. Vá em Configurações › Sair da conta, entre de novo e marque TODAS as caixas de permissão.', 10000);
+      }
+    });
+
     const user = Drive.getUser();
     UI.renderProfile(user);
     UI.setGreeting();

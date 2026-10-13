@@ -135,7 +135,10 @@ const Downloads = (() => {
         const now = Date.now();
         if (now - _lastErrToast > 8000) {
           _lastErrToast = now;
-          UI.showToast('Download falhou: ' + err.message, 4500);
+          const semPermissao = /insufficientPermissions/i.test(err.message);
+          UI.showToast(semPermissao
+            ? 'Faltam permissões do Drive. Saia da conta e entre de novo marcando TODAS as caixas.'
+            : 'Download falhou: ' + err.message, semPermissao ? 8000 : 4500);
         }
       }
       _downloading.delete(track.id);

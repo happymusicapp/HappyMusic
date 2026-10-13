@@ -296,6 +296,24 @@ const Drive = (() => {
     }
   }
 
+  // ── PERMISSÕES: o token tem acesso aos arquivos do Drive? ──
+  // No login o Google deixa desmarcar cada permissão. Se a de "ver os arquivos do
+  // Drive" ficou desmarcada, a lista até aparece do cache, mas tocar e baixar
+  // dão HTTP 403 (insufficientPermissions). Devolve false só quando TEM certeza.
+  async function checkScopes() {
+    try {
+      if (!_token) return true;
+      const r = await fetch('https://oauth2.googleapis.com/tokeninfo?access_token=' + encodeURIComponent(_token));
+      if (!r.ok) return true; // sem como saber agora
+      const j = await r.json();
+      const granted = String(j.scope || '').split(/\s+/);
+      return granted.includes('https://www.googleapis.com/auth/drive')
+        || granted.includes('https://www.googleapis.com/auth/drive.readonly');
+    } catch (_) {
+      return true;
+    }
+  }
+
   // ── TOKEN: RESTAURAR DA SESSÃO ─────────────────
   async function restoreSession() {
     const token  = localStorage.getItem(KEY_TOKEN);
@@ -1688,6 +1706,7 @@ const Drive = (() => {
     restoreSession,
     isLoggedIn,
     syncAuthToNative: _syncAuthToNative,
+    checkScopes,
     readAudioTags,
     registerExternalAudio,
     logout,
