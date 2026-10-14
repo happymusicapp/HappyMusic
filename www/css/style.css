@@ -3410,35 +3410,6 @@ label.set-row:active { background: var(--surface2); }
 /* "Tocar tudo" e "Aleatório" com a mesma altura */
 .lib-play-row .btn-outline { min-height: 54px; }
 
-/* Selecionar / Baixar: ações com nome, bem à vista */
-.lib-tools-row {
-  display: flex;
-  gap: var(--sp-2);
-  margin-bottom: var(--sp-3);
-}
-.lib-tool-btn {
-  flex: 1;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  min-height: 44px;
-  padding: 0 var(--sp-3);
-  border-radius: var(--radius-md, 16px);
-  background: var(--surface);
-  border: 1px solid var(--border);
-  color: var(--white);
-  font-size: 0.9rem;
-  font-weight: 600;
-  transition: background var(--transition), border-color var(--transition);
-}
-.lib-tool-btn svg { flex-shrink: 0; color: var(--purple-light, #a78bfa); }
-.lib-tool-btn:active { background: var(--surface2); }
-.lib-tool-btn.active {
-  background: rgba(124,58,255,0.22);
-  border-color: var(--purple);
-}
-
 /* Janela "Filtrar por": título alinhado com o X e respiro antes das opções */
 .filter-menu-box .filter-card-header {
   min-height: 32px;

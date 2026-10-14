@@ -1,0 +1,347 @@
+/* ═══════════════════════════════════════════════════════════
+   HAPPY MUSIC — layout das telas (início, biblioteca, player)
+   Carregado DEPOIS do style.css (só sobrescreve o visual).
+   Para voltar ao visual antigo: remova o <link> deste arquivo.
+═══════════════════════════════════════════════════════════ */
+
+:root {
+  --player-h: 64px;          /* mini-player agora é uma barra compacta */
+  --hm-accent: var(--purple-soft); /* cor de destaque (play, item tocando, aba ativa) */
+}
+
+/* ── Cabeçalho: leve, sem faixa e sem linha ───────────────── */
+.app-header {
+  background: linear-gradient(180deg, rgba(0,0,0,0.78) 0%, rgba(0,0,0,0) 100%);
+  border-bottom: 0;
+}
+.header-logo { width: 32px; height: 32px; border-radius: 8px; }
+.header-title { font-size: 1.1rem; }
+
+/* ── Títulos de seção ─────────────────────────────────────── */
+.shelf-label {
+  font-size: 1.3rem;
+  font-weight: 800;
+  color: var(--white);
+  letter-spacing: -0.02em;
+  margin-bottom: var(--sp-3);
+}
+#view-home .section-title {
+  font-size: 1.55rem;
+  font-weight: 800;
+  margin-bottom: var(--sp-4);
+}
+
+/* ── INÍCIO: atalhos em grade 2 colunas (cards horizontais) ── */
+#recent-collections-shelf > .shelf-label { display: none; }
+.recent-collections-list {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  overflow: visible;
+  background: transparent;
+  border-radius: 0;
+  padding: 0;
+}
+.recent-collection-chip {
+  flex-direction: row;
+  align-items: center;
+  gap: 0;
+  width: auto;
+  height: 56px;
+  background: rgba(255,255,255,0.10);
+  border-radius: 6px;
+  overflow: hidden;
+}
+.recent-collection-chip:nth-child(n+7) { display: none; }
+.recent-collection-chip:active { background: rgba(255,255,255,0.16); }
+.recent-collection-chip-art {
+  width: 56px;
+  height: 56px;
+  flex-shrink: 0;
+  aspect-ratio: auto;
+  border-radius: 0;
+  box-shadow: none !important;
+  transform: none !important;
+}
+.recent-collection-chip-name {
+  flex: 1;
+  min-width: 0;
+  max-width: none;
+  padding: 0 10px;
+  text-align: left;
+  font-size: 0.8rem;
+  font-weight: 700;
+  white-space: normal;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+#recent-shelf { margin-top: var(--sp-5); }
+
+/* ── Linhas de música ────────────────────────────────────── */
+.track-list { gap: 0; }
+.track-item {
+  gap: 12px;
+  padding: 8px 4px;
+  border-radius: 6px;
+}
+.track-item:hover { background: transparent; }
+.track-item:active { background: rgba(255,255,255,0.08); }
+.track-item.playing { background: transparent; }
+.track-num { display: none; }
+.track-art { width: 56px; height: 56px; border-radius: 4px; }
+.track-title { font-size: 1rem; font-weight: 400; }
+.track-item.playing .track-title { color: var(--hm-accent); font-weight: 500; }
+.track-meta { font-size: 0.85rem; color: #b3b3b3; }
+.track-duration { display: none; }
+
+/* ── BIBLIOTECA: abas viram "chips" ──────────────────────── */
+.library-tabs {
+  background: none;
+  padding: 0;
+  border-radius: 0;
+  gap: 8px;
+  margin-bottom: var(--sp-3);
+}
+.library-tab {
+  flex: 0 0 auto;
+  padding: 7px 14px;
+  background: rgba(255,255,255,0.10);
+  color: var(--white);
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+.library-tab.active { background: var(--hm-accent); color: #000; }
+
+/* Campo de busca: discreto, cantos pequenos */
+.search-bar { border-radius: 6px; }
+#view-search .search-bar { background: #fff; border-color: transparent; border-radius: 8px; }
+#view-search .search-bar input { color: #000; }
+#view-search .search-bar input::placeholder { color: #6a6a6a; }
+#view-search .search-bar svg { color: #000; }
+
+/* ── Ações da lista: shuffle (ícone) + PLAY redondo grande ── */
+.lib-play-row,
+.playlist-detail-actions {
+  justify-content: flex-end;
+  gap: 14px;
+  margin-bottom: var(--sp-2);
+}
+.lib-play-row .btn-play-all,
+.playlist-detail-actions .btn-play-all {
+  order: 2;
+  flex: 0 0 56px;
+  width: 56px;
+  height: 56px;
+  min-height: 0;
+  padding: 0;
+  border-radius: 50%;
+  gap: 0;
+  font-size: 0;
+  justify-content: center;
+  box-shadow: none;
+}
+.lib-play-row .btn-play-all svg,
+.playlist-detail-actions .btn-play-all svg { width: 28px; height: 28px; }
+.lib-play-row .btn-play-all > span,
+.playlist-detail-actions .btn-play-all > span { display: none; }
+.lib-play-row .btn-outline,
+.playlist-detail-actions .btn-outline {
+  order: 1;
+  width: 44px;
+  height: 44px;
+  min-height: 0;
+  padding: 0;
+  margin: 0;
+  border: 0;
+  background: transparent;
+  color: #b3b3b3;
+  font-size: 0;
+  gap: 0;
+  justify-content: center;
+}
+.lib-play-row .btn-outline svg,
+.playlist-detail-actions .btn-outline svg { width: 26px; height: 26px; }
+
+/* ── PLAYLISTS: lista com capa + nome (em vez de grade) ───── */
+.playlist-grid { display: flex; flex-direction: column; gap: 0; }
+.playlist-card {
+  display: grid;
+  grid-template-columns: 56px 1fr;
+  grid-template-rows: auto auto;
+  align-content: center;
+  column-gap: 12px;
+  row-gap: 0;
+  padding: 8px 4px;
+  border: 0;
+  border-radius: 6px;
+}
+.playlist-card:hover { background: transparent; box-shadow: none; transform: none; border: 0; }
+.playlist-card:active { background: rgba(255,255,255,0.08); }
+.playlist-card-art {
+  grid-row: 1 / span 2;
+  width: 56px;
+  height: 56px;
+  aspect-ratio: auto;
+  border-radius: 4px;
+  box-shadow: none !important;
+}
+.playlist-card-name { align-self: end; font-size: 1rem; font-weight: 400; }
+.playlist-card-count { align-self: start; font-size: 0.85rem; color: #b3b3b3; }
+.playlist-card-count::before { content: 'Playlist • '; }
+
+/* ── Barra de navegação ──────────────────────────────────── */
+.bottom-nav {
+  background: linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(0,0,0,0.94) 38%, #000 100%);
+  border-top: 0;
+}
+.nav-btn { color: #b3b3b3; }
+.nav-btn:hover { color: #b3b3b3; }
+.nav-btn.active { color: #fff; }
+.nav-btn.active svg { transform: none; }
+
+/* ── Barra de progresso: fina e branca, sem brilhos ───────── */
+.seek-bar { --purple: #fff; height: 4px; }
+.seek-bar-shimmer, .seek-bar-glow-dot { display: none !important; }
+.seek-bar-wrap.is-playing .seek-bar { animation: none; }
+.seek-bar::-webkit-slider-thumb {
+  width: 12px;
+  height: 12px;
+  background: #fff;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.5);
+}
+
+/* ═══ MINI-PLAYER: barra compacta (capa, título, ♡, play) ═══ */
+.player:not(.expanded) {
+  left: 8px;
+  right: 8px;
+  bottom: calc(var(--nav-h) + 6px);
+  height: 56px;
+  padding: 0 4px 0 8px;
+  display: flex;
+  align-items: center;
+  border: 0;
+  border-radius: 8px;
+  background: #2a1b47;
+  box-shadow: 0 6px 18px rgba(0,0,0,0.45);
+  overflow: hidden;
+}
+.player:not(.expanded) .player-track { flex: 1; min-width: 0; margin: 0; gap: 8px; }
+.player:not(.expanded) .player-track-btn { gap: 10px; }
+.player:not(.expanded) .player-art {
+  width: 40px;
+  height: 40px;
+  border-radius: 4px;
+  box-shadow: none;
+}
+.player:not(.expanded) .player-title { font-size: 0.88rem; font-weight: 700; }
+.player:not(.expanded) .player-artist { font-size: 0.78rem; }
+.player:not(.expanded) #btn-download-current { display: none; }
+.player:not(.expanded) .player-controls { flex: 0 0 auto; justify-content: flex-end; gap: 0; }
+.player:not(.expanded) .player-controls #btn-shuffle,
+.player:not(.expanded) .player-controls #btn-prev,
+.player:not(.expanded) .player-controls #btn-repeat { display: none; }
+.player:not(.expanded) .play-btn {
+  width: 44px;
+  height: 44px;
+  background: transparent;
+  box-shadow: none;
+  color: #fff;
+}
+.player:not(.expanded) .play-btn svg { width: 30px; height: 30px; }
+.player:not(.expanded) .player-progress {
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  bottom: 3px;
+  margin: 0;
+  height: 2px;
+  pointer-events: none;
+}
+.player:not(.expanded) .time-label { display: none; }
+.player:not(.expanded) .seek-bar { height: 2px; }
+.player:not(.expanded) .seek-bar::-webkit-slider-thumb { width: 0; height: 0; box-shadow: none; }
+
+/* ═══ PLAYER EM TELA CHEIA ═══ */
+.player.expanded { padding: 56px 24px 28px; }
+.player.expanded .player-aurora { opacity: 0.55; }
+.player.expanded .player-track {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  align-items: center;
+  column-gap: 6px;
+  margin-bottom: 18px;
+}
+.player.expanded .player-track-btn { display: contents; }
+.player.expanded .player-art {
+  grid-column: 1 / -1;
+  width: min(100%, 340px);
+  height: auto;
+  aspect-ratio: 1;
+  margin: 0 auto 26px;
+  border-radius: 8px;
+  box-shadow: 0 10px 40px rgba(0,0,0,0.55);
+}
+.player.expanded .player-info { grid-column: 1; width: auto; text-align: left; }
+.player.expanded .player-title { font-size: 1.4rem; font-weight: 800; letter-spacing: -0.02em; }
+.player.expanded .player-artist { font-size: 1rem; margin-top: 4px; }
+.player.expanded #btn-fav { grid-column: 2; }
+.player.expanded #btn-download-current { grid-column: 3; }
+.player.expanded #btn-fav svg { width: 26px; height: 26px; }
+
+.player.expanded .player-progress {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  row-gap: 6px;
+  margin-bottom: 12px;
+}
+.player.expanded .seek-bar-wrap { grid-column: 1 / -1; grid-row: 1; }
+.player.expanded #time-current { grid-row: 2; justify-self: start; width: auto; }
+.player.expanded #time-total { grid-row: 2; justify-self: end; width: auto; text-align: right; }
+
+.player.expanded .player-controls { padding: 0 2px; }
+.player.expanded .ctrl-btn { width: 44px; height: 44px; }
+.player.expanded .ctrl-btn svg { width: 26px; height: 26px; }
+.player.expanded .play-btn {
+  width: 66px;
+  height: 66px;
+  background: #fff;
+  color: #000;
+  box-shadow: none;
+}
+.player.expanded .play-btn svg { width: 30px; height: 30px; }
+
+/* Modais de playlist e filtros: ajustes de alinhamento */
+.filter-menu-box .filter-card-header { min-height: 32px; padding-right: 40px; margin-bottom: var(--sp-3); }
+
+/* ── Ajustes finos (2ª passada) ───────────────────────────── */
+.shelf-header .shelf-label {
+  font-size: 1.1rem;
+  white-space: nowrap;
+  margin-bottom: 0;
+}
+.shelf-header .sort-summary { font-size: 0.78rem; font-weight: 500; color: #b3b3b3; margin-left: 4px; }
+.library-tabs { margin-bottom: var(--sp-4); }
+
+/* música tocando: só a cor do título (sem barra lateral nem brilho) */
+.track-item.playing { box-shadow: none; }
+.track-item.playing .track-art { box-shadow: none; }
+
+/* botão de baixar: discreto quando ainda não baixou */
+.track-item .dl-btn:not(.downloaded):not(.downloading) { opacity: 0.45; }
+
+/* busca da lista: campo achatado, sem formato de pílula */
+.lib-search-wrap .filter-picker-search {
+  border: 0;
+  border-radius: 6px;
+  background: rgba(255,255,255,0.10);
+}
+
+/* título da lista + ícones de ação sem se encostarem */
+.shelf-header .shelf-label { font-size: 1.05rem; }
+.shelf-actions { gap: 0; }
+.shelf-actions .icon-btn-sm { width: 34px; height: 34px; }
+.shelf-actions .icon-btn-sm svg { width: 18px; height: 18px; }
+
+.player.expanded #btn-download-current svg { width: 24px; height: 24px; }
