@@ -3401,3 +3401,75 @@ label.set-row:active { background: var(--surface2); }
 .upload-actions { display: flex; gap: 10px; }
 .upload-actions .btn-outline { flex: 0 0 auto; padding-left: var(--sp-4); padding-right: var(--sp-4); }
 .upload-actions .btn-primary { flex: 1; }
+
+
+/* ═══════════════════════════════════════════════
+   AJUSTES DE LAYOUT (out/2026)
+═══════════════════════════════════════════════ */
+
+/* "Tocar tudo" e "Aleatório" com a mesma altura */
+.lib-play-row .btn-outline { min-height: 54px; }
+
+/* Selecionar / Baixar: ações com nome, bem à vista */
+.lib-tools-row {
+  display: flex;
+  gap: var(--sp-2);
+  margin-bottom: var(--sp-3);
+}
+.lib-tool-btn {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 var(--sp-3);
+  border-radius: var(--radius-md, 16px);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--white);
+  font-size: 0.9rem;
+  font-weight: 600;
+  transition: background var(--transition), border-color var(--transition);
+}
+.lib-tool-btn svg { flex-shrink: 0; color: var(--purple-light, #a78bfa); }
+.lib-tool-btn:active { background: var(--surface2); }
+.lib-tool-btn.active {
+  background: rgba(124,58,255,0.22);
+  border-color: var(--purple);
+}
+
+/* Janela "Filtrar por": título alinhado com o X e respiro antes das opções */
+.filter-menu-box .filter-card-header {
+  min-height: 32px;
+  padding-right: 40px;
+  margin-bottom: var(--sp-3);
+}
+.filter-menu-box .filter-card-title {
+  font-size: 0.95rem;
+  letter-spacing: 0.02em;
+  color: var(--white);
+}
+.filter-chip-row-menu .filter-chip { min-height: 48px; }
+.filter-chip-row-menu .filter-chip .filter-chip-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: left;
+}
+.filter-chip-row-menu .filter-chip .filter-chip-caret { margin-left: auto; flex-shrink: 0; }
+
+/* Janela de escolher um filtro: título não passa por baixo do X */
+.filter-picker-box .modal-title { padding-right: 40px; }
+
+/* Janelas de playlist: título à esquerda como as demais, e o "Criar" na altura do campo */
+#modal-add-to-playlist .modal-box,
+#modal-add-tracks-to-playlist .modal-box { text-align: left; }
+#modal-add-to-playlist .modal-title,
+#modal-add-tracks-to-playlist .modal-title { padding-right: 40px; }
+#modal-add-to-playlist .upload-field > div { align-items: stretch; }
+#btn-add-to-playlist-create { margin-top: 0; padding-top: 0; padding-bottom: 0; }
+
+.lib-play-row .btn-outline { margin-top: 0; }
