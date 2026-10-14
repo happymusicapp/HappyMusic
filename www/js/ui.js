@@ -898,8 +898,31 @@ const UI = (() => {
     _trackMenuHandlers = { ..._trackMenuHandlers, ...handlers };
   }
 
+  // Menu da música/vídeo = janela que sobe de baixo (capa + título + ações).
+  // O fundo escuro fica sobre a tela: tocar fora fecha o menu (o clique chega
+  // no document e fecha) e NÃO aciona a música que estava por baixo.
+  function _menuBackdrop() {
+    document.querySelector('.track-menu-backdrop')?.remove();
+    const bd = document.createElement('div');
+    bd.className = 'track-menu-backdrop';
+    document.body.appendChild(bd);
+  }
+  function _menuHeadHtml(item) {
+    const art = item && item.thumbnail
+      ? `<img src="${_escape(item.thumbnail)}" alt="" />`
+      : '';
+    return `<div class="track-menu-head">
+      <div class="track-menu-head-art">${art}</div>
+      <div class="track-menu-head-text">
+        <span class="track-menu-head-title">${_escape((item && item.title) || '')}</span>
+        <span class="track-menu-head-sub">${_escape((item && item.artist) || '')}</span>
+      </div>
+    </div>`;
+  }
+
   function _closeTrackMenu() {
     document.querySelector('.track-menu-popover')?.remove();
+    document.querySelector('.track-menu-backdrop')?.remove();
   }
 
   function _outsideMenuHandler(e) {
@@ -920,7 +943,7 @@ const UI = (() => {
     pop.className = 'track-menu-popover';
     const _svg = d => `<svg width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">${d}</svg>`;
     const canNav = !track.isExternal;
-    pop.innerHTML = `
+    pop.innerHTML = _menuHeadHtml(track) + `
       <button data-action="next">${_svg('<path d="M3 6h12M3 12h8M3 18h8"/><path d="m15 14 6 4-6 4z" fill="currentColor"/>')}<span>Tocar a seguir</span></button>
       <button data-action="queue">${_svg('<path d="M3 6h13M3 12h13M3 18h8"/><path d="M18 15v6M15 18h6"/>')}<span>Adicionar à fila</span></button>
       <div class="track-menu-popover-divider"></div>
@@ -933,6 +956,7 @@ const UI = (() => {
       <div class="track-menu-popover-divider"></div>
       <button data-action="delete" class="danger">${_trashIcon()}<span>Excluir do Drive</span></button>
     `;
+    _menuBackdrop();
     document.body.appendChild(pop);
 
     // Posiciona relativo ao botão que abriu o menu, sempre dentro dos
@@ -1986,6 +2010,9 @@ const UI = (() => {
   }
 
   function renderPlaylistTracks(tracks, currentId = null, isFavorites = false) {
+    // Capa grande no topo da playlist (mosaico das primeiras capas)
+    const _cover = document.getElementById('playlist-detail-cover');
+    if (_cover) _cover.innerHTML = _collageArt((tracks || []).slice(0, 4), isFavorites ? _favIcon(true, 48) : _playlistIcon());
     // "Tocar tudo" só faz sentido com músicas na lista; mostra quantas são.
     // (Tudo com ?. de propósito: se o index.html estiver desatualizado e
     // faltar algum desses elementos, a LISTA da playlist tem que ser
@@ -2177,6 +2204,7 @@ const UI = (() => {
   // handlers de vídeo.
   function _closeMovieMenu() {
     document.querySelector('.track-menu-popover')?.remove();
+    document.querySelector('.track-menu-backdrop')?.remove();
   }
 
   function _outsideMovieMenuHandler(e) {
@@ -2192,11 +2220,12 @@ const UI = (() => {
 
     const pop = document.createElement('div');
     pop.className = 'track-menu-popover';
-    pop.innerHTML = `
+    pop.innerHTML = _menuHeadHtml(video) + `
       <button data-action="favorite">${_favIcon(isFav)}<span>${isFav ? 'Remover dos favoritos' : 'Adicionar aos favoritos'}</span></button>
       <button data-action="edit">${_editIcon()}<span>Editar informações</span></button>
       <button data-action="playlist">${_addToPlaylistIcon()}<span>Adicionar à playlist</span></button>
     `;
+    _menuBackdrop();
     document.body.appendChild(pop);
 
     function place() {

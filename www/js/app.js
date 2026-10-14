@@ -943,9 +943,41 @@ const App = (() => {
   }
 
   // ── Busca, "Tocar tudo", "Aleatório" e "Ir para a música atual" ──
+  // "Navegar por todas": um cartão colorido por gênero da biblioteca (com a capa de
+  // uma música dele). Aparece na aba Buscar quando não há nada digitado.
+  const BROWSE_COLORS = ['#7C3AFF', '#9333EA', '#C026D3', '#5B21B6', '#4F46E5', '#6D28D9', '#A855F7', '#7E22CE'];
+  function _renderBrowse() {
+    const grid = document.getElementById('search-browse-grid');
+    if (!grid) return;
+    const byGenre = new Map();
+    for (const t of _tracks) {
+      const g = (t.genre || '').trim();
+      if (!g) continue;
+      const e = byGenre.get(g) || { name: g, n: 0, art: '' };
+      e.n++;
+      if (!e.art && t.thumbnail) e.art = t.thumbnail;
+      byGenre.set(g, e);
+    }
+    const items = [...byGenre.values()].sort((a, b) => b.n - a.n).slice(0, 30);
+    const sig = items.map(i => i.name + ':' + i.n).join('|');
+    if (grid.dataset.sig === sig) return;
+    grid.dataset.sig = sig;
+    grid.innerHTML = items.map((g, i) => `
+      <button type="button" class="browse-tile" data-genre="${_escHtml(g.name)}" style="--tile:${BROWSE_COLORS[i % BROWSE_COLORS.length]}">
+        <span class="browse-tile-name">${_escHtml(g.name)}</span>
+        ${g.art ? `<img class="browse-tile-art" src="${_escHtml(g.art)}" alt="" loading="lazy" />` : ''}
+      </button>`).join('');
+    document.getElementById('search-browse')?.classList.toggle('hidden', items.length === 0);
+  }
+
+  function _setSearchQueryState() {
+    const has = !!(UI.el.searchInput && UI.el.searchInput.value.trim());
+    document.getElementById('view-search')?.classList.toggle('has-query', has);
+  }
+
   function _goToFacet(kind, value) {
     if (!value) return;
-    _filters = { genre: '', artist: kind === 'artist' ? [value] : [], album: kind === 'album' ? value : '' };
+    _filters = { genre: kind === 'genre' ? value : '', artist: kind === 'artist' ? [value] : [], album: kind === 'album' ? value : '' };
     _libQuery = '';
     if (UI.el.libSearch) UI.el.libSearch.value = '';
     UI.el.libSearchClear?.classList.add('hidden');
@@ -971,6 +1003,7 @@ const App = (() => {
     UI.el.libSearchClear?.classList.add('hidden');
     _movieFilterGenre = '';
     if (UI.el.searchInput) UI.el.searchInput.value = '';
+    _setSearchQueryState();
     UI.clearSearchResults();
     try {
       _refreshFilterBar();
@@ -1025,6 +1058,7 @@ const App = (() => {
   }
 
   function _renderAllTracksList() {
+    _renderBrowse();
     const list = _visibleTracks();
 
     if (!_tracks.length) return; // trata vazio lá em cima, em _loadTracks
@@ -2902,7 +2936,12 @@ const App = (() => {
 
     // Busca em tempo real — apagar o texto todo só limpa os resultados
     // (a busca é uma aba fixa agora, não fecha/navega mais sozinha).
+    document.getElementById('search-browse-grid')?.addEventListener('click', e => {
+      const tile = e.target.closest('.browse-tile');
+      if (tile) _goToFacet('genre', tile.dataset.genre);
+    });
     UI.el.searchInput.addEventListener('input', e => {
+      _setSearchQueryState();
       if (!e.target.value) { UI.clearSearchResults(); return; }
       _handleSearch(e.target.value);
     });
@@ -2911,6 +2950,7 @@ const App = (() => {
     UI.el.searchInput.addEventListener('keydown', e => {
       if (e.key === 'Escape') {
         UI.el.searchInput.value = '';
+        _setSearchQueryState();
         UI.clearSearchResults();
       }
     });
