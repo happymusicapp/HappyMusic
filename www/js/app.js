@@ -337,6 +337,30 @@ const App = (() => {
   }
 
   // ── CARREGAR FAIXAS ────────────────────────────
+  // Manda pro player nativo a lista das músicas baixadas (plano B sem internet).
+  let _poolTimer = null;
+  function _scheduleOfflinePoolSync() {
+    clearTimeout(_poolTimer);
+    _poolTimer = setTimeout(_syncOfflinePool, 1500);
+  }
+  async function _syncOfflinePool() {
+    if (!(window.NativeMedia && NativeMedia.isNative && window.NativeFS && NativeFS.isNative)) return;
+    try {
+      const ids = new Set(await NativeFS.listDownloadedIds());
+      const items = [];
+      for (const t of _tracks) {
+        if (!ids.has(t.id) || t.isExternal) continue;
+        const path = await NativeFS.getAudioPath(t.id);
+        if (path) {
+          items.push({ id: t.id, title: t.title, artist: t.artist, album: 'HappyMusic', artworkUrl: t.thumbnail || null, path });
+        }
+      }
+      await NativeMedia.setOfflinePool(items);
+    } catch (err) {
+      console.warn('[OfflinePool] falhou:', err);
+    }
+  }
+
   async function _loadTracks() {
     // Skeleton enquanto carrega
     UI.showLoading(UI.el.allTracksList, 6);
@@ -344,6 +368,7 @@ const App = (() => {
     try {
       const wasOffline = !navigator.onLine;
       _tracks = await Drive.listTracks();
+      _scheduleOfflinePoolSync();
 
       // Preenche de cara as capas que já estão salvas de uma sessão
       // anterior, ANTES de desenhar qualquer lista — pra não aparecer o
@@ -667,6 +692,13 @@ const App = (() => {
     UI.setSelectMode(UI.el.allTracksList, false);
     UI.hideSelectionBar();
     UI.el.btnSelectMode.classList.remove('active');
+    const _pill = document.getElementById('btn-lib-select');
+    if (_pill) {
+      _pill.classList.remove('active');
+      _pill.setAttribute('aria-pressed', 'false');
+      const _lbl = _pill.querySelector('span');
+      if (_lbl) _lbl.textContent = 'Selecionar';
+    }
     UI.el.btnSelectMode.title = 'Selecionar';
     UI.el.btnSelectMode.setAttribute('aria-label', 'Selecionar músicas');
   }
@@ -742,10 +774,20 @@ const App = (() => {
   }
 
   function _bindSelectionEvents() {
+    // Botões com nome (na lista de músicas): usam os mesmos controles de sempre
+    const pillSelect = document.getElementById('btn-lib-select');
+    const pillDownload = document.getElementById('btn-lib-download');
+    pillSelect?.addEventListener('click', () => UI.el.btnSelectMode.click());
+    pillDownload?.addEventListener('click', () => UI.el.btnDownloadCustom.click());
+
     UI.el.btnSelectMode.addEventListener('click', () => {
       const on = !UI.isSelectMode(UI.el.allTracksList);
       UI.setSelectMode(UI.el.allTracksList, on);
       UI.el.btnSelectMode.classList.toggle('active', on);
+      pillSelect?.classList.toggle('active', on);
+      pillSelect?.setAttribute('aria-pressed', on ? 'true' : 'false');
+      const pillLabel = pillSelect?.querySelector('span');
+      if (pillLabel) pillLabel.textContent = on ? 'Cancelar seleção' : 'Selecionar';
       UI.el.btnSelectMode.setAttribute('aria-label', on ? 'Cancelar seleção' : 'Selecionar músicas');
       UI.el.btnSelectMode.title = on ? 'Cancelar seleção' : 'Selecionar';
       if (on) { UI.showSelectionBar(); _updateSelectionUI(); }
@@ -2817,7 +2859,7 @@ const App = (() => {
     }
 
     // Mantém o resumo "X de Y músicas baixadas" sempre atualizado
-    Downloads.onChange(() => _updateOfflineSummary());
+    Downloads.onChange(() => { _updateOfflineSummary(); _scheduleOfflinePoolSync(); });
 
     // Filtros, upload, edição de metadados e playlists
     _bindFilterEvents();
