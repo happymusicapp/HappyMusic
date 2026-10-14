@@ -151,6 +151,14 @@
       }
     },
 
+    // Lista das músicas baixadas: o player nativo sorteia uma delas quando a fila
+    // atual não tem nada que toque sem internet (funciona com o app fechado).
+    async setOfflinePool(items) {
+      if (!plugin) return;
+      try { await plugin.setOfflinePool({ items: items || [] }); }
+      catch (err) { console.warn('[NativeMedia] setOfflinePool falhou:', err); }
+    },
+
     // Fala um aviso (respeita a chave "Avisos por voz").
     async speak(text) {
       if (!plugin || !text) return;
