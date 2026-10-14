@@ -49,6 +49,7 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -746,20 +747,15 @@ public class NativePlayerService extends Service {
     private void switchToDownloadedOrWait(boolean weakSignal) {
         if (player == null) return;
         if (retryRunnable != null) mainHandler.removeCallbacks(retryRunnable);
-        int cur = Math.max(player.getCurrentMediaItemIndex(), 0);
-        int target = findDownloadedIndex(cur);
         boolean firstTime = !offlineAnnounced;
         offlineAnnounced = true;
-        if (target != -1) {
+        if (playDownloadedFallback()) {
             cancelWaiting();
             if (firstTime) {
                 announce(weakSignal
                         ? "Sinal fraco. Vou tocar as músicas baixadas."
                         : "Sem internet. Vou tocar as músicas baixadas.");
             }
-            player.seekTo(target, 0L);
-            player.prepare();
-            player.setPlayWhenReady(true);
             return;
         }
         if (!waitingForNetwork) {
@@ -770,6 +766,87 @@ public class NativePlayerService extends Service {
         }
         mainHandler.removeCallbacks(waitPoll);
         mainHandler.postDelayed(waitPoll, WAIT_NETWORK_POLL_MS);
+    }
+
+    // ── Sempre ter o que tocar ─────────────────────────────────────
+    // Quando a música atual não dá pra tocar (sem internet, sinal fraco, limite do
+    // Drive...), a ordem é: 1) próxima BAIXADA da fila (a playlist/filtro escolhido);
+    // 2) uma BAIXADA sorteada da biblioteca; 3) uma baixada anterior da própria fila.
+
+    private final java.util.Random fallbackRng = new java.util.Random();
+    private final Set<String> fallbackPlayed = new HashSet<>();
+
+    private int findDownloadedAhead(int from) {
+        for (int idx = from + 1; idx < currentItems.size(); idx++) {
+            if (!isStreamingIndex(idx)) return idx;
+        }
+        return -1;
+    }
+
+    private void jumpToIndex(int idx) {
+        player.seekTo(idx, 0L);
+        player.prepare();
+        player.setPlayWhenReady(true);
+    }
+
+    private List<QueueItem> poolCandidates(List<QueueItem> pool, String curId, boolean skipPlayed) {
+        List<QueueItem> out = new ArrayList<>();
+        for (QueueItem q : pool) {
+            if (q.id == null || q.id.equals(curId)) continue;
+            if (skipPlayed && fallbackPlayed.contains(q.id)) continue;
+            if (!OfflinePool.exists(q)) continue;
+            out.add(q);
+        }
+        return out;
+    }
+
+    // Coloca a faixa logo depois da atual e toca. Mantém o player e a lista alinhados.
+    private boolean insertAfterCurrentAndPlay(QueueItem item) {
+        if (player == null) return false;
+        List<QueueItem> playable = new ArrayList<>();
+        List<MediaSource> sources = buildSources(Collections.singletonList(item), playable);
+        if (sources.isEmpty() || playable.isEmpty()) return false;
+        if (!(currentItems instanceof ArrayList)) currentItems = new ArrayList<>(currentItems);
+        int at = Math.min(Math.max(player.getCurrentMediaItemIndex(), -1) + 1, currentItems.size());
+        currentItems.add(at, playable.get(0));
+        player.addMediaSource(at, sources.get(0));
+        publishQueueIds();
+        jumpToIndex(at);
+        PlaybackStore.saveQueue(this, currentItems, at, repeatModeStr);
+        return true;
+    }
+
+    // true = achou e já está tocando algo que não depende de internet.
+    private boolean playDownloadedFallback() {
+        if (player == null) return false;
+        int cur = Math.max(player.getCurrentMediaItemIndex(), 0);
+
+        int ahead = findDownloadedAhead(cur);
+        if (ahead != -1) {
+            jumpToIndex(ahead);
+            return true;
+        }
+
+        MediaItem curItem = player.getCurrentMediaItem();
+        String curId = curItem != null ? curItem.mediaId : "";
+        List<QueueItem> pool = OfflinePool.get(this);
+        List<QueueItem> candidates = poolCandidates(pool, curId, true);
+        if (candidates.isEmpty()) {
+            fallbackPlayed.clear(); // já passou por todas: recomeça o sorteio
+            candidates = poolCandidates(pool, curId, false);
+        }
+        if (!candidates.isEmpty()) {
+            QueueItem pick = candidates.get(fallbackRng.nextInt(candidates.size()));
+            fallbackPlayed.add(pick.id);
+            if (insertAfterCurrentAndPlay(pick)) return true;
+        }
+
+        int any = findDownloadedIndex(cur);
+        if (any != -1) {
+            jumpToIndex(any);
+            return true;
+        }
+        return false;
     }
 
     private static int httpStatusOf(Throwable t) {
@@ -918,13 +995,8 @@ public class NativePlayerService extends Service {
     // baixada se houver, senão pausa (não adianta pular a fila inteira).
     private void stopWithReason(String message) {
         if (player == null) return;
-        int cur = Math.max(player.getCurrentMediaItemIndex(), 0);
-        int target = findDownloadedIndex(cur);
-        if (target != -1) {
+        if (playDownloadedFallback()) {
             announce(message + " Vou tocar as músicas baixadas.");
-            player.seekTo(target, 0L);
-            player.prepare();
-            player.setPlayWhenReady(true);
             return;
         }
         announce(message);
@@ -935,6 +1007,12 @@ public class NativePlayerService extends Service {
         if (player == null) return;
         consecutiveErrorSkips++;
         if (consecutiveErrorSkips > MAX_CONSECUTIVE_ERROR_SKIPS) {
+            consecutiveErrorSkips = 0;
+            // Nunca ficar sem música: tenta uma baixada antes de desistir.
+            if (playDownloadedFallback()) {
+                announce("Várias músicas não carregaram. Vou tocar uma música baixada.");
+                return;
+            }
             announce("Várias músicas não carregaram. Parei a reprodução.");
             player.setPlayWhenReady(false);
             return;

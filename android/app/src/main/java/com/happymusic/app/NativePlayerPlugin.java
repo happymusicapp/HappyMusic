@@ -329,6 +329,15 @@ public class NativePlayerPlugin extends Plugin {
         });
     }
 
+    // Lista das músicas baixadas (pra o player achar uma que toque sem internet,
+    // mesmo com o app fechado).
+    @PluginMethod
+    public void setOfflinePool(PluginCall call) {
+        JSArray items = call.getArray("items");
+        OfflinePool.save(getContext(), items != null ? items.toString() : "[]");
+        call.resolve();
+    }
+
     // Avisos por voz (sem internet, música pulada...): ligado/desligado nas configurações.
     @PluginMethod
     public void setVoiceAlerts(PluginCall call) {
