@@ -1025,7 +1025,9 @@ public class NativePlayerService extends Service {
             player.prepare();
             player.setPlayWhenReady(true);
         } else if (plugin != null) {
-            plugin.notifyEnded(); // fim da fila carregada: o JS continua (modo rádio)
+            // Fim da fila carregada: pede "próxima" ao JS (modo rádio). Não usa "acabou"
+            // porque no "repetir uma" o JS recomeçaria a MESMA faixa que acabou de falhar.
+            plugin.actionCallback("nexttrack");
         } else {
             player.setPlayWhenReady(false);
         }
@@ -1386,6 +1388,19 @@ public class NativePlayerService extends Service {
 
     public void nativePause() {
         postToMain(() -> { if (player != null) player.setPlayWhenReady(false); });
+    }
+
+    // Repetir ligado/desligado COM A MÚSICA TOCANDO: o ExoPlayer precisa saber na hora
+    // (antes só era definido ao carregar a fila — o botão não tinha efeito até a
+    // próxima troca de fila, e com o app fechado a repetição nunca funcionava).
+    public void nativeSetRepeatMode(final String mode) {
+        postToMain(() -> {
+            if (player == null) return;
+            applyRepeatMode(mode);
+            if (!currentItems.isEmpty()) {
+                PlaybackStore.saveQueue(this, currentItems, Math.max(player.getCurrentMediaItemIndex(), 0), repeatModeStr);
+            }
+        });
     }
 
     public void nativeSeekTo(long ms) {

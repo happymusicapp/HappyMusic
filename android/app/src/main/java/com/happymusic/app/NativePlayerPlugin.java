@@ -329,6 +329,13 @@ public class NativePlayerPlugin extends Plugin {
         });
     }
 
+    // Muda o modo de repetição ('none'|'all'|'one') do player nativo na hora.
+    @PluginMethod
+    public void setRepeatMode(PluginCall call) {
+        if (service != null) service.nativeSetRepeatMode(call.getString("repeatMode", "none"));
+        call.resolve();
+    }
+
     // Lista das músicas baixadas (pra o player achar uma que toque sem internet,
     // mesmo com o app fechado).
     @PluginMethod
