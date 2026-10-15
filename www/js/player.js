@@ -450,6 +450,11 @@ const Player = (() => {
       _index = current ? _queue.indexOf(current) : 0;
     }
 
+    // O player nativo já recebeu as próximas faixas na ordem antiga: sem reenviar,
+    // ligar/desligar o aleatório só mudava a tela e a música seguinte continuava
+    // a mesma. (_afterQueueEdit também salva o estado.)
+    _afterQueueEdit();
+
     return _shuffle;
   }
 
@@ -459,7 +464,20 @@ const Player = (() => {
   // Cicla: none → all → one → none
   function cycleRepeat() {
     const cycle = { none: 'all', all: 'one', one: 'none' };
+    const before = _repeat;
     _repeat = cycle[_repeat];
+
+    if (_useNative) {
+      // O ExoPlayer é quem troca de faixa quando a tela está apagada: precisa saber
+      // do novo modo AGORA. Mexer em 'um' muda também quais faixas vêm depois (no
+      // "repetir uma" a fila nativa só tem a faixa atual), então recarrega a fila.
+      const mode = _repeat === 'one' ? 'one' : (_repeat === 'all' || _queueLoops) ? 'all' : 'none';
+      window.NativeMedia?.setRepeatMode?.(mode);
+      if (before === 'one' || _repeat === 'one') _afterQueueEdit();
+      else _saveResumeState();
+    } else {
+      _saveResumeState();
+    }
     return _repeat;
   }
 
@@ -939,8 +957,20 @@ const Player = (() => {
         const pool = (typeof Drive !== 'undefined' && Drive.getCachedTracks && Drive.getCachedTracks()) || [];
         const found = pool.find(t => t.id === newId);
         if (!found) return;
-        _adoptNativeQueue(found, _readSavedResume(), pool);
-        idx = _index;
+        if (_queue.length) {
+          // Faixa que o player nativo escolheu sozinho (ex.: uma baixada sorteada
+          // quando não havia internet): entra logo depois da atual, SEM trocar a
+          // fila — antes a fila virava a biblioteca inteira e a playlist/filtro
+          // que estava tocando se perdia.
+          const cur = _queue[_index];
+          _queue.splice(_index + 1, 0, found);
+          const oi = _originalQueue.indexOf(cur);
+          _originalQueue.splice(oi >= 0 ? oi + 1 : _originalQueue.length, 0, found);
+          idx = _index + 1;
+        } else {
+          _adoptNativeQueue(found, _readSavedResume(), pool);
+          idx = _index;
+        }
       }
       _index = idx;
       _loadedTrackId = newId;
@@ -995,10 +1025,14 @@ const Player = (() => {
   }
 
   // ── NAVEGAÇÃO ─────────────────────────────────
-  function next() {
+  // opts.auto = true quando a faixa ACABOU sozinha (evento 'ended'): no "repetir
+  // uma" ela recomeça. Quando é o botão/notificação, avança pra próxima (como no
+  // Spotify) — antes o botão "próxima" só reiniciava a mesma música e não dava
+  // pra sair dela sem desligar o repetir.
+  function next(opts = {}) {
     if (!_queue.length) return;
 
-    if (_repeat === 'one') {
+    if (_repeat === 'one' && opts.auto) {
       audio.currentTime = 0;
       audio.play();
       return;
@@ -1115,8 +1149,12 @@ const Player = (() => {
     if (!_useNative || !track || _loadedTrackId !== track.id) return;
     _nativeQueueDirty = false;
     const myLoad = _loadToken;
-    const pos = audio.currentTime || 0;
+    let pos = audio.currentTime || 0;
     try {
+      // O espelho JS da posição só atualiza a cada ~1 s: pergunta a posição real ao
+      // nativo, senão a música voltava até 1 s ao ligar aleatório/repetir.
+      const live = await window.NativeMedia?.nativeGetState?.({ light: true });
+      if (live && typeof live.positionSeconds === 'number') pos = live.positionSeconds;
       const source = await _resolveTrackSource(track);
       const historyIdx  = _peekHistoryIndexes();
       const upcomingIdx = _peekUpcomingIndexes();
@@ -1209,12 +1247,14 @@ const Player = (() => {
 
   // ── SEEK ──────────────────────────────────────
   function seek(seconds) {
-    if (!isFinite(audio.duration)) return;
+    // Duração 0 = faixa ainda carregando (no motor nativo vem 0, não NaN): limitar
+    // a 0 jogava a música pro início ao arrastar a barra nesse momento.
+    if (!(audio.duration > 0) || !isFinite(audio.duration)) return;
     audio.currentTime = Math.max(0, Math.min(seconds, audio.duration));
   }
 
   function seekPercent(pct) {
-    if (!isFinite(audio.duration)) return;
+    if (!(audio.duration > 0) || !isFinite(audio.duration)) return;
     seek((pct / 100) * audio.duration);
   }
 
@@ -1301,7 +1341,7 @@ const Player = (() => {
   audio.addEventListener('ended', () => {
     const track = getCurrentTrack();
     if (track && !track.isExternal) _addToRecent(track);
-    next();
+    next({ auto: true });
   });
 
   audio.addEventListener('play', () => {

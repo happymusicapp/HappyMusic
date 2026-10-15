@@ -151,6 +151,13 @@
       }
     },
 
+    // Repetir (none | all | one) valendo na hora no player nativo.
+    async setRepeatMode(mode) {
+      if (!plugin) return;
+      try { await plugin.setRepeatMode({ repeatMode: mode }); }
+      catch (err) { console.warn('[NativeMedia] setRepeatMode falhou:', err); }
+    },
+
     // Lista das músicas baixadas: o player nativo sorteia uma delas quando a fila
     // atual não tem nada que toque sem internet (funciona com o app fechado).
     async setOfflinePool(items) {
