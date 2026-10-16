@@ -303,7 +303,13 @@ public class NativePlayerPlugin extends Plugin {
         if (running != null) {
             running.speakNotice(text);
         } else {
-            speakStandalone(text);
+            // Serviço parado (nada tocando): usa a gravação se existir; senão a voz do Android.
+            final java.util.List<Integer> clips = VoiceClips.resolve(getContext(), text);
+            if (clips != null && getActivity() != null) {
+                getActivity().runOnUiThread(() -> VoiceClips.play(getContext(), clips, null));
+            } else {
+                speakStandalone(text);
+            }
         }
         call.resolve();
     }

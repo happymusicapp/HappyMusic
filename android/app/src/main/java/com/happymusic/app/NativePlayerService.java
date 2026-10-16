@@ -958,7 +958,7 @@ public class NativePlayerService extends Service {
                 return;
             }
             if (authProblem) {
-                stopWithReason("A sessão do Google venceu. Abra o app e entre de novo.");
+                stopWithReason("A sessão do Google venceu. Entre de novo no app.");
                 return;
             }
             if (limitProblem) {
@@ -1010,7 +1010,7 @@ public class NativePlayerService extends Service {
             consecutiveErrorSkips = 0;
             // Nunca ficar sem música: tenta uma baixada antes de desistir.
             if (playDownloadedFallback()) {
-                announce("Várias músicas não carregaram. Vou tocar uma música baixada.");
+                announce("Várias músicas não carregaram. Vou tocar as músicas baixadas.");
                 return;
             }
             announce("Várias músicas não carregaram. Parei a reprodução.");
@@ -1052,6 +1052,12 @@ public class NativePlayerService extends Service {
     }
 
     private void speak(String text) {
+        // Voz gravada (res/raw) quando a frase inteira tem gravação; senão, a do Android.
+        List<Integer> clips = VoiceClips.resolve(this, text);
+        if (clips != null) {
+            speakClips(clips);
+            return;
+        }
         if (tts == null) {
             pendingSpeech = text;
             try {
@@ -1097,7 +1103,21 @@ public class NativePlayerService extends Service {
         }
     }
 
+    private void speakClips(List<Integer> ids) {
+        try {
+            if (tts != null) tts.stop();
+            speakingDuck = true; // a música abaixa enquanto a voz fala
+            if (player != null) player.setVolume(duckCap(player.getVolume()));
+            mainHandler.removeCallbacks(endDuck);
+            mainHandler.postDelayed(endDuck, 25000L); // segurança: nunca deixa o volume preso
+            VoiceClips.play(this, ids, () -> mainHandler.post(this::finishSpeakingDuck));
+        } catch (Exception e) {
+            finishSpeakingDuck();
+        }
+    }
+
     private void doSpeak(String text) {
+        VoiceClips.stop();
         try {
             // A música (se estiver tocando) abaixa enquanto a voz fala.
             speakingDuck = true;
@@ -1509,6 +1529,7 @@ public class NativePlayerService extends Service {
             try { connectivityManager.unregisterNetworkCallback(networkCallback); } catch (Exception ignored) { }
             networkCallback = null;
         }
+        VoiceClips.stop();
         if (tts != null) {
             try { tts.stop(); tts.shutdown(); } catch (Exception ignored) { }
             tts = null;
