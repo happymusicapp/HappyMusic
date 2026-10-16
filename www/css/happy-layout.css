@@ -560,3 +560,16 @@
 }
 
 .set-row-icon.accent { background: none; box-shadow: none; color: var(--purple-soft); }
+
+/* ═══ PERFIL E AJUSTES: fundo preto (sem o degradê roxo atrás da lista) ═══ */
+#view-profile.active {
+  position: relative;
+  z-index: 1;      /* fica por cima do brilho roxo (.aurora-bg) que cobria o topo */
+  background: #000;
+  min-height: 100dvh;
+  /* cobre também a faixa do topo (atrás da barra) e a de baixo (atrás do player) */
+  margin-top: calc(-1 * (var(--header-h) + var(--sp-2)));
+  padding-top: calc(var(--header-h) + var(--sp-2) + var(--sp-4));
+  margin-bottom: calc(-1 * (var(--player-h) + var(--nav-h) + var(--sp-2)));
+  padding-bottom: calc(var(--player-h) + var(--nav-h) + var(--sp-2) + var(--sp-4));
+}
