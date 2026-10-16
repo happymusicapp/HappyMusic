@@ -10,8 +10,9 @@
 }
 
 /* ── Cabeçalho: leve, sem faixa e sem linha ───────────────── */
+/* Barra de cima sólida: as músicas que rolam por baixo NÃO aparecem através dela */
 .app-header {
-  background: linear-gradient(180deg, rgba(0,0,0,0.78) 0%, rgba(0,0,0,0) 100%);
+  background: #000;
   border-bottom: 0;
 }
 .header-logo { width: 32px; height: 32px; border-radius: 8px; }
