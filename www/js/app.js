@@ -908,6 +908,18 @@ const App = (() => {
     let bubble = null;
     let lastLetter = null;
 
+    // O atalho só aparece enquanto você rola a lista de músicas (e some depois de
+    // ~1,5 s). Parado ele ficava por cima dos botões "⋯" e aparecia em qualquer tela.
+    let hideTimer = null;
+    const flash = () => {
+      if (UI.getCurrentView() !== 'library') return;
+      if (!document.getElementById('library-panel-tracks')?.classList.contains('active')) return;
+      rail.classList.add('visible');
+      clearTimeout(hideTimer);
+      hideTimer = setTimeout(() => rail.classList.remove('visible'), 1600);
+    };
+    UI.el.mainContent.addEventListener('scroll', flash, { passive: true });
+
     const pick = y => {
       const r = rail.getBoundingClientRect();
       const i = Math.max(0, Math.min(_AZ.length - 1, Math.floor(((y - r.top - 4) / Math.max(1, r.height - 8)) * _AZ.length)));
@@ -930,6 +942,7 @@ const App = (() => {
     const end = () => {
       rail.classList.remove('dragging');
       bubble?.remove(); bubble = null; lastLetter = null;
+      flash();
     };
 
     rail.addEventListener('pointerdown', e => {
