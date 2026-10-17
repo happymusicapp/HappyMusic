@@ -623,17 +623,18 @@
 .set-row-chev { color: #6a6a6a; }
 .set-summary { padding: 16px; }
 
-/* ═══ MINI-PLAYER BRANCO ═══ */
+/* ═══ MINI-PLAYER ROXO VIBRANTE ═══ */
 .player:not(.expanded) {
-  background: #fff;
-  box-shadow: 0 6px 20px rgba(0,0,0,0.55);
+  background: linear-gradient(90deg, #7C3AFF, #5B21D6);
+  box-shadow: 0 8px 24px rgba(91, 33, 214, 0.55);
 }
-.player:not(.expanded) .player-title { color: #111; }
-.player:not(.expanded) .player-artist { color: #5f5f5f; }
-.player:not(.expanded) .icon-btn { color: #222; }
-.player:not(.expanded) .fav-btn.active { color: var(--purple); }
-.player:not(.expanded) .play-btn { color: #111; }
-.player:not(.expanded) .seek-bar { --purple: #7C3AFF; --border: rgba(0,0,0,0.14); }
+.player:not(.expanded) .player-title { color: #fff; }
+.player:not(.expanded) .player-artist { color: rgba(255, 255, 255, 0.78); }
+.player:not(.expanded) .icon-btn { color: #fff; }
+.player:not(.expanded) .fav-btn.active { color: #fff; background: none; box-shadow: none; }
+.player:not(.expanded) .fav-btn.active svg { fill: #fff; stroke: #fff; }
+.player:not(.expanded) .play-btn { color: #fff; }
+.player:not(.expanded) .seek-bar { --purple: #fff; --border: rgba(255, 255, 255, 0.3); }
 
 /* ═══ ATALHO A–Z: só aparece enquanto rola, fino e sem atrapalhar os botões ═══ */
 .az-rail {
