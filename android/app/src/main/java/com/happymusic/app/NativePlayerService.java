@@ -333,6 +333,12 @@ public class NativePlayerService extends Service {
 
             @Override
             public void onPlayWhenReadyChanged(boolean playWhenReady, int reason) {
+                // O usuário mexeu (pausou/tocou) durante um aviso: respeita, não retoma sozinho.
+                if (resumeAfterSpeech && reason == Player.PLAY_WHEN_READY_CHANGE_REASON_USER_REQUEST
+                        && android.os.SystemClock.uptimeMillis() - selfPauseAt > 400L) {
+                    resumeAfterSpeech = false;
+                    mainHandler.removeCallbacks(resumeFallback);
+                }
                 if (!playWhenReady) {
                     if (reason == Player.PLAY_WHEN_READY_CHANGE_REASON_AUDIO_FOCUS_LOSS) {
                         // Outro app assumiu o áudio de vez (YouTube, outro player): fica
@@ -373,7 +379,7 @@ public class NativePlayerService extends Service {
                     if (offlineAnnounced && networkUp && player != null
                             && isStreamingIndex(player.getCurrentMediaItemIndex())) {
                         offlineAnnounced = false;
-                        announce("Internet voltou.");
+                        speakThenResume("Internet voltou.", true);
                     }
                 }
                 notifyJsState();
@@ -747,9 +753,56 @@ public class NativePlayerService extends Service {
             if (!offlineAnnounced || waitingForNetwork) return;
             if (!isNetworkAvailable() || !isNetworkValidated()) return;
             offlineAnnounced = false;
-            announce("Internet voltou.");
+            speakThenResume("Internet voltou.", player != null && player.getPlayWhenReady());
         }
     };
+
+    // A música espera a frase terminar: pausa, fala e só então continua (antes
+    // as duas coisas saíam juntas e ficava confuso).
+    private boolean resumeAfterSpeech = false;
+    private final Runnable resumeFallback = this::resumeAfterSpeechNow;
+
+    // Qualquer aviso falado: a música que estiver tocando pausa, a frase fala
+    // sozinha e a música continua quando ela termina. Se estava pausada, continua pausada.
+    private long selfPauseAt = 0L;
+
+    private void pauseMusicForSpeech() {
+        if (player == null || !player.getPlayWhenReady()) return;
+        selfPauseAt = android.os.SystemClock.uptimeMillis();
+        player.setPlayWhenReady(false);
+        resumeAfterSpeech = true;
+        mainHandler.removeCallbacks(resumeFallback);
+        mainHandler.postDelayed(resumeFallback, 30000L); // segurança: nunca deixa a música parada
+    }
+
+    private void speakThenResume(String text, boolean resumeAfter) {
+        if (player == null) return;
+        lastAnnounced = text;
+        lastAnnouncedAt = android.os.SystemClock.uptimeMillis();
+        if (plugin != null) plugin.notifyNotice(text);
+        if (!readVoiceAlerts(this)) {
+            if (resumeAfter) { player.prepare(); player.setPlayWhenReady(true); }
+            return;
+        }
+        if (resumeAfter) {
+            player.prepare();
+            selfPauseAt = android.os.SystemClock.uptimeMillis();
+            player.setPlayWhenReady(false); // segura a música até a frase acabar
+            resumeAfterSpeech = true;
+            mainHandler.removeCallbacks(resumeFallback);
+            mainHandler.postDelayed(resumeFallback, 30000L); // segurança: nunca deixa a música parada
+        }
+        speak(text);
+    }
+
+    private void resumeAfterSpeechNow() {
+        mainHandler.removeCallbacks(resumeFallback);
+        if (!resumeAfterSpeech) return;
+        resumeAfterSpeech = false;
+        if (player == null) return;
+        player.prepare();
+        player.setPlayWhenReady(true);
+    }
 
     private void registerNetworkWatcher() {
         try {
@@ -822,6 +875,13 @@ public class NativePlayerService extends Service {
         cancelWaiting();
         retriesOnCurrent = 0;
         if (player == null) return;
+        if (offlineAnnounced) {
+            // Fala "Internet voltou." primeiro; a música continua quando a frase terminar.
+            offlineAnnounced = false;
+            mainHandler.removeCallbacks(announceBack);
+            speakThenResume("Internet voltou.", true);
+            return;
+        }
         player.prepare(); // se já estava preparado, não faz nada
         player.setPlayWhenReady(true);
     }
@@ -1214,7 +1274,8 @@ public class NativePlayerService extends Service {
     private void speakClips(List<Integer> ids) {
         try {
             if (tts != null) tts.stop();
-            speakingDuck = true; // a música abaixa enquanto a voz fala
+            speakingDuck = true;
+            pauseMusicForSpeech(); // a música espera a frase terminar
             if (player != null) player.setVolume(duckCap(player.getVolume()));
             mainHandler.removeCallbacks(endDuck);
             mainHandler.postDelayed(endDuck, 25000L); // segurança: nunca deixa o volume preso
@@ -1227,8 +1288,9 @@ public class NativePlayerService extends Service {
     private void doSpeak(String text) {
         VoiceClips.stop();
         try {
-            // A música (se estiver tocando) abaixa enquanto a voz fala.
+            // A música (se estiver tocando) pausa enquanto a voz fala.
             speakingDuck = true;
+            pauseMusicForSpeech();
             if (player != null) player.setVolume(duckCap(player.getVolume()));
             mainHandler.removeCallbacks(endDuck);
             mainHandler.postDelayed(endDuck, 15000L); // segurança: nunca deixa o volume preso
@@ -1250,6 +1312,7 @@ public class NativePlayerService extends Service {
         }
         applyNormalization(false); // volta ao volume normal da faixa
         if (normalizer == null && player != null) player.setVolume(1f);
+        resumeAfterSpeechNow(); // frase terminou: a música continua
     }
 
     private float duckCap(float v) {
@@ -1644,6 +1707,8 @@ public class NativePlayerService extends Service {
             networkCallback = null;
         }
         speechQueue.clear();
+        resumeAfterSpeech = false;
+        mainHandler.removeCallbacks(resumeFallback);
         cancelStallWatch();
         mainHandler.removeCallbacks(announceBack);
         VoiceClips.stop();
