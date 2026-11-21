@@ -606,6 +606,16 @@ public class NativePlayerService extends Service {
     private ConnectivityManager connectivityManager;
     private ConnectivityManager.NetworkCallback networkCallback;
     private volatile boolean networkUp = true;
+    // Rede "validada": o Android confirmou que ela tem internet de verdade.
+    // Conectado ao sinal/Wi-Fi mas sem internet NÃO derruba a rede (onLost não
+    // dispara) — só tira essa marca. Antes o app só percebia pelo erro do
+    // player, dezenas de segundos depois, e o aviso saía atrasado.
+    private volatile boolean networkValidated = true;
+    private boolean stallWatchArmed = false;
+    private long stallBufferedAt = 0L;
+    private static final long STALL_OFFLINE_MS = 6000L;
+    private static final long BACK_ONLINE_DELAY_MS = 3000L;
+    private final java.util.ArrayDeque<String> speechQueue = new java.util.ArrayDeque<>();
     private boolean waitingForNetwork = false;
     private boolean offlineAnnounced = false;
     private int retriesOnCurrent = 0;
@@ -682,13 +692,75 @@ public class NativePlayerService extends Service {
         }
     }
 
+    private boolean isNetworkValidated() {
+        try {
+            if (connectivityManager == null) return true;
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                Network n = connectivityManager.getActiveNetwork();
+                if (n == null) return false;
+                NetworkCapabilities c = connectivityManager.getNetworkCapabilities(n);
+                return c == null || (c.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+                        && c.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED));
+            }
+            return isNetworkAvailable();
+        } catch (Exception e) {
+            return true;
+        }
+    }
+
+    // Travado carregando do streaming há alguns segundos, sem chegar dado novo, e o
+    // sistema diz que não há internet de verdade: avisa e muda agora, sem esperar o erro.
+    private final Runnable stallWatch = new Runnable() {
+        @Override
+        public void run() {
+            stallWatchArmed = false;
+            if (player == null || waitingForNetwork) return;
+            if (!player.getPlayWhenReady() || player.getPlaybackState() != Player.STATE_BUFFERING) return;
+            if (!isStreamingIndex(player.getCurrentMediaItemIndex())) return;
+            if (isNetworkAvailable() && isNetworkValidated()) return; // sistema diz que tem internet: segue o tratamento normal
+            if (player.getBufferedPosition() > stallBufferedAt + 1000L) { // ainda chegando dado: dá mais um tempo
+                armStallWatch();
+                return;
+            }
+            networkUp = false;
+            switchToDownloadedOrWait(false);
+        }
+    };
+
+    private void armStallWatch() {
+        if (player == null || stallWatchArmed) return;
+        stallWatchArmed = true;
+        stallBufferedAt = player.getBufferedPosition();
+        mainHandler.postDelayed(stallWatch, STALL_OFFLINE_MS);
+    }
+
+    private void cancelStallWatch() {
+        stallWatchArmed = false;
+        mainHandler.removeCallbacks(stallWatch);
+    }
+
+    // "Internet voltou." só depois de ficar estável alguns segundos: se a conexão
+    // pisca, não fala "sem internet" e "voltou" um em cima do outro.
+    private final Runnable announceBack = new Runnable() {
+        @Override
+        public void run() {
+            if (!offlineAnnounced || waitingForNetwork) return;
+            if (!isNetworkAvailable() || !isNetworkValidated()) return;
+            offlineAnnounced = false;
+            announce("Internet voltou.");
+        }
+    };
+
     private void registerNetworkWatcher() {
         try {
             connectivityManager = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
             if (connectivityManager == null) return;
             networkUp = isNetworkAvailable();
+            networkValidated = isNetworkValidated();
             networkCallback = new ConnectivityManager.NetworkCallback() {
                 @Override public void onAvailable(Network network) { mainHandler.post(() -> onNetworkChanged()); }
+                // Ficar sem internet com o sinal "conectado" só aparece aqui.
+                @Override public void onCapabilitiesChanged(Network network, NetworkCapabilities caps) { mainHandler.post(() -> onNetworkChanged()); }
                 // Pequena espera: logo após onLost o sistema ainda pode listar a rede antiga.
                 @Override public void onLost(Network network) { mainHandler.postDelayed(() -> onNetworkChanged(), 400); }
             };
@@ -706,16 +778,21 @@ public class NativePlayerService extends Service {
 
     private void onNetworkChanged() {
         boolean up = isNetworkAvailable();
-        boolean was = networkUp;
+        boolean validated = isNetworkValidated();
+        boolean wasOnline = networkUp && networkValidated;
         networkUp = up;
-        if (up == was) return;
-        if (up) {
+        networkValidated = validated;
+        boolean online = up && validated;
+        if (online == wasOnline) return;
+        if (online) {
+            cancelStallWatch();
             if (waitingForNetwork) resumeAfterNetwork();
             else if (offlineAnnounced) {
-                offlineAnnounced = false;
-                announce("Internet voltou.");
+                mainHandler.removeCallbacks(announceBack);
+                mainHandler.postDelayed(announceBack, BACK_ONLINE_DELAY_MS);
             }
         } else {
+            mainHandler.removeCallbacks(announceBack);
             checkStallOffline();
         }
     }
@@ -723,10 +800,17 @@ public class NativePlayerService extends Service {
     // Travou carregando uma faixa do streaming e já se sabe que não há internet:
     // não espera o erro (pode levar vários segundos de silêncio) — age agora.
     private void checkStallOffline() {
-        if (player == null || waitingForNetwork || networkUp) return;
-        if (!player.getPlayWhenReady() || player.getPlaybackState() != Player.STATE_BUFFERING) return;
+        if (player == null || waitingForNetwork) return;
+        if (!player.getPlayWhenReady() || player.getPlaybackState() != Player.STATE_BUFFERING) {
+            cancelStallWatch();
+            return;
+        }
         if (!isStreamingIndex(player.getCurrentMediaItemIndex())) return;
-        switchToDownloadedOrWait(false);
+        if (!networkUp) { // sem rede nenhuma: age já
+            switchToDownloadedOrWait(false);
+            return;
+        }
+        if (!networkValidated) armStallWatch(); // conectado, mas sem internet de verdade
     }
 
     private void cancelWaiting() {
@@ -1051,7 +1135,31 @@ public class NativePlayerService extends Service {
         });
     }
 
+    // Um aviso por vez: se já tem um falando, o novo espera (antes o novo cortava o
+    // anterior no meio — "sem internet" sumia e só se ouvia "voltou").
     private void speak(String text) {
+        if (speakingDuck) {
+            enqueueSpeech(text);
+            return;
+        }
+        speakNow(text);
+    }
+
+    private void enqueueSpeech(String text) {
+        if ("Internet voltou.".equals(text)) {
+            // O aviso de queda nem chegou a ser falado e a internet já voltou: não adianta falar nenhum.
+            boolean removed = false;
+            java.util.Iterator<String> it = speechQueue.iterator();
+            while (it.hasNext()) {
+                String q = it.next();
+                if (q.startsWith("Sem internet") || q.startsWith("Sinal fraco")) { it.remove(); removed = true; }
+            }
+            if (removed) return;
+        }
+        if (!speechQueue.contains(text) && speechQueue.size() < 3) speechQueue.add(text);
+    }
+
+    private void speakNow(String text) {
         // Voz gravada (res/raw) quando a frase inteira tem gravação; senão, a do Android.
         List<Integer> clips = VoiceClips.resolve(this, text);
         if (clips != null) {
@@ -1135,7 +1243,13 @@ public class NativePlayerService extends Service {
         mainHandler.removeCallbacks(endDuck);
         if (!speakingDuck) return;
         speakingDuck = false;
+        String next = speechQueue.poll();
+        if (next != null) {
+            speakNow(next); // tem aviso esperando: segue com a música abaixada
+            if (speakingDuck) return;
+        }
         applyNormalization(false); // volta ao volume normal da faixa
+        if (normalizer == null && player != null) player.setVolume(1f);
     }
 
     private float duckCap(float v) {
@@ -1529,6 +1643,9 @@ public class NativePlayerService extends Service {
             try { connectivityManager.unregisterNetworkCallback(networkCallback); } catch (Exception ignored) { }
             networkCallback = null;
         }
+        speechQueue.clear();
+        cancelStallWatch();
+        mainHandler.removeCallbacks(announceBack);
         VoiceClips.stop();
         if (tts != null) {
             try { tts.stop(); tts.shutdown(); } catch (Exception ignored) { }

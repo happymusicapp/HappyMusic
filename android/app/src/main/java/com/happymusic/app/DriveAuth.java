@@ -54,6 +54,25 @@ final class DriveAuth {
         e.apply();
     }
 
+    /**
+     * Cópia das credenciais guardadas no nativo (que sobrevive mesmo se o
+     * armazenamento do WebView for perdido), ou null se não há refresh_token.
+     */
+    static JSONObject snapshot(Context ctx) {
+        try {
+            SharedPreferences p = prefs(ctx);
+            String refresh = p.getString(KEY_REFRESH, null);
+            if (refresh == null || refresh.isEmpty()) return null;
+            JSONObject o = new JSONObject();
+            o.put("refreshToken", refresh);
+            o.put("accessToken", p.getString(KEY_ACCESS, ""));
+            o.put("expiresAt", (double) p.getLong(KEY_EXPIRY, 0L));
+            return o;
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
     /** Marca o token atual como vencido: o próximo getToken() renova (usado após 401/403 do Drive). */
     static synchronized void invalidate(Context ctx) {
         prefs(ctx).edit().putLong(KEY_EXPIRY, 0L).apply();

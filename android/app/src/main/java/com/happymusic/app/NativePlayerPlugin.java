@@ -290,6 +290,22 @@ public class NativePlayerPlugin extends Plugin {
         call.resolve();
     }
 
+    // Devolve as credenciais guardadas no nativo (ou vazio). O JS usa isso pra
+    // recuperar a sessão se o localStorage do WebView tiver sido perdido.
+    @PluginMethod
+    public void getAuth(PluginCall call) {
+        com.getcapacitor.JSObject out = new com.getcapacitor.JSObject();
+        org.json.JSONObject snap = DriveAuth.snapshot(getContext());
+        if (snap != null) {
+            try {
+                out.put("refreshToken", snap.getString("refreshToken"));
+                out.put("accessToken", snap.optString("accessToken", ""));
+                out.put("expiresAt", snap.optDouble("expiresAt", 0));
+            } catch (Exception ignored) { }
+        }
+        call.resolve(out);
+    }
+
     // Fala um aviso do app (ex.: "sessão venceu, entre de novo"), respeitando a
     // chave "Avisos por voz". Funciona mesmo sem música tocando.
     @PluginMethod
