@@ -279,6 +279,7 @@ public class NativePlayerPlugin extends Plugin {
         if (Boolean.TRUE.equals(call.getBoolean("clear", false))) {
             DriveAuth.clear(getContext());
             PlaybackStore.clear(getContext());
+            TrackCache.clear(getContext());
         } else {
             Double expiresAt = call.getDouble("expiresAt");
             DriveAuth.save(getContext(),
@@ -372,6 +373,24 @@ public class NativePlayerPlugin extends Plugin {
     public void setVoiceAlerts(PluginCall call) {
         NativePlayerService.saveVoiceAlerts(getContext(), call.getBoolean("enabled", true));
         call.resolve();
+    }
+
+    // Pré-carregar as próximas músicas da fila num cache temporário (plano B se a
+    // internet cair). mobile = pode usar dados móveis (padrão: sim).
+    @PluginMethod
+    public void setPrefetch(PluginCall call) {
+        TrackCache.saveSettings(getContext(),
+                call.getBoolean("enabled", true), call.getBoolean("mobile", true));
+        if (service != null) service.onPrefetchSettingsChanged();
+        call.resolve();
+    }
+
+    @PluginMethod
+    public void getPrefetch(PluginCall call) {
+        JSObject ret = new JSObject();
+        ret.put("enabled", TrackCache.prefetchEnabled(getContext()));
+        ret.put("mobile", TrackCache.prefetchOnMobile(getContext()));
+        call.resolve(ret);
     }
 
     @PluginMethod

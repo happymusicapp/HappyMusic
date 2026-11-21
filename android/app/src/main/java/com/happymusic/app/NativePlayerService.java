@@ -38,6 +38,8 @@ import androidx.media3.datasource.DataSpec;
 import androidx.media3.datasource.HttpDataSource;
 import androidx.media3.datasource.DefaultHttpDataSource;
 import androidx.media3.datasource.ResolvingDataSource;
+import androidx.media3.datasource.cache.CacheDataSource;
+import androidx.media3.datasource.cache.CacheWriter;
 import androidx.media3.exoplayer.ExoPlayer;
 import androidx.media3.exoplayer.source.MediaSource;
 import androidx.media3.exoplayer.source.ProgressiveMediaSource;
@@ -321,6 +323,8 @@ public class NativePlayerService extends Service {
                 syncStateFromPlayer();
                 updateIdleTimer();
                 checkStallOffline();
+                if (state == Player.STATE_BUFFERING) cancelPrefetch();      // a música tem prioridade
+                else if (state == Player.STATE_READY) schedulePrefetch(5000L);
             }
 
             // Ligação/áudio do WhatsApp/GPS tomou o foco (ou devolveu): atualiza
@@ -401,6 +405,7 @@ public class NativePlayerService extends Service {
                 // avança pra próxima já preparada, ou quando o usuário usa
                 // próxima/anterior pela notificação/Bluetooth/fone.
                 onCurrentItemChanged(item, true);
+                schedulePrefetch(4000L);
             }
 
             @Override
@@ -667,7 +672,9 @@ public class NativePlayerService extends Service {
     private boolean isStreamingIndex(int idx) {
         if (idx < 0 || idx >= currentItems.size()) return false;
         QueueItem it = currentItems.get(idx);
-        return it.path == null || it.path.isEmpty();
+        if (it.path != null && !it.path.isEmpty()) return false;
+        // Faixa inteira no cache temporário toca sem internet: não conta como "depende da rede".
+        return !TrackCache.isFullyCached(this, it.url);
     }
 
     // Próxima faixa BAIXADA depois de 'from' (dando a volta: melhor repetir uma
@@ -839,6 +846,7 @@ public class NativePlayerService extends Service {
         if (online == wasOnline) return;
         if (online) {
             cancelStallWatch();
+            schedulePrefetch(5000L);
             if (waitingForNetwork) resumeAfterNetwork();
             else if (offlineAnnounced) {
                 mainHandler.removeCallbacks(announceBack);
@@ -846,6 +854,7 @@ public class NativePlayerService extends Service {
             }
         } else {
             mainHandler.removeCallbacks(announceBack);
+            cancelPrefetch();
             checkStallOffline();
         }
     }
@@ -1177,6 +1186,112 @@ public class NativePlayerService extends Service {
         }
     }
 
+    // ── Pré-carregar as próximas músicas (cache temporário) ─────────
+    // Com a música tocando e a atual já bem carregada, baixa em segundo plano as
+    // próximas da fila (que não são baixadas) pro cache temporário. Se a internet
+    // cair, elas tocam normalmente (ver TrackCache). Respeita a chave das
+    // configurações e a de dados móveis; para sozinho se a música engasgar.
+    private final java.util.concurrent.ExecutorService prefetchExec =
+            java.util.concurrent.Executors.newSingleThreadExecutor();
+    private volatile boolean prefetchRunning = false;
+    private volatile boolean prefetchCancel = false;
+    private volatile CacheWriter prefetchWriter = null;
+    private final Runnable prefetchKick = this::startPrefetch;
+
+    void onPrefetchSettingsChanged() {
+        mainHandler.post(() -> {
+            cancelPrefetch();
+            schedulePrefetch(1500L);
+        });
+    }
+
+    private void schedulePrefetch(long delayMs) {
+        mainHandler.removeCallbacks(prefetchKick);
+        mainHandler.postDelayed(prefetchKick, delayMs);
+    }
+
+    private void cancelPrefetch() {
+        mainHandler.removeCallbacks(prefetchKick);
+        prefetchCancel = true;
+        CacheWriter w = prefetchWriter;
+        if (w != null) { try { w.cancel(); } catch (Exception ignored) { } }
+    }
+
+    private boolean prefetchAllowed() {
+        if (!TrackCache.prefetchEnabled(this)) return false;
+        if (!isNetworkAvailable() || !isNetworkValidated()) return false;
+        if (!TrackCache.prefetchOnMobile(this)) {
+            try {
+                if (connectivityManager != null && connectivityManager.isActiveNetworkMetered()) return false;
+            } catch (Exception ignored) { }
+        }
+        return true;
+    }
+
+    // Próximas faixas da fila (na ordem em que vão tocar) que ainda dependem de internet.
+    private List<QueueItem> upcomingToPrefetch() {
+        List<QueueItem> out = new ArrayList<>();
+        androidx.media3.common.Timeline tl = player.getCurrentTimeline();
+        if (tl.isEmpty()) return out;
+        int start = player.getCurrentMediaItemIndex();
+        int idx = start;
+        for (int n = 0; n < TrackCache.AHEAD; n++) {
+            idx = tl.getNextWindowIndex(idx, player.getRepeatMode(), player.getShuffleModeEnabled());
+            if (idx == C.INDEX_UNSET || idx == start || idx >= currentItems.size()) break;
+            QueueItem it = currentItems.get(idx);
+            boolean downloaded = it.path != null && !it.path.isEmpty();
+            if (downloaded || it.url == null || it.url.isEmpty()) continue;
+            if (TrackCache.isFullyCached(this, it.url)) continue;
+            out.add(it);
+        }
+        return out;
+    }
+
+    private void startPrefetch() {
+        if (player == null) return;
+        if (prefetchRunning) { schedulePrefetch(3000L); return; } // ainda encerrando o lote anterior
+        if (!prefetchAllowed()) return;
+        // Só com música tocando e a faixa atual já quase toda carregada: não disputa banda com ela.
+        if (!player.getPlayWhenReady() || player.getPlaybackState() != Player.STATE_READY) return;
+        if (isStreamingIndex(player.getCurrentMediaItemIndex()) && player.getBufferedPercentage() < 95) {
+            schedulePrefetch(5000L);
+            return;
+        }
+        final List<QueueItem> todo = upcomingToPrefetch();
+        if (todo.isEmpty()) return;
+
+        prefetchRunning = true;
+        prefetchCancel = false;
+        prefetchExec.execute(() -> {
+            try {
+                for (QueueItem it : todo) {
+                    if (prefetchCancel) break;
+                    CacheDataSource ds = TrackCache.factory(this, buildDriveDataSourceFactory(it.headers)).createDataSource();
+                    androidx.media3.datasource.DataSpec spec = new androidx.media3.datasource.DataSpec.Builder()
+                            .setUri(Uri.parse(it.url)).build();
+                    final CacheWriter[] holder = new CacheWriter[1];
+                    holder[0] = new CacheWriter(ds, spec, null, (requestLength, bytesCached, newBytesCached) -> {
+                        // Arquivo enorme (FLAC/WAV): não vale encher o cache com ele.
+                        if (requestLength != C.LENGTH_UNSET && requestLength > TrackCache.MAX_FILE_BYTES && holder[0] != null) {
+                            holder[0].cancel();
+                        }
+                    });
+                    prefetchWriter = holder[0];
+                    try {
+                        holder[0].cache();
+                    } catch (Exception e) {
+                        if (prefetchCancel) break;
+                        break; // sem internet / erro do Drive: para; tenta de novo no próximo gatilho
+                    } finally {
+                        prefetchWriter = null;
+                    }
+                }
+            } finally {
+                prefetchRunning = false;
+            }
+        });
+    }
+
     // ── Aviso por voz (e na tela) ──────────────────────────────────
 
     // Aviso vindo do JS (ex.: "entre de novo"): só a voz — o JS já mostra na tela.
@@ -1428,7 +1543,7 @@ public class NativePlayerService extends Service {
                 MediaItem mediaItem = itemBuilder.setUri(Uri.parse(it.url)).build();
                 // Só 1 retentativa interna do ExoPlayer: as demais (e a decisão de ir pra uma
                 // baixada) são do handlePlayerError, que sabe o motivo e avisa por voz.
-                sources.add(new ProgressiveMediaSource.Factory(buildDriveDataSourceFactory(it.headers))
+                sources.add(new ProgressiveMediaSource.Factory(TrackCache.factory(this, buildDriveDataSourceFactory(it.headers)))
                         .setLoadErrorHandlingPolicy(new DefaultLoadErrorHandlingPolicy(1))
                         .createMediaSource(mediaItem));
                 playable.add(it);
@@ -1706,6 +1821,8 @@ public class NativePlayerService extends Service {
             try { connectivityManager.unregisterNetworkCallback(networkCallback); } catch (Exception ignored) { }
             networkCallback = null;
         }
+        cancelPrefetch();
+        prefetchExec.shutdown();
         speechQueue.clear();
         resumeAfterSpeech = false;
         mainHandler.removeCallbacks(resumeFallback);
