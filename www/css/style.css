@@ -567,6 +567,14 @@ img    { display: block; }
   background-position: center;
   background-color: var(--surface2);
 }
+/* Capa grande da playlist: cada quadradinho toca a música dele */
+.collage-art-tappable .collage-art-cell {
+  cursor: pointer;
+  transition: filter var(--transition), transform var(--transition);
+  -webkit-tap-highlight-color: transparent;
+}
+.collage-art-tappable .collage-art-cell:active { filter: brightness(1.35); transform: scale(0.97); }
+.collage-art-tappable .collage-art-cell:focus-visible { outline: 2px solid var(--purple-soft); outline-offset: -2px; }
 
 .recent-collection-chip-name {
   font-size: 0.74rem;
