@@ -182,6 +182,25 @@
     },
 
     // Avisos por voz do serviço nativo (sem internet, música pulada...).
+    // Pré-carregar as próximas músicas num cache temporário (plano B se a internet cair).
+    // { enabled, mobile } — mobile = pode usar dados móveis. null se não deu pra saber.
+    async getPrefetch() {
+      if (!plugin) return null;
+      try {
+        const r = await plugin.getPrefetch();
+        return { enabled: !!(r && r.enabled), mobile: !!(r && r.mobile) };
+      } catch (err) {
+        console.warn('[NativeMedia] getPrefetch falhou:', err);
+        return null;
+      }
+    },
+
+    async setPrefetch(enabled, mobile) {
+      if (!plugin) return;
+      try { await plugin.setPrefetch({ enabled: !!enabled, mobile: !!mobile }); }
+      catch (err) { console.warn('[NativeMedia] setPrefetch falhou:', err); }
+    },
+
     async getVoiceAlerts() {
       if (!plugin) return null;
       try {

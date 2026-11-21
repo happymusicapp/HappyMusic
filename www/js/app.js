@@ -2935,6 +2935,28 @@ const App = (() => {
       });
     }
 
+    // Pré-carregar próximas músicas (cache temporário): só no app nativo
+    const chkPrefetch = document.getElementById('chk-prefetch');
+    const chkPrefetchMobile = document.getElementById('chk-prefetch-mobile');
+    if (window.NativeMedia && NativeMedia.isNative && chkPrefetch && chkPrefetchMobile) {
+      document.getElementById('row-prefetch')?.classList.remove('hidden');
+      document.getElementById('row-prefetch-mobile')?.classList.remove('hidden');
+      const syncPrefetchUI = () => { chkPrefetchMobile.disabled = !chkPrefetch.checked; };
+      NativeMedia.getPrefetch().then(v => {
+        if (v) { chkPrefetch.checked = v.enabled; chkPrefetchMobile.checked = v.mobile; }
+        syncPrefetchUI();
+      });
+      const save = () => { syncPrefetchUI(); NativeMedia.setPrefetch(chkPrefetch.checked, chkPrefetchMobile.checked); };
+      chkPrefetch.addEventListener('change', () => {
+        save();
+        UI.showToast(chkPrefetch.checked ? 'Pré-carregamento ligado' : 'Pré-carregamento desligado');
+      });
+      chkPrefetchMobile.addEventListener('change', () => {
+        save();
+        UI.showToast(chkPrefetchMobile.checked ? 'Pré-carregando também com dados móveis' : 'Pré-carregando só no Wi-Fi');
+      });
+    }
+
     // Avisos por voz (sem internet, música pulada...): só no app nativo
     const chkVoice = document.getElementById('chk-voice-alerts');
     if (window.NativeMedia && NativeMedia.isNative && chkVoice) {
