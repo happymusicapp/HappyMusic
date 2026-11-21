@@ -323,51 +323,61 @@ const Drive = (() => {
 
   // ── TOKEN: RESTAURAR DA SESSÃO ─────────────────
   async function restoreSession() {
+    // Se o localStorage do WebView perdeu a sessão (o Android pode apagar/não
+    // gravar a tempo quando mata o app), recupera do armazenamento nativo —
+    // era um dos jeitos do app pedir login "do nada".
+    if (!localStorage.getItem(KEY_REFRESH)
+        && window.NativeMedia && window.NativeMedia.isNative && window.NativeMedia.getAuth) {
+      try {
+        const saved = await window.NativeMedia.getAuth();
+        if (saved && saved.refreshToken) {
+          localStorage.setItem(KEY_REFRESH, saved.refreshToken);
+          if (saved.accessToken) {
+            localStorage.setItem(KEY_TOKEN, saved.accessToken);
+            localStorage.setItem(KEY_EXPIRY, String(saved.expiresAt || 0));
+          }
+        }
+      } catch (_) { /* segue o fluxo normal */ }
+    }
+
     const token  = localStorage.getItem(KEY_TOKEN);
     const expiry = parseInt(localStorage.getItem(KEY_EXPIRY) || '0', 10);
-    const user   = localStorage.getItem(KEY_USER);
+    let user     = localStorage.getItem(KEY_USER);
+    const parseUser = () => { try { return user ? JSON.parse(user) : null; } catch { return null; } };
 
     if (token && expiry > Date.now()) {
       _token = token;
-      _user  = user ? JSON.parse(user) : null;
+      _user  = parseUser();
       return true;
     }
 
-    // Sem token nenhum salvo — nunca fez login, aí sim precisa mesmo.
-    if (!token) {
+    // Sem refresh_token (nem token) — nunca fez login, aí sim precisa mesmo.
+    if (!localStorage.getItem(KEY_REFRESH)) {
       _clearSession();
       return false;
     }
 
-    // Access token expirado (app fechado/tela travada por mais de ~1h)
-    // — antes de forçar login de novo, tenta renovar com o refresh_token.
-    if (localStorage.getItem(KEY_REFRESH)) {
-      const refreshed = await _refreshAccessToken();
-      if (refreshed) {
-        _user = user ? JSON.parse(user) : null;
-        return true;
-      }
-
-      // A renovação falhou — mas só é motivo de verdade pra derrubar a
-      // sessão se o Google respondeu dizendo que o refresh_token não
-      // vale mais (_lastRefreshWasRevoked). Qualquer outra falha (sem
-      // internet, timeout, sinal fraco, etc.) mantém a sessão com o
-      // token vencido que já tem: o app abre normalmente e toca o que
-      // já foi baixado; a próxima chamada com internet de verdade
-      // renova ou detecta uma expiração legítima então.
-      //
-      // Importante: NÃO depende de navigator.onLine pra essa decisão
-      // — esse sinal só indica se existe uma interface de rede ativa,
-      // não se ela tem internet de verdade (ex.: sinal fraco, portal
-      // cativo de wifi), e por isso não é confiável aqui.
-      if (!_lastRefreshWasRevoked) {
-        _token = token;
-        _user  = user ? JSON.parse(user) : null;
-        return true;
-      }
+    // Access token vencido ou ausente, mas existe refresh_token — antes de
+    // forçar login de novo, tenta renovar.
+    const refreshed = await _refreshAccessToken();
+    if (refreshed) {
+      _user = parseUser();
+      if (!_user) _fetchUser();
+      return true;
     }
 
-    if (_lastRefreshWasRevoked) _sessionLost();
+    // A renovação falhou — só derruba a sessão se o Google respondeu dizendo
+    // que o refresh_token não vale mais (_lastRefreshWasRevoked). Qualquer
+    // outra falha (sem internet, timeout, sinal fraco...) mantém a sessão: o
+    // app abre e toca o que já foi baixado; a próxima chamada com internet
+    // renova. NÃO depende de navigator.onLine (não é confiável).
+    if (!_lastRefreshWasRevoked) {
+      _token = token || '';
+      _user  = parseUser();
+      return true;
+    }
+
+    _sessionLost();
     _clearSession();
     return false;
   }

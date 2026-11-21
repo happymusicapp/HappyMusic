@@ -1967,9 +1967,68 @@ const UI = (() => {
     ).join('')}</div>`;
   }
 
+  // Quais 4 faixas aparecem na capa de uma coleção: as últimas tocadas dela
+  // (ver HMCoverTracks no app.js); sem histórico, as primeiras da lista.
+  function _coverTracksFor(collectionId, tracks) {
+    try {
+      const r = window.HMCoverTracks?.(collectionId, tracks);
+      if (Array.isArray(r)) return r;
+    } catch (_) { /* cai no padrão */ }
+    return (tracks || []).slice(0, 4);
+  }
+
+  // Mesma colagem 2x2, mas cada quadradinho sabe a faixa que representa
+  // (data-track-id) — a capa grande da playlist/Favoritas usa isso pra
+  // tocar a música do quadradinho tocado.
+  function _interactiveCollage(tracks, fallbackIcon) {
+    const withArt = (tracks || []).filter(t => t?.thumbnail);
+    if (!withArt.length) return fallbackIcon;
+    const cells = [];
+    for (let i = 0; i < 4; i++) cells.push(withArt[i % withArt.length]);
+    return `<div class="collage-art collage-art-tappable">${cells.map(t =>
+      `<div class="collage-art-cell" role="button" tabindex="0" data-track-id="${_escape(String(t.id))}" aria-label="Tocar ${_escape(t.title || 'música')}" style="background-image:url('${t.thumbnail}')"></div>`
+    ).join('')}</div>`;
+  }
+
+  let _detailTracks = [];
+  let _coverTapBound = false;
+
+  function _bindCoverTap() {
+    if (_coverTapBound) return;
+    const cover = document.getElementById('playlist-detail-cover');
+    if (!cover) return;
+    _coverTapBound = true;
+    const play = e => {
+      const cell = e.target.closest('[data-track-id]');
+      if (!cell) return;
+      const id = cell.dataset.trackId;
+      const index = _detailTracks.findIndex(t => String(t.id) === id);
+      if (index < 0) return;
+      // loop: true — igual a tocar uma faixa da lista: ao acabar, dá a volta na playlist.
+      Player.loadQueue(_detailTracks, index, { loop: true });
+    };
+    cover.addEventListener('click', play);
+    cover.addEventListener('keydown', e => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); play(e); }
+    });
+  }
+
+  // Redesenha só a capa (sem refazer a lista) quando o histórico muda.
+  function refreshPlaylistCover(tracks, isFavorites = false) {
+    const cover = document.getElementById('playlist-detail-cover');
+    if (!cover) return;
+    _detailTracks = tracks || [];
+    const id = isFavorites ? '__favorites__' : (el.playlistDetail?.dataset.id || '');
+    cover.innerHTML = _interactiveCollage(
+      _coverTracksFor(id, _detailTracks),
+      isFavorites ? _favIcon(true, 48) : _playlistIcon()
+    );
+    _bindCoverTap();
+  }
+
   function renderPlaylists(playlists) {
-    const favTracks = Player.getFavorites().slice(0, 4);
-    const favCount  = favTracks.length;
+    const favTracks = _coverTracksFor('__favorites__', Player.getFavorites());
+    const favCount  = Player.getFavorites().length;
     const favArt    = _collageArt(favTracks, _favIcon(true, 26));
     const favCard = `
       <div class="playlist-card playlist-card-fav" data-id="__favorites__" role="button" tabindex="0">
@@ -1983,7 +2042,7 @@ const UI = (() => {
       return;
     }
     el.playlistsList.innerHTML = favCard + playlists.map(p => {
-      const tracks = window.HMResolvePlaylistTracks ? window.HMResolvePlaylistTracks(p).slice(0, 4) : [];
+      const tracks = _coverTracksFor(p.id, window.HMResolvePlaylistTracks ? window.HMResolvePlaylistTracks(p) : []);
       const art = _collageArt(tracks, _playlistIcon());
       return `
       <div class="playlist-card" data-id="${p.id}" role="button" tabindex="0">
@@ -2011,8 +2070,7 @@ const UI = (() => {
 
   function renderPlaylistTracks(tracks, currentId = null, isFavorites = false) {
     // Capa grande no topo da playlist (mosaico das primeiras capas)
-    const _cover = document.getElementById('playlist-detail-cover');
-    if (_cover) _cover.innerHTML = _collageArt((tracks || []).slice(0, 4), isFavorites ? _favIcon(true, 48) : _playlistIcon());
+    refreshPlaylistCover(tracks, isFavorites);
     // "Tocar tudo" só faz sentido com músicas na lista; mostra quantas são.
     // (Tudo com ?. de propósito: se o index.html estiver desatualizado e
     // faltar algum desses elementos, a LISTA da playlist tem que ser
@@ -2782,6 +2840,8 @@ const UI = (() => {
       updatePlayerTrack(track);
       setPlayState(true);
       setPlayingTrack(track.id);
+      // O app.js usa isso pra guardar as últimas tocadas de cada playlist (capa).
+      try { document.dispatchEvent(new CustomEvent('hm-track-play', { detail: track })); } catch (_) {}
     });
 
     Player.on('onLoading', track => {
@@ -3105,6 +3165,7 @@ const UI = (() => {
     showPlaylistsRoot,
     showPlaylistDetail,
     renderPlaylistTracks,
+    refreshPlaylistCover,
     showNewPlaylistModal,
     hideNewPlaylistModal,
     showAddToPlaylistModal,

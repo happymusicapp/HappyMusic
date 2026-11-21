@@ -140,6 +140,14 @@
       catch (err) { console.warn('[NativeMedia] setAuth falhou:', err); }
     },
 
+    // Credenciais guardadas no nativo ({} se não há). Usado só pra recuperar o
+    // login quando o localStorage do WebView foi perdido.
+    async getAuth() {
+      if (!plugin) return {};
+      try { return (await plugin.getAuth()) || {}; }
+      catch (err) { console.warn('[NativeMedia] getAuth falhou:', err); return {}; }
+    },
+
     async getVolumeNormalization() {
       if (!plugin) return null;
       try {

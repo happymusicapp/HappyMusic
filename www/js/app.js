@@ -1701,13 +1701,74 @@ const App = (() => {
     localStorage.setItem(KEY_RECENT_PLAYLISTS, JSON.stringify(recent));
   }
 
+  // ── CAPA = ÚLTIMAS 4 TOCADAS ────────────────────
+  // Por coleção (playlist ou Favoritas): ids das últimas faixas tocadas,
+  // da mais nova pra mais antiga, no máximo 4. Guardado só neste aparelho.
+  const KEY_COVER_HISTORY = 'hm_cover_history';
+
+  function _readCoverHistory() {
+    try { return JSON.parse(localStorage.getItem(KEY_COVER_HISTORY) || '{}') || {}; }
+    catch { return {}; }
+  }
+
+  // As 4 faixas da capa: as últimas tocadas (que ainda estão na coleção),
+  // completando com as primeiras da lista se houver menos de 4.
+  function _coverTracks(collectionId, tracks) {
+    const list = tracks || [];
+    const byId = new Map(list.map(t => [String(t.id), t]));
+    const out = [];
+    for (const id of (_readCoverHistory()[collectionId] || [])) {
+      const t = byId.get(String(id));
+      if (t && !out.includes(t)) out.push(t);
+      if (out.length === 4) return out;
+    }
+    for (const t of list) {
+      if (!out.includes(t)) out.push(t);
+      if (out.length === 4) break;
+    }
+    return out;
+  }
+  window.HMCoverTracks = _coverTracks;
+
+  function _recordCoverPlay(track) {
+    if (!track || track.id == null) return;
+    const id = String(track.id);
+    const hist = _readCoverHistory();
+    const touched = [];
+    const bump = cid => {
+      const arr = (hist[cid] || []).filter(x => String(x) !== id);
+      arr.unshift(id);
+      hist[cid] = arr.slice(0, 4);
+      touched.push(cid);
+    };
+    if (Player.getFavorites().some(t => String(t.id) === id)) bump(FAVORITES_ID);
+    for (const p of _playlists) {
+      if (p.trackIds.some(x => String(x) === id)) bump(p.id);
+    }
+    if (!touched.length) return;
+    try { localStorage.setItem(KEY_COVER_HISTORY, JSON.stringify(hist)); } catch (_) {}
+
+    // Atualiza o que estiver na tela: capa grande aberta, cards e carrossel.
+    if (_activePlaylistId && touched.includes(_activePlaylistId)) {
+      if (_activePlaylistId === FAVORITES_ID) UI.refreshPlaylistCover(Player.getFavorites(), true);
+      else {
+        const pl = _playlists.find(p => p.id === _activePlaylistId);
+        if (pl) UI.refreshPlaylistCover(_playlistTracks(pl), false);
+      }
+    }
+    UI.renderPlaylists(_playlists);
+    _renderRecentCollections();
+  }
+
+  document.addEventListener('hm-track-play', e => _recordCoverPlay(e.detail));
+
   function _renderRecentCollections() {
     const items = _getRecentPlaylistIds().map(id => {
       if (id === FAVORITES_ID) {
-        return { id: FAVORITES_ID, name: 'Favoritas', isFavorites: true, tracks: Player.getFavorites().slice(0, 4) };
+        return { id: FAVORITES_ID, name: 'Favoritas', isFavorites: true, tracks: _coverTracks(FAVORITES_ID, Player.getFavorites()) };
       }
       const p = _playlists.find(pl => pl.id === id);
-      return p ? { id: p.id, name: p.name, isFavorites: false, tracks: _playlistTracks(p).slice(0, 4) } : null;
+      return p ? { id: p.id, name: p.name, isFavorites: false, tracks: _coverTracks(p.id, _playlistTracks(p)) } : null;
     }).filter(Boolean).slice(0, 6);
     UI.renderRecentCollections(items);
   }
