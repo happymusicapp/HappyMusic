@@ -508,6 +508,26 @@
               <span class="switch" aria-hidden="true"></span>
             </label>
 
+            <label id="row-prefetch" class="set-row set-row-toggle hidden" for="chk-prefetch">
+              <span class="set-row-icon"><svg width="19" height="19" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/><path d="M12 15V3"/></svg></span>
+              <span class="set-row-text">
+                <span class="set-row-label">Pré-carregar próximas músicas</span>
+                <span class="set-row-sub">Guarda as próximas da fila num cache temporário, pra tocar se a internet cair</span>
+              </span>
+              <input type="checkbox" id="chk-prefetch" class="switch-input" role="switch" checked />
+              <span class="switch" aria-hidden="true"></span>
+            </label>
+
+            <label id="row-prefetch-mobile" class="set-row set-row-toggle hidden" for="chk-prefetch-mobile">
+              <span class="set-row-icon"><svg width="19" height="19" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M5 12.55a11 11 0 0 1 14.08 0"/><path d="M1.42 9a16 16 0 0 1 21.16 0"/><path d="M8.53 16.11a6 6 0 0 1 6.95 0"/><line x1="12" y1="20" x2="12.01" y2="20"/></svg></span>
+              <span class="set-row-text">
+                <span class="set-row-label">Pré-carregar com dados móveis</span>
+                <span class="set-row-sub">Desligue pra pré-carregar só no Wi-Fi e economizar franquia</span>
+              </span>
+              <input type="checkbox" id="chk-prefetch-mobile" class="switch-input" role="switch" checked />
+              <span class="switch" aria-hidden="true"></span>
+            </label>
+
             <label id="row-voice-alerts" class="set-row set-row-toggle hidden" for="chk-voice-alerts">
               <span class="set-row-icon"><svg width="19" height="19" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M11 5 6 9H2v6h4l5 4V5z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M19 5a10 10 0 0 1 0 14"/></svg></span>
               <span class="set-row-text">
